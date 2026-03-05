@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  INSPECTOR
+}
+
+enum InspectionType {
+  SITE
+  BUILDING
+}
+
+enum InspectionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum DoorStatus {
+  DRAFT
+  SUBMITTED
+  CERTIFIED
+}
+
+enum ImageRole {
+  FRONT
+  BACK
+  LOCK
+  FRAME
+  OTHER
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+enum ExportTargetType {
+  DOOR
+  FLOOR
+  BUILDING
+  SITE
+  INSPECTION
+}
+
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Core identity
+// ---------------------------------------------------------------------------
+
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users                User[]
+  sites                Site[]
+  buildings            Building[]
+  inspections          Inspection[]
+  bulkExportJobs       BulkExportJob[]
+
+  @@map("orgs")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  orgId        String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  firstName    String?
+  lastName     String?
+  createdAt    DateTime @default(now())
+
+  org                   Org                    @relation(fields: [orgId], references: [id])
+  assignments           InspectionAssignment[]
+  doorSubmissions       Door[]                 @relation("DoorSubmittedBy")
+  doorCertifications    Door[]                 @relation("DoorCertifiedBy")
+  uploadedDoorImages    DoorImage[]
+  uploadedDoorCerts     DoorCertificate[]
+  uploadedBuildingCerts BuildingCertificate[]
+  deviceTokens          UserDeviceToken[]
+  createdInspections    Inspection[]
+  createdBulkExports    BulkExportJob[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Location hierarchy
+// ---------------------------------------------------------------------------
+
+model Site {
+  id             String   @id @default(cuid())
+  orgId          String
+  name           String
+  referenceCode  String?
+  locationNotes  String?
+  createdAt      DateTime @default(now())
+
+  org         Org          @relation(fields: [orgId], references: [id])
+  buildings   Building[]
+  inspections Inspection[]
+
+  @@map("sites")
+}
+
+model Building {
+  id            String   @id @default(cuid())
+  orgId         String
+  siteId        String?
+  name          String
+  buildingCode  String?
+  locationNotes String?
+  createdAt     DateTime @default(now())
+
+  org         Org                  @relation(fields: [orgId], references: [id])
+  site        Site?                @relation(fields: [siteId], references: [id])
+  floors      Floor[]
+  inspections Inspection[]
+  certificate BuildingCertificate?
+
+  @@map("buildings")
+}
+
+model Floor {
+  id         String   @id @default(cuid())
+  buildingId String
+  label      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  building Building @relation(fields: [buildingId], references: [id])
+  doors    Door[]
+
+  @@map("floors")
+}
+
+model Door {
+  id            String     @id @default(cuid())
+  floorId       String
+  code          String
+  locationNotes String?
+  status        DoorStatus @default(DRAFT)
+  submittedAt   DateTime?
+  submittedById String?
+  certifiedAt   DateTime?
+  certifiedById String?
+  createdAt     DateTime   @default(now())
+
+  floor         Floor            @relation(fields: [floorId], references: [id])
+  submittedBy   User?            @relation("DoorSubmittedBy", fields: [submittedById], references: [id])
+  certifiedBy   User?            @relation("DoorCertifiedBy", fields: [certifiedById], references: [id])
+  images        DoorImage[]
+  certificate   DoorCertificate?
+
+  @@map("doors")
+}
+
+// ---------------------------------------------------------------------------
+// Inspections
+// ---------------------------------------------------------------------------
+
+model Inspection {
+  id         String           @id @default(cuid())
+  orgId      String
+  type       InspectionType
+  siteId     String?
+  buildingId String?
+  status     InspectionStatus @default(ACTIVE)
+  createdById String
+  createdAt  DateTime         @default(now())
+
+  org         Org                    @relation(fields: [orgId], references: [id])
+  site        Site?                  @relation(fields: [siteId], references: [id])
+  building    Building?              @relation(fields: [buildingId], references: [id])
+  createdBy   User                   @relation(fields: [createdById], references: [id])
+  assignments InspectionAssignment[]
+
+  @@map("inspections")
+}
+
+model InspectionAssignment {
+  id            String           @id @default(cuid())
+  inspectionId  String
+  inspectorId   String
+  status        AssignmentStatus @default(PENDING)
+  adminNote     String?
+  inspectorNote String?
+  createdAt     DateTime         @default(now())
+  respondedAt   DateTime?
+
+  inspection Inspection @relation(fields: [inspectionId], references: [id])
+  inspector  User       @relation(fields: [inspectorId], references: [id])
+
+  @@unique([inspectionId, inspectorId])
+  @@map("inspection_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Images & certificates
+// ---------------------------------------------------------------------------
+
+model DoorImage {
+  id                  String    @id @default(cuid())
+  doorId              String
+  role                ImageRole @default(OTHER)
+  objectPathOriginal  String
+  objectPathThumb     String?
+  uploadedById        String
+  uploadedAt          DateTime  @default(now())
+
+  door       Door @relation(fields: [doorId], references: [id])
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@map("door_images")
+}
+
+model DoorCertificate {
+  id                   String   @id @default(cuid())
+  doorId               String   @unique
+  objectPathCertificate String
+  uploadedById         String
+  uploadedAt           DateTime @default(now())
+
+  door       Door @relation(fields: [doorId], references: [id])
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@map("door_certificates")
+}
+
+model BuildingCertificate {
+  id                   String   @id @default(cuid())
+  buildingId           String   @unique
+  objectPathCertificate String
+  uploadedById         String
+  uploadedAt           DateTime @default(now())
+
+  building   Building @relation(fields: [buildingId], references: [id])
+  uploadedBy User     @relation(fields: [uploadedById], references: [id])
+
+  @@map("building_certificates")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model UserDeviceToken {
+  id         String         @id @default(cuid())
+  userId     String
+  platform   DevicePlatform
+  token      String
+  createdAt  DateTime       @default(now())
+  lastSeenAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, token])
+  @@map("user_device_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Bulk export jobs
+// ---------------------------------------------------------------------------
+
+model BulkExportJob {
+  id           String           @id @default(cuid())
+  orgId        String
+  targetType   ExportTargetType
+  targetId     String
+  status       ExportStatus     @default(QUEUED)
+  objectPathZip String?
+  error        String?
+  createdById  String
+  createdAt    DateTime         @default(now())
+
+  org       Org  @relation(fields: [orgId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("bulk_export_jobs")
+}
