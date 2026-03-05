@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Dependencies (re-installed inside Docker)
+node_modules
+
+# Test files
+test
+**/*.spec.ts
+**/*.e2e-spec.ts
+coverage
+
+# Local environment — NEVER goes into the image
+.env
+.env.*
+secrets/
+
+# Build output (re-built inside Docker)
+dist
+
+# Editor / OS
+.vscode
+.cursor
+.DS_Store
+*.log
+
+# Docs
+docs
+README.md
+postman
+
+# Docker itself
+Dockerfile
+.dockerignore
