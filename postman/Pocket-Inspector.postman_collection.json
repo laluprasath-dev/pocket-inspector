@@ -1,0 +1,997 @@
+{
+  "info": {
+    "name": "Pocket Inspector API",
+    "description": "Complete API collection for Pocket Inspector backend.\n\n## Quick Start\n1. Import this collection\n2. Import `Pocket-Inspector.postman_environment.json` alongside it\n3. Select the **Pocket Inspector — Local** environment\n4. Run **Auth → Login as Admin** — tokens are saved automatically\n5. All other requests will use the saved token\n\n## Auto-token Flow\nThe **Login as Admin** and **Login as Inspector** requests include a test script that automatically saves `accessToken`, `refreshToken`, `adminId`, and `inspectorId` to the active environment.\n\nAll requests use `{{accessToken}}` in the Authorization header via the collection-level auth setting.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "pocket-inspector-v1"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl",       "value": "http://localhost:3000", "type": "string" },
+    { "key": "accessToken",   "value": "", "type": "string" },
+    { "key": "refreshToken",  "value": "", "type": "string" },
+    { "key": "adminId",       "value": "", "type": "string" },
+    { "key": "inspectorId",   "value": "", "type": "string" },
+    { "key": "siteId",        "value": "", "type": "string" },
+    { "key": "buildingId",    "value": "", "type": "string" },
+    { "key": "floorId",       "value": "", "type": "string" },
+    { "key": "doorId",        "value": "", "type": "string" },
+    { "key": "inspectionId",  "value": "", "type": "string" },
+    { "key": "exportJobId",   "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔑 Auth",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "    pm.collectionVariables.set('accessToken',  json.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "    pm.test('Login successful — tokens saved', () => {",
+                  "        pm.expect(json.data.accessToken).to.be.a('string');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Login FAILED — check email/password', () => { pm.expect(false).to.be.true; });",
+                  "}",
+                  "",
+                  "// Also save adminId from /v1/auth/me",
+                  "const meReq = {",
+                  "    url: pm.collectionVariables.get('baseUrl') + '/v1/auth/me',",
+                  "    method: 'GET',",
+                  "    header: { Authorization: 'Bearer ' + json.data.accessToken }",
+                  "};",
+                  "pm.sendRequest(meReq, (err, res) => {",
+                  "    if (!err && res.json().data) {",
+                  "        pm.collectionVariables.set('adminId', res.json().data.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin1234!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            },
+            "description": "Authenticates as admin. Automatically saves `accessToken` and `refreshToken` to collection variables."
+          }
+        },
+        {
+          "name": "Login as Inspector",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "    pm.collectionVariables.set('accessToken',  json.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "    pm.test('Inspector login successful', () => {",
+                  "        pm.expect(json.data.accessToken).to.be.a('string');",
+                  "    });",
+                  "    const meReq = {",
+                  "        url: pm.collectionVariables.get('baseUrl') + '/v1/auth/me',",
+                  "        method: 'GET',",
+                  "        header: { Authorization: 'Bearer ' + json.data.accessToken }",
+                  "    };",
+                  "    pm.sendRequest(meReq, (err, res) => {",
+                  "        if (!err && res.json().data) {",
+                  "            pm.collectionVariables.set('inspectorId', res.json().data.id);",
+                  "        }",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"inspector@example.com\",\n  \"password\": \"Inspector1234!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            },
+            "description": "Authenticates as inspector. Saves tokens + inspectorId to collection variables."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "    pm.collectionVariables.set('accessToken',  json.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "    pm.test('Tokens refreshed', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "refresh"]
+            },
+            "description": "Exchange a refresh token for a new token pair. New tokens are saved automatically."
+          }
+        },
+        {
+          "name": "Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "me"]
+            },
+            "description": "Returns the authenticated user's profile. `passwordHash` is never included."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Orgs",
+      "item": [
+        {
+          "name": "Get My Org",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/orgs/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "orgs", "me"]
+            },
+            "description": "Returns the organisation the authenticated user belongs to."
+          }
+        },
+        {
+          "name": "Update My Org (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Inspections Ltd\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orgs/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "orgs", "me"]
+            },
+            "description": "Update the organisation name. Admin role required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Users",
+      "item": [
+        {
+          "name": "List All Users (Admin only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users"]
+            },
+            "description": "Returns all users in the authenticated admin's organisation."
+          }
+        },
+        {
+          "name": "Create User (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "    pm.test('User created', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new.inspector@example.com\",\n  \"password\": \"NewPass1234!\",\n  \"role\": \"INSPECTOR\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Smith\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users"]
+            },
+            "description": "Create a new user in the organisation. Roles: `ADMIN` | `INSPECTOR`."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "{{adminId}}"]
+            },
+            "description": "Admin can get any user. Inspector can only get themselves."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "{{adminId}}"]
+            },
+            "description": "Update user profile. Admin can update any user; inspector can only update themselves."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📍 Sites",
+      "item": [
+        {
+          "name": "List Sites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sites"]
+            },
+            "description": "Returns all sites in the organisation (paginated)."
+          }
+        },
+        {
+          "name": "Create Site (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('siteId', json.data.id);",
+                  "    pm.test('Site created — siteId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Campus\",\n  \"referenceCode\": \"MC-001\",\n  \"locationNotes\": \"City centre, near the main entrance\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sites"]
+            },
+            "description": "Creates a site and automatically saves `siteId` to collection variables."
+          }
+        },
+        {
+          "name": "Get Site by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sites", "{{siteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Site (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Campus (Renovated)\",\n  \"locationNotes\": \"Newly renovated east wing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sites", "{{siteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Site (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sites", "{{siteId}}"]
+            },
+            "description": "Permanently deletes a site. Returns 204 No Content on success."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏗️ Buildings",
+      "item": [
+        {
+          "name": "List Buildings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings?siteId={{siteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings"],
+              "query": [
+                {
+                  "key": "siteId",
+                  "value": "{{siteId}}",
+                  "description": "Optional — filter by site"
+                }
+              ]
+            },
+            "description": "Returns all buildings in the org. Filter by `siteId` is optional."
+          }
+        },
+        {
+          "name": "Create Building (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('buildingId', json.data.id);",
+                  "    pm.test('Building created — buildingId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"siteId\": \"{{siteId}}\",\n  \"address\": \"123 Main Street\",\n  \"locationNotes\": \"North wing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings"]
+            },
+            "description": "Creates a building and saves `buildingId` to collection variables."
+          }
+        },
+        {
+          "name": "Get Building by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Building (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Block A (Extended)\",\n  \"locationNotes\": \"Extended north wing, 3 floors\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}"]
+            }
+          }
+        },
+        {
+          "name": "List Floors in Building",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/floors",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}", "floors"]
+            },
+            "description": "Returns all floors for a specific building."
+          }
+        },
+        {
+          "name": "Request Building Certificate Upload (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contentType\": \"application/pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/signed-upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}", "certificate", "signed-upload"]
+            },
+            "description": "Returns a signed GCS URL. Upload the PDF directly to that URL, then call `Register Building Certificate`."
+          }
+        },
+        {
+          "name": "Register Building Certificate (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"objectPath\": \"orgs/ORG_ID/buildings/BUILDING_ID/certificate/cert.pdf\",\n  \"issuedAt\": \"2026-01-15T00:00:00.000Z\",\n  \"expiresAt\": \"2027-01-15T00:00:00.000Z\",\n  \"issuer\": \"Fire Safety Board\",\n  \"notes\": \"Annual fire door compliance certificate\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}", "certificate", "register"]
+            },
+            "description": "Call this after uploading to GCS to record the certificate. Notifies assigned inspectors."
+          }
+        },
+        {
+          "name": "Get Building Certificate Download URL",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/signed-download",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "buildings", "{{buildingId}}", "certificate", "signed-download"]
+            },
+            "description": "Returns a short-lived signed URL to download the building's certificate PDF."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏠 Floors",
+      "item": [
+        {
+          "name": "Create Floor (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('floorId', json.data.id);",
+                  "    pm.test('Floor created — floorId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buildingId\": \"{{buildingId}}\",\n  \"label\": \"Ground Floor\",\n  \"notes\": \"Main entrance level — 14 doors total\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "floors"]
+            },
+            "description": "Creates a floor and saves `floorId` to collection variables."
+          }
+        },
+        {
+          "name": "Get Floor by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "floors", "{{floorId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Floor (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Level 0\",\n  \"notes\": \"Basement parking\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "floors", "{{floorId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Floor (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "floors", "{{floorId}}"]
+            }
+          }
+        },
+        {
+          "name": "List Doors in Floor",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors/{{floorId}}/doors",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "floors", "{{floorId}}", "doors"]
+            },
+            "description": "Returns all doors for the floor with summary: status, imagesCount, certificatePresent."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚪 Doors",
+      "item": [
+        {
+          "name": "Create Door (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('doorId', json.data.id);",
+                  "    pm.test('Door created — doorId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"floorId\": \"{{floorId}}\",\n  \"code\": \"D-101\",\n  \"locationNotes\": \"End of main corridor, fire exit\",\n  \"manufacturer\": \"Dorma\",\n  \"fireRating\": \"FD30\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors"]
+            },
+            "description": "Creates a door (status = DRAFT) and saves `doorId` to collection variables."
+          }
+        },
+        {
+          "name": "Get Door by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}"]
+            },
+            "description": "Returns full door detail including imagesCount and certificatePresent."
+          }
+        },
+        {
+          "name": "Update Door",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"D-101-A\",\n  \"locationNotes\": \"Updated: corridor junction\",\n  \"fireRating\": \"FD60\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Door (Inspector) — requires ≥1 image",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "submit"]
+            },
+            "description": "Sets door status to SUBMITTED. Fails with 400 if no images have been uploaded. Use Inspector token."
+          }
+        },
+        {
+          "name": "List Door Images",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "images"]
+            }
+          }
+        },
+        {
+          "name": "Request Image Upload URL (Inspector)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.uploadUrl) {",
+                  "    pm.collectionVariables.set('imageUploadUrl', json.data.uploadUrl);",
+                  "    pm.collectionVariables.set('imageObjectPath', json.data.objectPath);",
+                  "    pm.test('Signed upload URL received', () => pm.response.to.have.status(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"FRONT\",\n  \"contentType\": \"image/jpeg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/signed-upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "images", "signed-upload"]
+            },
+            "description": "Returns a signed GCS URL (`uploadUrl`) and `objectPath`. Upload the image directly to `uploadUrl` using a PUT request with `Content-Type: image/jpeg`. Then call `Register Door Image`.\n\nRoles allowed: `INSPECTOR` (and `ADMIN`).\n\nImage roles: `FRONT` | `BACK` | `SIDE` | `LABEL` | `DAMAGE` | `OTHER`."
+          }
+        },
+        {
+          "name": "Register Door Image (after GCS upload)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"FRONT\",\n  \"objectPath\": \"{{imageObjectPath}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "images", "register"]
+            },
+            "description": "Call this after successfully uploading to GCS. Records the image in the database."
+          }
+        },
+        {
+          "name": "Request Door Certificate Upload (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contentType\": \"application/pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/signed-upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "certificate", "signed-upload"]
+            },
+            "description": "Door must be in SUBMITTED status. Returns signed GCS URL for PDF upload."
+          }
+        },
+        {
+          "name": "Register Door Certificate (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"objectPath\": \"orgs/ORG_ID/buildings/B_ID/floors/F_ID/doors/D_ID/certificate/cert.pdf\",\n  \"issuedAt\": \"2026-01-15T00:00:00.000Z\",\n  \"expiresAt\": \"2027-01-15T00:00:00.000Z\",\n  \"issuer\": \"Fire Safety Board\",\n  \"notes\": \"Passed annual inspection\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "certificate", "register"]
+            },
+            "description": "Records the certificate. Sets door status to CERTIFIED. Notifies assigned inspectors via FCM."
+          }
+        },
+        {
+          "name": "Get Door Certificate Download URL",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/signed-download",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "doors", "{{doorId}}", "certificate", "signed-download"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Inspections",
+      "item": [
+        {
+          "name": "List Inspections",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections"]
+            },
+            "description": "Admin sees all inspections in the org. Inspector only sees inspections they are assigned to."
+          }
+        },
+        {
+          "name": "Create Inspection (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('inspectionId', json.data.id);",
+                  "    pm.test('Inspection created — inspectionId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"BUILDING\",\n  \"buildingId\": \"{{buildingId}}\",\n  \"notes\": \"Annual fire door compliance inspection Q1 2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections"]
+            },
+            "description": "Creates an inspection and saves `inspectionId`.\n\nTypes: `BUILDING` (requires `buildingId`) | `SITE` (requires `siteId`)."
+          }
+        },
+        {
+          "name": "Get Inspection by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections", "{{inspectionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Inspector (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"adminNote\": \"Please complete this inspection by end of month\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/assignments",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections", "{{inspectionId}}", "assignments"]
+            },
+            "description": "Assigns an inspector to an inspection. Inspector receives FCM push notification. Returns 400 if inspector is already assigned."
+          }
+        },
+        {
+          "name": "Respond to Assignment (Inspector)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACCEPTED\",\n  \"inspectorNote\": \"I will start tomorrow morning\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/assignments/respond",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections", "{{inspectionId}}", "assignments", "respond"]
+            },
+            "description": "Inspector accepts or declines the assignment. Statuses: `ACCEPTED` | `DECLINED`. Returns 403 if already responded."
+          }
+        },
+        {
+          "name": "Archive Inspection (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "inspections", "{{inspectionId}}", "archive"]
+            },
+            "description": "Moves inspection to ARCHIVED status."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Exports",
+      "item": [
+        {
+          "name": "Create Export Job (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('exportJobId', json.data.id);",
+                  "    pm.test('Export job created — exportJobId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetType\": \"BUILDING\",\n  \"targetId\": \"{{buildingId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/exports",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "exports"]
+            },
+            "description": "Queues an async export job. The worker builds a ZIP of all images + certificates for the target.\n\nTarget types: `BUILDING` | `FLOOR` | `DOOR` | `SITE` | `INSPECTION`.\n\nPoll `GET /v1/exports/:id` until status is `DONE`, then call `Get Export Download URL`."
+          }
+        },
+        {
+          "name": "Get Export Job Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/exports/{{exportJobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "exports", "{{exportJobId}}"]
+            },
+            "description": "Statuses: `QUEUED` → `RUNNING` → `DONE` | `FAILED`."
+          }
+        },
+        {
+          "name": "Get Export Download URL (when DONE)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/exports/{{exportJobId}}/signed-download",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "exports", "{{exportJobId}}", "signed-download"]
+            },
+            "description": "Returns a short-lived signed GCS URL to download the ZIP. Returns 400 if job is not DONE yet."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📱 Notifications",
+      "item": [
+        {
+          "name": "Register Device Token (FCM)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token-from-mobile-sdk\",\n  \"platform\": \"IOS\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/device-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "me", "device-token"]
+            },
+            "description": "Registers the mobile device's FCM token so the user can receive push notifications (assignment alerts, certificate issued, etc.).\n\nPlatforms: `IOS` | `ANDROID`.\n\nUpserts the token — safe to call on every app launch."
+          }
+        }
+      ]
+    },
+    {
+      "name": "❤️ Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Public endpoint. Returns app status and database connectivity + latency. No auth required."
+          }
+        }
+      ]
+    }
+  ]
+}
