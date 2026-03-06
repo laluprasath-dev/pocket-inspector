@@ -9,7 +9,7 @@
     "build": "node scripts/patch-prisma-client.js && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start:dev": "lsof -ti:3000 | xargs kill -9 2>/dev/null; nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:tsx": "tsx src/main.ts",
     "start:prod": "node dist/src/main",
