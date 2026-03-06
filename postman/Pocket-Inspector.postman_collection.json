@@ -782,7 +782,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "    const json = pm.response.json();",
                   "    pm.environment.set('buildingCertId', json.data.certId);",
                   "    pm.environment.set('buildingCertPath', json.data.objectPath);",
@@ -1095,7 +1095,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "    const json = pm.response.json();",
                   "    pm.environment.set('imageUploadId', json.data.imageId);",
                   "    pm.environment.set('imageObjectPath', json.data.objectPath);",
@@ -1269,7 +1269,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "    const json = pm.response.json();",
                   "    pm.environment.set('doorCertId', json.data.certId);",
                   "    pm.environment.set('doorCertPath', json.data.objectPath);",
