@@ -81,5 +81,5 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE}:latest
 
 options:
-  logging: LEGACY
+  logging: CLOUD_LOGGING_ONLY
   machineType: E2_HIGHCPU_8
