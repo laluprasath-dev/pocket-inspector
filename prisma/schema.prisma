@@ -96,6 +96,7 @@ model User {
   createdAt    DateTime @default(now())
 
   org                   Org                    @relation(fields: [orgId], references: [id])
+  sessions              Session[]
   assignments           InspectionAssignment[]
   doorSubmissions       Door[]                 @relation("DoorSubmittedBy")
   doorCertifications    Door[]                 @relation("DoorCertifiedBy")
@@ -107,6 +108,29 @@ model User {
   createdBulkExports    BulkExportJob[]
 
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Auth sessions (device tracking)
+// ---------------------------------------------------------------------------
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId         String
+  deviceName       String?
+  deviceType       String?
+  ipAddress        String?
+  refreshTokenHash String
+  lastUsedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("sessions")
 }
 
 // ---------------------------------------------------------------------------
