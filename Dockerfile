@@ -16,6 +16,7 @@ RUN npm ci
 
 # Copy source
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
@@ -46,6 +47,9 @@ COPY --from=builder /app/dist ./dist
 
 # Copy Prisma schema + migrations (needed for migrate deploy at startup)
 COPY --from=builder /app/prisma ./prisma
+
+# Copy prisma.config.ts (needed so migrate deploy can find DATABASE_URL at runtime)
+COPY --from=builder /app/prisma.config.ts ./
 
 # Copy generated Prisma client (patched)
 COPY --from=builder /app/generated ./generated

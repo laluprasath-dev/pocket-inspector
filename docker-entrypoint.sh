@@ -9,10 +9,10 @@ fi
 echo "✔ DATABASE_URL is set"
 
 echo "▶ Running database migrations..."
-if npx prisma migrate deploy; then
-  echo "✔ Migrations applied"
+if node_modules/.bin/prisma migrate deploy; then
+  echo "✔ Migrations applied successfully"
 else
-  echo "✖ Migration failed — check DB connection. Continuing startup..."
+  echo "✖ Migration failed — check DB connection and logs. Continuing startup..."
 fi
 
 echo "▶ Starting Pocket Inspector API..."
