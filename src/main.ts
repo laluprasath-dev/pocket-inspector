@@ -1,12 +1,14 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -44,6 +46,22 @@ async function bootstrap(): Promise<void> {
 
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // ── Dev-only: serve Postman collection + environment as importable URLs ──
+  if (!isProduction) {
+    const fastify = app.getHttpAdapter().getInstance();
+    const postmanDir = join(process.cwd(), 'postman');
+
+    fastify.get('/dev/postman/collection', (_req: unknown, reply: { header: (k: string, v: string) => void; send: (b: string) => void }) => {
+      reply.header('Content-Type', 'application/json');
+      reply.send(readFileSync(join(postmanDir, 'Pocket-Inspector.postman_collection.json'), 'utf8'));
+    });
+
+    fastify.get('/dev/postman/environment', (_req: unknown, reply: { header: (k: string, v: string) => void; send: (b: string) => void }) => {
+      reply.header('Content-Type', 'application/json');
+      reply.send(readFileSync(join(postmanDir, 'Pocket-Inspector.postman_environment.json'), 'utf8'));
+    });
+  }
 
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()
