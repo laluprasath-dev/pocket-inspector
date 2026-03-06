@@ -61,7 +61,7 @@ steps:
       - --set-secrets
       - DATABASE_URL=pocket-inspector-db-url:latest,JWT_SECRET=pocket-inspector-jwt-secret:latest,JWT_REFRESH_SECRET=pocket-inspector-jwt-refresh-secret:latest,FIREBASE_SERVICE_ACCOUNT_KEY=pocket-inspector-firebase-key:latest
       - --set-env-vars
-      - NODE_ENV=production,GCS_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=pocket-inspector-prod-bucket,FCM_PROJECT_ID=$PROJECT_ID,GCS_SERVICE_ACCOUNT_EMAIL=pocket-inspector-storage@$PROJECT_ID.iam.gserviceaccount.com
+      - NODE_ENV=production,GCS_PROJECT_ID=$PROJECT_ID,GCS_BUCKET_NAME=pocket-inspector-prod-bucket,FCM_PROJECT_ID=$PROJECT_ID,GCS_SERVICE_ACCOUNT_EMAIL=pocket-inspector-storage@$PROJECT_ID.iam.gserviceaccount.com,JWT_EXPIRES_IN=7d,JWT_REFRESH_EXPIRES_IN=90d
       - --allow-unauthenticated
       - --min-instances
       - "1"
