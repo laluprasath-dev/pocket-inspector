@@ -23,7 +23,7 @@ import type { User } from '../../../generated/prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UsersService } from '../users/users.service';
-import { AuthService } from './auth.service';
+import { AuthService, LoginTokenPair } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SessionResponseDto } from './dto/session-response.dto';
@@ -60,8 +60,9 @@ export class AuthController {
     @CurrentUser() user: User,
     @Body() dto: LoginDto,
     @Req() req: FastifyRequest,
-  ): Promise<TokenResponseDto> {
-    return this.authService.login(user, dto, clientIp(req));
+  ): Promise<LoginTokenPair> {
+    const userAgent = req.headers['user-agent'];
+    return this.authService.login(user, dto, clientIp(req), userAgent);
   }
 
   // ── Refresh ───────────────────────────────────────────────────────────────

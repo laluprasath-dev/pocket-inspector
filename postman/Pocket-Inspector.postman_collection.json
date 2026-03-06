@@ -98,6 +98,8 @@
                   "    pm.environment.set('accessToken',  json.data.accessToken);",
                   "    pm.environment.set('adminToken', json.data.accessToken);",
                   "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "    // Save deviceId returned by server (auto-detected from User-Agent)",
+                  "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
                   "    pm.test('Login successful \u2014 tokens saved', () => {",
                   "        pm.expect(json.data.accessToken).to.be.a('string');",
                   "    });",
@@ -134,7 +136,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"deviceName\": \"Postman Admin Client\",\n  \"deviceType\": \"web\"\n}"
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/auth/login",
@@ -147,7 +149,7 @@
                 "login"
               ]
             },
-            "description": "Login with admin credentials. Saves accessToken, adminToken, refreshToken and adminId automatically. Send deviceId (stable UUID per device), deviceName and deviceType for session tracking."
+            "description": "Login with admin credentials. Only email and password are needed — device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
           }
         },
         {
@@ -162,6 +164,8 @@
                   "    pm.environment.set('accessToken',  json.data.accessToken);",
                   "    pm.environment.set('inspectorToken', json.data.accessToken);",
                   "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "    // Save deviceId returned by server (auto-detected from User-Agent)",
+                  "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
                   "    pm.test('Inspector login successful', () => {",
                   "        pm.expect(json.data.accessToken).to.be.a('string');",
                   "    });",
@@ -194,7 +198,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{inspectorEmail}}\",\n  \"password\": \"{{inspectorPassword}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"deviceName\": \"Postman Inspector Client\",\n  \"deviceType\": \"web\"\n}"
+              "raw": "{\n  \"email\": \"{{inspectorEmail}}\",\n  \"password\": \"{{inspectorPassword}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/auth/login",
@@ -405,16 +409,16 @@
                   "const baseUrl = pm.environment.get('baseUrl');",
                   "const adminEmail = pm.environment.get('adminEmail') || 'admin@example.com';",
                   "const adminPassword = pm.environment.get('adminPassword') || 'Admin1234!';",
-                  "const deviceId = pm.environment.get('deviceId');",
                   "pm.sendRequest({",
                   "    url: baseUrl + '/v1/auth/login',",
                   "    method: 'POST',",
                   "    header: { 'Content-Type': 'application/json' },",
-                  "    body: { mode: 'raw', raw: JSON.stringify({ email: adminEmail, password: adminPassword, deviceId, deviceName: 'Postman Admin Client', deviceType: 'web' }) }",
+                  "    body: { mode: 'raw', raw: JSON.stringify({ email: adminEmail, password: adminPassword }) }",
                   "}, (err, res) => {",
                   "    if (!err && res.json().data) {",
                   "        pm.environment.set('accessToken', res.json().data.accessToken);",
                   "        pm.environment.set('adminToken', res.json().data.accessToken);",
+                  "        if (res.json().data.deviceId) pm.environment.set('deviceId', res.json().data.deviceId);",
                   "    }",
                   "});"
                 ]
@@ -1914,7 +1918,8 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Ensure a stable deviceId exists for this Postman client",
+          "// deviceId is auto-assigned by the server on login and saved from the response.",
+          "// This fallback is only used if login hasn't run yet (e.g. mid-collection run).",
           "if (!pm.environment.get('deviceId')) {",
           "    pm.environment.set('deviceId', pm.variables.replaceIn('{{$guid}}'));",
           "}"

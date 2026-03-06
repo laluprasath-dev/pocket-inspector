@@ -21,6 +21,10 @@ export interface TokenPair {
   refreshToken: string;
 }
 
+export interface LoginTokenPair extends TokenPair {
+  deviceId: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -41,8 +45,13 @@ export class AuthService {
 
   // ── Login: create/update session, return tokens ───────────────────────────
 
-  async login(user: User, dto: LoginDto, ip?: string): Promise<TokenPair> {
+  async login(user: User, dto: LoginDto, ip?: string, userAgent?: string): Promise<LoginTokenPair> {
     const deviceId = dto.deviceId ?? randomUUID();
+
+    // Auto-detect device info from User-Agent if not provided by the client
+    const detected = parseUserAgent(userAgent ?? '');
+    const deviceName = dto.deviceName ?? detected.deviceName;
+    const deviceType = dto.deviceType ?? detected.deviceType;
 
     // Find existing session for this device (so we reuse the same session ID)
     const existing = await this.prisma.session.findUnique({
@@ -60,15 +69,15 @@ export class AuthService {
         id: sessionId,
         userId: user.id,
         deviceId,
-        deviceName: dto.deviceName,
-        deviceType: dto.deviceType,
+        deviceName,
+        deviceType,
         ipAddress: ip,
         refreshTokenHash: refreshHash,
         expiresAt,
       },
       update: {
-        deviceName: dto.deviceName ?? existing?.deviceName,
-        deviceType: dto.deviceType ?? existing?.deviceType,
+        deviceName: deviceName ?? existing?.deviceName,
+        deviceType: deviceType ?? existing?.deviceType,
         ipAddress: ip,
         refreshTokenHash: refreshHash,
         expiresAt,
@@ -77,7 +86,7 @@ export class AuthService {
       },
     });
 
-    return tokens;
+    return { ...tokens, deviceId };
   }
 
   // ── Refresh: validate token + device, rotate refresh token ───────────────
@@ -226,4 +235,44 @@ function jwtExpiry(token: string): Date {
   const parts = token.split('.');
   const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString()) as { exp: number };
   return new Date(payload.exp * 1000);
+}
+
+function parseUserAgent(ua: string): { deviceName: string; deviceType: string } {
+  const s = ua.toLowerCase();
+
+  let deviceType = 'web';
+  if (s.includes('iphone') || s.includes('ipad') || s.includes('ipod')) {
+    deviceType = 'ios';
+  } else if (s.includes('android')) {
+    deviceType = 'android';
+  }
+
+  // Extract a readable device name from the User-Agent string
+  let deviceName = 'Unknown Device';
+  const iphoneMatch = /iphone os ([\d_]+)/i.exec(ua);
+  const ipadMatch = /ipad.*os ([\d_]+)/i.exec(ua);
+  const androidMatch = /android ([\d.]+);([^)]+)/i.exec(ua);
+  const macMatch = /macintosh.*mac os x ([\d_]+)/i.exec(ua);
+  const windowsMatch = /windows nt ([\d.]+)/i.exec(ua);
+  const linuxMatch = /linux/i.exec(ua);
+
+  if (iphoneMatch) {
+    deviceName = `iPhone (iOS ${iphoneMatch[1].replace(/_/g, '.')})`;
+  } else if (ipadMatch) {
+    deviceName = `iPad (iOS ${ipadMatch[1].replace(/_/g, '.')})`;
+  } else if (androidMatch) {
+    deviceName = androidMatch[2].trim() || `Android ${androidMatch[1]}`;
+  } else if (macMatch) {
+    deviceName = `Mac (macOS ${macMatch[1].replace(/_/g, '.')})`;
+  } else if (windowsMatch) {
+    const versions: Record<string, string> = { '10.0': 'Windows 10/11', '6.3': 'Windows 8.1', '6.2': 'Windows 8', '6.1': 'Windows 7' };
+    deviceName = versions[windowsMatch[1]] ?? `Windows NT ${windowsMatch[1]}`;
+  } else if (linuxMatch) {
+    deviceName = 'Linux';
+  } else if (s.includes('postman')) {
+    deviceName = 'Postman';
+    deviceType = 'web';
+  }
+
+  return { deviceName, deviceType };
 }
