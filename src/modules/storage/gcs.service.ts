@@ -20,6 +20,7 @@ export class GcsService {
   readonly storage: Storage;
   readonly bucketName: string;
   private readonly defaultExpirySeconds: number;
+  private readonly serviceAccountEmail: string | undefined;
 
   constructor(private readonly configService: ConfigService) {
     const keyFilename = configService.get<string>(
@@ -34,6 +35,12 @@ export class GcsService {
       'GCS_SIGNED_URL_EXPIRY_SECONDS',
       900,
     );
+    // Required on Cloud Run (ADC) so the library calls IAM signBlob instead of
+    // looking for a private key. Grant roles/iam.serviceAccountTokenCreator on
+    // itself to pocket-inspector-storage@<project>.iam.gserviceaccount.com.
+    this.serviceAccountEmail = configService.get<string>(
+      'GCS_SERVICE_ACCOUNT_EMAIL',
+    );
   }
 
   async getSignedUploadUrl(opts: SignedUploadUrlOptions): Promise<string> {
@@ -46,6 +53,9 @@ export class GcsService {
         action: 'write',
         expires: Date.now() + expiry * 1000,
         contentType: opts.contentType,
+        ...(this.serviceAccountEmail
+          ? { serviceAccountEmail: this.serviceAccountEmail }
+          : {}),
       });
     this.logger.debug(`Signed upload URL generated for: ${opts.objectPath}`);
     return url;
@@ -60,6 +70,9 @@ export class GcsService {
         version: 'v4',
         action: 'read',
         expires: Date.now() + expiry * 1000,
+        ...(this.serviceAccountEmail
+          ? { serviceAccountEmail: this.serviceAccountEmail }
+          : {}),
       });
     return url;
   }

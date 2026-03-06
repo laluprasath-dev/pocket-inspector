@@ -27,6 +27,7 @@ import Joi from 'joi';
         GCS_BUCKET_NAME: Joi.string().required(),
         GCS_SIGNED_URL_EXPIRY_SECONDS: Joi.number().default(900),
         GOOGLE_APPLICATION_CREDENTIALS: Joi.string().optional(),
+        GCS_SERVICE_ACCOUNT_EMAIL: Joi.string().optional(),
 
         // Firebase Cloud Messaging
         FCM_PROJECT_ID: Joi.string().required(),
