@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "Complete API collection for Pocket Inspector backend.\n\n## Quick Start\n1. Import this collection\n2. Import `Pocket-Inspector.postman_environment.json` alongside it\n3. Select the **Pocket Inspector \u2014 Local** environment\n4. Run **Auth \u2192 Login as Admin** \u2014 tokens are saved automatically\n5. All other requests will use the saved token\n\n## Auto-token Flow\nThe **Login as Admin** and **Login as Inspector** requests include a test script that automatically saves `accessToken`, `refreshToken`, `adminId`, and `inspectorId` to the active environment.\n\nAll requests use `{{accessToken}}` in the Authorization header via the collection-level auth setting.",
+    "description": "# Pocket Inspector API\n\nBackend API for managing door inspections, buildings, sites, and inspector assignments.\n\n## Quick Start\n1. Run **Login as Admin** first \u2014 tokens are saved automatically\n2. Work through folders top to bottom \u2014 IDs chain automatically (siteId \u2192 buildingId \u2192 floorId \u2192 doorId)\n3. Switch roles using **Login as Inspector** when needed\n\n## Roles\n- **ADMIN** \u2014 manages everything (sites, buildings, users, certificates, exports)\n- **INSPECTOR** \u2014 uploads door images and submits inspections\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -147,7 +147,7 @@
                 "login"
               ]
             },
-            "description": "Authenticates as admin. Automatically saves `accessToken` and `refreshToken` to collection variables."
+            "description": "Login with admin credentials. Saves accessToken, adminToken, refreshToken and adminId automatically. Send deviceId (stable UUID per device), deviceName and deviceType for session tracking."
           }
         },
         {
@@ -207,7 +207,7 @@
                 "login"
               ]
             },
-            "description": "Authenticates as inspector. Saves tokens + inspectorId to collection variables."
+            "description": "Login with inspector credentials. Switches accessToken to inspector's token. Saves inspectorToken and inspectorId."
           }
         },
         {
@@ -254,7 +254,7 @@
                 "refresh"
               ]
             },
-            "description": "Exchange a refresh token for a new token pair. New tokens are saved automatically."
+            "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call \u2014 old refresh token is invalidated immediately."
           }
         },
         {
@@ -272,7 +272,7 @@
                 "me"
               ]
             },
-            "description": "Returns the authenticated user's profile. `passwordHash` is never included."
+            "description": "Returns the profile of whoever is currently logged in (based on the Bearer token)."
           }
         },
         {
@@ -296,7 +296,7 @@
                 "sessions"
               ]
             },
-            "description": "List all active sessions (devices) for the current user."
+            "description": "Shows all devices currently logged in as the current user \u2014 deviceName, deviceType, IP address, last used time."
           },
           "event": [
             {
@@ -337,7 +337,7 @@
                 "{{revokeSessionId}}"
               ]
             },
-            "description": "Revoke a specific session (kick a device). Use the session ID from List Active Sessions."
+            "description": "Kicks a specific device. That device gets 401 on its next API request and must log in again."
           },
           "event": []
         },
@@ -368,7 +368,7 @@
                 }
               ]
             },
-            "description": "Revoke all sessions. keepCurrent=true keeps the current session active."
+            "description": "Logs out from all devices. Use ?keepCurrent=true to stay logged in on the current device."
           },
           "event": []
         },
@@ -393,7 +393,7 @@
                 "logout"
               ]
             },
-            "description": "Revoke the current session. You will need to login again after this."
+            "description": "Revoke the current session. You must log in again after this."
           },
           "event": [
             {
@@ -442,7 +442,7 @@
                 "me"
               ]
             },
-            "description": "Returns the organisation the authenticated user belongs to."
+            "description": "Returns the organisation the current user belongs to."
           }
         },
         {
@@ -470,7 +470,7 @@
                 "me"
               ]
             },
-            "description": "Update the organisation name. Admin role required."
+            "description": "Update the organisation name. Admin only."
           }
         }
       ],
@@ -505,7 +505,7 @@
                 "users"
               ]
             },
-            "description": "Returns all users in the authenticated admin's organisation."
+            "description": "Returns all users in the org. Admin only."
           }
         },
         {
@@ -560,7 +560,7 @@
                 "users"
               ]
             },
-            "description": "Create a new user in the organisation. Roles: `ADMIN` | `INSPECTOR`."
+            "description": "Create a new user. Set role to ADMIN or INSPECTOR. A random email is generated to avoid conflicts on repeated test runs."
           }
         },
         {
@@ -578,7 +578,7 @@
                 "{{adminId}}"
               ]
             },
-            "description": "Admin can get any user. Inspector can only get themselves."
+            "description": "Get a specific user by their ID."
           }
         },
         {
@@ -606,7 +606,7 @@
                 "{{adminId}}"
               ]
             },
-            "description": "Update user profile. Admin can update any user; inspector can only update themselves."
+            "description": "Update a user's name or role."
           }
         }
       ],
@@ -641,7 +641,7 @@
                 "sites"
               ]
             },
-            "description": "Returns all sites in the organisation (paginated)."
+            "description": "List all sites in the org."
           }
         },
         {
@@ -683,7 +683,7 @@
                 "sites"
               ]
             },
-            "description": "Creates a site and automatically saves `siteId` to collection variables."
+            "description": "Create a new site (physical location). Saves siteId for use in subsequent requests."
           }
         },
         {
@@ -700,7 +700,8 @@
                 "sites",
                 "{{siteId}}"
               ]
-            }
+            },
+            "description": "Get a specific site."
           }
         },
         {
@@ -727,7 +728,8 @@
                 "sites",
                 "{{siteId}}"
               ]
-            }
+            },
+            "description": "Update site name or notes."
           }
         },
         {
@@ -745,7 +747,7 @@
                 "{{siteId}}"
               ]
             },
-            "description": "Permanently deletes a site. Returns 204 No Content on success."
+            "description": "Delete a site. This is permanent."
           }
         }
       ],
@@ -787,7 +789,7 @@
                 }
               ]
             },
-            "description": "Returns all buildings in the org. Filter by `siteId` is optional."
+            "description": "List all buildings. Filter by site using ?siteId="
           }
         },
         {
@@ -829,7 +831,7 @@
                 "buildings"
               ]
             },
-            "description": "Creates a building and saves `buildingId` to collection variables."
+            "description": "Create a building within a site. Saves buildingId."
           }
         },
         {
@@ -846,7 +848,8 @@
                 "buildings",
                 "{{buildingId}}"
               ]
-            }
+            },
+            "description": "Get a specific building."
           }
         },
         {
@@ -873,7 +876,8 @@
                 "buildings",
                 "{{buildingId}}"
               ]
-            }
+            },
+            "description": "Update building details."
           }
         },
         {
@@ -892,7 +896,7 @@
                 "floors"
               ]
             },
-            "description": "Returns all floors for a specific building."
+            "description": "List all floors for a building."
           }
         },
         {
@@ -922,7 +926,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Returns a signed GCS URL. Upload the PDF directly to that URL, then call `Register Building Certificate`."
+            "description": "Get a pre-signed GCS URL to upload a PDF certificate. URL expires in 15 minutes \u2014 upload immediately."
           },
           "event": [
             {
@@ -967,7 +971,7 @@
                 "register"
               ]
             },
-            "description": "Call this after uploading to GCS to record the certificate. Notifies assigned inspectors."
+            "description": "After uploading to GCS, call this to register the certificate path in the database."
           }
         },
         {
@@ -987,7 +991,7 @@
                 "signed-download"
               ]
             },
-            "description": "Returns a short-lived signed URL to download the building's certificate PDF."
+            "description": "Get a pre-signed URL to download the building certificate PDF."
           }
         }
       ],
@@ -1047,7 +1051,7 @@
                 "floors"
               ]
             },
-            "description": "Creates a floor and saves `floorId` to collection variables."
+            "description": "Create a floor in a building (e.g. 'Ground Floor', 'Level 1'). Saves floorId."
           }
         },
         {
@@ -1064,7 +1068,8 @@
                 "floors",
                 "{{floorId}}"
               ]
-            }
+            },
+            "description": "Get a specific floor."
           }
         },
         {
@@ -1091,7 +1096,8 @@
                 "floors",
                 "{{floorId}}"
               ]
-            }
+            },
+            "description": "Update floor label or notes."
           }
         },
         {
@@ -1108,7 +1114,8 @@
                 "floors",
                 "{{floorId}}"
               ]
-            }
+            },
+            "description": "Delete a floor."
           }
         },
         {
@@ -1127,7 +1134,7 @@
                 "doors"
               ]
             },
-            "description": "Returns all doors for the floor with summary: status, imagesCount, certificatePresent."
+            "description": "List all doors on a floor."
           }
         }
       ],
@@ -1187,7 +1194,7 @@
                 "doors"
               ]
             },
-            "description": "Creates a door (status = DRAFT) and saves `doorId` to collection variables."
+            "description": "Create a door on a floor with a door code. Saves doorId. Status starts as DRAFT."
           }
         },
         {
@@ -1205,7 +1212,7 @@
                 "{{doorId}}"
               ]
             },
-            "description": "Returns full door detail including imagesCount and certificatePresent."
+            "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
           }
         },
         {
@@ -1232,7 +1239,8 @@
                 "doors",
                 "{{doorId}}"
               ]
-            }
+            },
+            "description": "Update door code or location notes."
           }
         },
         {
@@ -1278,7 +1286,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Returns a signed GCS URL (`uploadUrl`) and `objectPath`. Upload the image directly to `uploadUrl` using a PUT request with `Content-Type: image/jpeg`. Then call `Register Door Image`.\n\nRoles allowed: `INSPECTOR` (and `ADMIN`).\n\nImage roles: `FRONT` | `BACK` | `SIDE` | `LABEL` | `DAMAGE` | `OTHER`."
+            "description": "Get a pre-signed GCS URL to upload a door photo. URL expires in 15 minutes."
           }
         },
         {
@@ -1308,7 +1316,7 @@
                 "register"
               ]
             },
-            "description": "Call this after successfully uploading to GCS. Records the image in the database."
+            "description": "After uploading photo to GCS, register it here. Saves imageUploadId."
           },
           "event": [
             {
@@ -1348,7 +1356,8 @@
                 "{{doorId}}",
                 "images"
               ]
-            }
+            },
+            "description": "List all photos uploaded for a door."
           }
         },
         {
@@ -1367,7 +1376,7 @@
                 "submit"
               ]
             },
-            "description": "Sets door status to SUBMITTED. Fails with 400 if no images have been uploaded. Use Inspector token."
+            "description": "Inspector marks door as inspected. Requires at least 1 registered image. Changes status: DRAFT \u2192 SUBMITTED."
           },
           "event": [
             {
@@ -1409,7 +1418,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Door must be in SUBMITTED status. Returns signed GCS URL for PDF upload."
+            "description": "Get a pre-signed GCS URL to upload a door certificate PDF."
           },
           "event": [
             {
@@ -1454,7 +1463,7 @@
                 "register"
               ]
             },
-            "description": "Records the certificate. Sets door status to CERTIFIED. Notifies assigned inspectors via FCM."
+            "description": "Register the uploaded door certificate."
           }
         },
         {
@@ -1473,7 +1482,8 @@
                 "certificate",
                 "signed-download"
               ]
-            }
+            },
+            "description": "Get a signed URL to download the door certificate PDF."
           }
         }
       ],
@@ -1535,7 +1545,7 @@
                 "inspections"
               ]
             },
-            "description": "Admin sees all inspections in the org. Inspector only sees inspections they are assigned to."
+            "description": "List all inspection jobs in the org."
           }
         },
         {
@@ -1577,7 +1587,7 @@
                 "inspections"
               ]
             },
-            "description": "Creates an inspection and saves `inspectionId`.\n\nTypes: `BUILDING` (requires `buildingId`) | `SITE` (requires `siteId`)."
+            "description": "Create a new inspection job for a site or building. Saves inspectionId."
           }
         },
         {
@@ -1594,7 +1604,8 @@
                 "inspections",
                 "{{inspectionId}}"
               ]
-            }
+            },
+            "description": "Get full inspection details including assignments."
           }
         },
         {
@@ -1623,7 +1634,7 @@
                 "assignments"
               ]
             },
-            "description": "Assigns an inspector to an inspection. Inspector receives FCM push notification. Returns 400 if inspector is already assigned."
+            "description": "Assign an inspector to the inspection job. Inspector receives a notification."
           },
           "event": [
             {
@@ -1667,7 +1678,7 @@
                 "respond"
               ]
             },
-            "description": "Inspector accepts or declines the assignment. Statuses: `ACCEPTED` | `DECLINED`. Returns 403 if already responded."
+            "description": "Inspector accepts or declines the assignment. Send status: ACCEPTED or DECLINED."
           },
           "event": [
             {
@@ -1699,7 +1710,7 @@
                 "archive"
               ]
             },
-            "description": "Moves inspection to ARCHIVED status."
+            "description": "Close and archive a completed inspection."
           }
         }
       ],
@@ -1759,7 +1770,7 @@
                 "exports"
               ]
             },
-            "description": "Queues an async export job. The worker builds a ZIP of all images + certificates for the target.\n\nTarget types: `BUILDING` | `FLOOR` | `DOOR` | `SITE` | `INSPECTION`.\n\nPoll `GET /v1/exports/:id` until status is `DONE`, then call `Get Export Download URL`."
+            "description": "Start a background job to build a ZIP of all inspection data. Saves exportJobId."
           }
         },
         {
@@ -1777,7 +1788,7 @@
                 "{{exportJobId}}"
               ]
             },
-            "description": "Statuses: `QUEUED` \u2192 `RUNNING` \u2192 `DONE` | `FAILED`."
+            "description": "Check status: QUEUED \u2192 RUNNING \u2192 DONE (or FAILED). Poll every few seconds."
           }
         },
         {
@@ -1796,7 +1807,7 @@
                 "signed-download"
               ]
             },
-            "description": "Returns a short-lived signed GCS URL to download the ZIP. Returns 400 if job is not DONE yet."
+            "description": "Get a signed URL to download the ZIP. Only works when status is DONE."
           }
         }
       ],
@@ -1842,7 +1853,7 @@
                 "device-token"
               ]
             },
-            "description": "Registers the mobile device's FCM token so the user can receive push notifications (assignment alerts, certificate issued, etc.).\n\nPlatforms: `IOS` | `ANDROID`.\n\nUpserts the token \u2014 safe to call on every app launch."
+            "description": "Register a Firebase push notification token for this device. Call after login on mobile apps."
           },
           "event": [
             {
@@ -1891,7 +1902,7 @@
                 "health"
               ]
             },
-            "description": "Public endpoint. Returns app status and database connectivity + latency. No auth required."
+            "description": "Check server and database health. Returns { status: 'ok' } when everything is running."
           }
         }
       ]
