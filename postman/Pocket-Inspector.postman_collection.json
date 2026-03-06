@@ -645,11 +645,11 @@
                 "sites"
               ]
             },
-            "description": "List all sites in the org."
+            "description": "List all sites. ADMIN sees all sites in the org. INSPECTOR sees only sites they created or are assigned to (via inspection assignment)."
           }
         },
         {
-          "name": "Create Site (Admin only)",
+          "name": "Create Site",
           "event": [
             {
               "listen": "test",
@@ -687,7 +687,57 @@
                 "sites"
               ]
             },
-            "description": "Create a new site (physical location). Saves siteId for use in subsequent requests."
+            "description": "Create a new site. Both ADMIN and INSPECTOR can create sites. The site is automatically linked to the creator (createdById). Saves siteId."
+          }
+        },
+        {
+          "name": "Create Site as Inspector (role check)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const t = pm.environment.get('inspectorToken');",
+                  "if (t) pm.environment.set('accessToken', t);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Inspector can create site \u2014 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) pm.environment.set('inspectorSiteId', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Inspector Test Site\",\n  \"referenceCode\": \"INS-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/sites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sites"
+              ]
+            },
+            "description": "Verifies that an INSPECTOR can create a site. Saves inspectorSiteId. The inspector will only see this site in their own list — admin sees it in the full list."
           }
         },
         {
@@ -793,11 +843,11 @@
                 }
               ]
             },
-            "description": "List all buildings. Filter by site using ?siteId="
+            "description": "List all buildings. ADMIN sees all buildings in the org. INSPECTOR sees only buildings they created or are assigned to via an inspection assignment. Filter by site using ?siteId="
           }
         },
         {
-          "name": "Create Building (Admin only)",
+          "name": "Create Building",
           "event": [
             {
               "listen": "test",
@@ -823,7 +873,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\"\n}"
+              "raw": "{\n  \"siteId\": \"{{siteId}}\",\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/buildings",
@@ -835,7 +885,57 @@
                 "buildings"
               ]
             },
-            "description": "Create a building within a site. Saves buildingId."
+            "description": "Create a building. Both ADMIN and INSPECTOR can create buildings. The building is linked to the creator (createdById). Saves buildingId."
+          }
+        },
+        {
+          "name": "Create Building as Inspector (role check)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const t = pm.environment.get('inspectorToken');",
+                  "if (t) pm.environment.set('accessToken', t);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Inspector can create building \u2014 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) pm.environment.set('inspectorBuildingId', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Inspector Test Block\",\n  \"buildingCode\": \"INS-BLD-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "buildings"
+              ]
+            },
+            "description": "Verifies that an INSPECTOR can create a building. Saves inspectorBuildingId. The inspector sees it in their filtered list; admin sees it in the full org list."
           }
         },
         {
@@ -1017,7 +1117,7 @@
       "name": "\ud83c\udfe0 Floors",
       "item": [
         {
-          "name": "Create Floor (Admin only)",
+          "name": "Create Floor",
           "event": [
             {
               "listen": "test",
@@ -1055,7 +1155,57 @@
                 "floors"
               ]
             },
-            "description": "Create a floor in a building (e.g. 'Ground Floor', 'Level 1'). Saves floorId."
+            "description": "Create a floor in a building. Both ADMIN and INSPECTOR can create floors. Saves floorId."
+          }
+        },
+        {
+          "name": "Create Floor as Inspector (role check)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const t = pm.environment.get('inspectorToken');",
+                  "if (t) pm.environment.set('accessToken', t);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Inspector can create floor \u2014 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) pm.environment.set('inspectorFloorId', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buildingId\": \"{{inspectorBuildingId}}\",\n  \"label\": \"G\",\n  \"notes\": \"Inspector-created floor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/floors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "floors"
+              ]
+            },
+            "description": "Verifies that an INSPECTOR can create a floor in their own building. Uses inspectorBuildingId. Saves inspectorFloorId."
           }
         },
         {
@@ -1160,7 +1310,7 @@
       "name": "\ud83d\udeaa Doors",
       "item": [
         {
-          "name": "Create Door (Admin only)",
+          "name": "Create Door",
           "event": [
             {
               "listen": "test",
@@ -1198,7 +1348,57 @@
                 "doors"
               ]
             },
-            "description": "Create a door on a floor with a door code. Saves doorId. Status starts as DRAFT."
+            "description": "Create a door on a floor. Both ADMIN and INSPECTOR can create doors. Saves doorId. Status starts as DRAFT."
+          }
+        },
+        {
+          "name": "Create Door as Inspector (role check)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const t = pm.environment.get('inspectorToken');",
+                  "if (t) pm.environment.set('accessToken', t);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Inspector can create door \u2014 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) pm.environment.set('inspectorDoorId', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"floorId\": \"{{inspectorFloorId}}\",\n  \"code\": \"INS-D-001\",\n  \"locationNotes\": \"Inspector-created door\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors"
+              ]
+            },
+            "description": "Verifies that an INSPECTOR can create a door in their own floor. Uses inspectorFloorId. Saves inspectorDoorId."
           }
         },
         {
