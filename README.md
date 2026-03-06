@@ -96,3 +96,22 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pocket Inspector — Create User
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Email: jane@company.com
+Password: \*\*\*\*
+Role (ADMIN / INSPECTOR): ADMIN
+First name (optional): Jane
+Last name (optional): Smith
+
+─────────────────────────────
+Email : jane@company.com
+Role : ADMIN
+Name : Jane Smith
+Org : Acme Inspections Ltd
+─────────────────────────────
+
+✅ User created successfully!

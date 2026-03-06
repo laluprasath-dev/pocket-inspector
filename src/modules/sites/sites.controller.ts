@@ -25,22 +25,23 @@ export class SitesController {
   constructor(private readonly sitesService: SitesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all sites in the org' })
+  @ApiOperation({
+    summary: 'List sites — admin sees all, inspector sees own + assigned',
+  })
   findAll(@CurrentUser() user: User) {
-    return this.sitesService.findAll(user.orgId);
+    return this.sitesService.findAll(user.orgId, user.id, user.role as Role);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Create a new site (admin only)' })
+  @ApiOperation({ summary: 'Create a new site (admin or inspector)' })
   create(@Body() dto: CreateSiteDto, @CurrentUser() user: User) {
-    return this.sitesService.create(dto, user.orgId);
+    return this.sitesService.create(dto, user.orgId, user.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a site by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.sitesService.findById(id, user.orgId);
+    return this.sitesService.findById(id, user.orgId, user.id, user.role as Role);
   }
 
   @Patch(':id')

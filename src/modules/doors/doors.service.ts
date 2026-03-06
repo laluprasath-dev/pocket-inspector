@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DoorStatus } from '../../../generated/prisma/enums';
+import { Role, DoorStatus } from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -24,9 +24,9 @@ export class DoorsService {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private async getDoorContext(doorId: string, orgId: string) {
+  private async getDoorContext(doorId: string, orgId: string, userId: string, role: Role) {
     const door = await this.prisma.door.findFirst({
-      where: { id: doorId, floor: { building: { orgId } } },
+      where: { id: doorId, ...this.accessFilter(orgId, userId, role) },
       include: {
         floor: {
           include: {
@@ -58,9 +58,7 @@ export class DoorsService {
             building: {
               include: {
                 inspections: {
-                  include: {
-                    assignments: { select: { inspectorId: true } },
-                  },
+                  include: { assignments: { select: { inspectorId: true } } },
                 },
               },
             },
@@ -82,9 +80,9 @@ export class DoorsService {
 
   // ── Door CRUD ──────────────────────────────────────────────────────────────
 
-  async findById(id: string, orgId: string) {
+  async findById(id: string, orgId: string, userId: string, role: Role) {
     const door = await this.prisma.door.findFirst({
-      where: { id, floor: { building: { orgId } } },
+      where: { id, ...this.accessFilter(orgId, userId, role) },
       include: {
         _count: { select: { images: true } },
         certificate: { select: { id: true, uploadedAt: true } },
@@ -114,7 +112,7 @@ export class DoorsService {
     };
   }
 
-  async create(dto: CreateDoorDto, orgId: string) {
+  async create(dto: CreateDoorDto, orgId: string, userId: string) {
     const floor = await this.prisma.floor.findFirst({
       where: { id: dto.floorId, building: { orgId } },
     });
@@ -125,17 +123,21 @@ export class DoorsService {
         floorId: dto.floorId,
         code: dto.code,
         locationNotes: dto.locationNotes,
+        createdById: userId,
       },
     });
   }
 
   async update(id: string, dto: UpdateDoorDto, orgId: string) {
-    await this.getDoorContext(id, orgId);
+    const door = await this.prisma.door.findFirst({
+      where: { id, floor: { building: { orgId } } },
+    });
+    if (!door) throw new NotFoundException(`Door ${id} not found`);
     return this.prisma.door.update({ where: { id }, data: dto });
   }
 
   async submit(id: string, userId: string, orgId: string) {
-    const { door } = await this.getDoorContext(id, orgId);
+    const { door } = await this.getDoorContext(id, orgId, userId, Role.INSPECTOR);
 
     if (door.status !== DoorStatus.DRAFT) {
       throw new BadRequestException(
@@ -143,33 +145,21 @@ export class DoorsService {
       );
     }
 
-    const imagesCount = await this.prisma.doorImage.count({
-      where: { doorId: id },
-    });
+    const imagesCount = await this.prisma.doorImage.count({ where: { doorId: id } });
     if (imagesCount === 0) {
-      throw new BadRequestException(
-        'At least one image must be uploaded before submitting',
-      );
+      throw new BadRequestException('At least one image must be uploaded before submitting');
     }
 
     return this.prisma.door.update({
       where: { id },
-      data: {
-        status: DoorStatus.SUBMITTED,
-        submittedAt: new Date(),
-        submittedById: userId,
-      },
+      data: { status: DoorStatus.SUBMITTED, submittedAt: new Date(), submittedById: userId },
     });
   }
 
   // ── Images ─────────────────────────────────────────────────────────────────
 
-  async requestImageUpload(
-    doorId: string,
-    dto: RequestImageUploadDto,
-    orgId: string,
-  ) {
-    const { door, pathCtx } = await this.getDoorContext(doorId, orgId);
+  async requestImageUpload(doorId: string, dto: RequestImageUploadDto, orgId: string, userId: string, role: Role) {
+    const { door, pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
 
     if (door.status === DoorStatus.CERTIFIED) {
       throw new BadRequestException('Cannot upload images to a certified door');
@@ -183,20 +173,12 @@ export class DoorsService {
     });
     const contentType = dto.contentType ?? 'image/jpeg';
 
-    const signedUrl = await this.gcs.getSignedUploadUrl({
-      objectPath,
-      contentType,
-    });
+    const signedUrl = await this.gcs.getSignedUploadUrl({ objectPath, contentType });
     return { signedUrl, objectPath, imageId, role: dto.role };
   }
 
-  async registerImage(
-    doorId: string,
-    dto: RegisterImageDto,
-    userId: string,
-    orgId: string,
-  ) {
-    await this.getDoorContext(doorId, orgId);
+  async registerImage(doorId: string, dto: RegisterImageDto, userId: string, orgId: string, role: Role) {
+    await this.getDoorContext(doorId, orgId, userId, role);
 
     return this.prisma.doorImage.create({
       data: {
@@ -209,73 +191,43 @@ export class DoorsService {
     });
   }
 
-  async listImages(doorId: string, orgId: string) {
-    await this.getDoorContext(doorId, orgId);
-    return this.prisma.doorImage.findMany({
-      where: { doorId },
-      orderBy: { uploadedAt: 'asc' },
-    });
+  async listImages(doorId: string, orgId: string, userId: string, role: Role) {
+    await this.getDoorContext(doorId, orgId, userId, role);
+    return this.prisma.doorImage.findMany({ where: { doorId }, orderBy: { uploadedAt: 'asc' } });
   }
 
   // ── Door certificate ───────────────────────────────────────────────────────
 
   async requestCertificateUpload(doorId: string, orgId: string) {
-    const { door, pathCtx } = await this.getDoorContext(doorId, orgId);
+    const { door, pathCtx } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
 
     if (door.status !== DoorStatus.SUBMITTED) {
-      throw new BadRequestException(
-        'Door must be SUBMITTED before a certificate can be uploaded',
-      );
+      throw new BadRequestException('Door must be SUBMITTED before a certificate can be uploaded');
     }
 
     const certId = crypto.randomUUID();
-    const objectPath = StoragePathBuilder.doorCertificate({
-      ...pathCtx,
-      certId,
-    });
+    const objectPath = StoragePathBuilder.doorCertificate({ ...pathCtx, certId });
 
-    const signedUrl = await this.gcs.getSignedUploadUrl({
-      objectPath,
-      contentType: 'application/pdf',
-    });
+    const signedUrl = await this.gcs.getSignedUploadUrl({ objectPath, contentType: 'application/pdf' });
     return { signedUrl, objectPath, certId };
   }
 
-  async registerCertificate(
-    doorId: string,
-    dto: RegisterDoorCertificateDto,
-    adminId: string,
-    orgId: string,
-  ) {
-    const { door } = await this.getDoorContext(doorId, orgId);
+  async registerCertificate(doorId: string, dto: RegisterDoorCertificateDto, adminId: string, orgId: string) {
+    const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
 
     if (door.status !== DoorStatus.SUBMITTED) {
-      throw new BadRequestException(
-        'Door must be SUBMITTED to register a certificate',
-      );
+      throw new BadRequestException('Door must be SUBMITTED to register a certificate');
     }
 
     const [cert] = await this.prisma.$transaction([
       this.prisma.doorCertificate.upsert({
         where: { doorId },
-        create: {
-          doorId,
-          objectPathCertificate: dto.objectPath,
-          uploadedById: adminId,
-        },
-        update: {
-          objectPathCertificate: dto.objectPath,
-          uploadedById: adminId,
-          uploadedAt: new Date(),
-        },
+        create: { doorId, objectPathCertificate: dto.objectPath, uploadedById: adminId },
+        update: { objectPathCertificate: dto.objectPath, uploadedById: adminId, uploadedAt: new Date() },
       }),
       this.prisma.door.update({
         where: { id: doorId },
-        data: {
-          status: DoorStatus.CERTIFIED,
-          certifiedAt: new Date(),
-          certifiedById: adminId,
-        },
+        data: { status: DoorStatus.CERTIFIED, certifiedAt: new Date(), certifiedById: adminId },
       }),
     ]);
 
@@ -289,18 +241,43 @@ export class DoorsService {
     return cert;
   }
 
-  async getCertificateDownloadUrl(
-    doorId: string,
-    orgId: string,
-  ): Promise<string> {
+  async getCertificateDownloadUrl(doorId: string, orgId: string, userId: string, role: Role): Promise<string> {
+    await this.getDoorContext(doorId, orgId, userId, role);
     const cert = await this.prisma.doorCertificate.findFirst({
       where: { doorId, door: { floor: { building: { orgId } } } },
     });
-    if (!cert)
-      throw new NotFoundException('No certificate found for this door');
+    if (!cert) throw new NotFoundException('No certificate found for this door');
 
-    return this.gcs.getSignedDownloadUrl({
-      objectPath: cert.objectPathCertificate,
-    });
+    return this.gcs.getSignedDownloadUrl({ objectPath: cert.objectPathCertificate });
+  }
+
+  // ── Access filter ─────────────────────────────────────────────────────────
+  // ADMIN (or empty userId with ADMIN role for cert operations): all doors in org
+  // INSPECTOR: doors they created OR in buildings assigned to them
+
+  private accessFilter(orgId: string, userId: string, role: Role) {
+    if (role === Role.ADMIN) return { floor: { building: { orgId } } };
+
+    return {
+      floor: { building: { orgId } },
+      OR: [
+        { createdById: userId },
+        {
+          floor: {
+            OR: [
+              { createdById: userId },
+              { building: { createdById: userId } },
+              {
+                building: {
+                  inspections: {
+                    some: { assignments: { some: { inspectorId: userId } } },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
   }
 }

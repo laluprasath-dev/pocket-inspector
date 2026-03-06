@@ -29,18 +29,15 @@ export class DoorsController {
   // ── Door CRUD ──────────────────────────────────────────────────────────────
 
   @Post()
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Create a door on a floor (admin only)' })
+  @ApiOperation({ summary: 'Create a door on a floor (admin or inspector)' })
   create(@Body() dto: CreateDoorDto, @CurrentUser() user: User) {
-    return this.doorsService.create(dto, user.orgId);
+    return this.doorsService.create(dto, user.orgId, user.id);
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Get door details — status, image count, certificate',
-  })
+  @ApiOperation({ summary: 'Get door details — status, image count, certificate' })
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.doorsService.findById(id, user.orgId);
+    return this.doorsService.findById(id, user.orgId, user.id, user.role as Role);
   }
 
   @Patch(':id')
@@ -56,9 +53,7 @@ export class DoorsController {
 
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Inspector submits a door (requires ≥1 image, sets SUBMITTED)',
-  })
+  @ApiOperation({ summary: 'Inspector submits a door (requires ≥1 image, sets SUBMITTED)' })
   submit(@Param('id') id: string, @CurrentUser() user: User) {
     return this.doorsService.submit(id, user.id, user.orgId);
   }
@@ -68,7 +63,7 @@ export class DoorsController {
   @Get(':id/images')
   @ApiOperation({ summary: 'List all images on a door' })
   listImages(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.doorsService.listImages(id, user.orgId);
+    return this.doorsService.listImages(id, user.orgId, user.id, user.role as Role);
   }
 
   @Post(':id/images/signed-upload')
@@ -79,7 +74,7 @@ export class DoorsController {
     @Body() dto: RequestImageUploadDto,
     @CurrentUser() user: User,
   ) {
-    return this.doorsService.requestImageUpload(id, dto, user.orgId);
+    return this.doorsService.requestImageUpload(id, dto, user.orgId, user.id, user.role as Role);
   }
 
   @Post(':id/images/register')
@@ -89,7 +84,7 @@ export class DoorsController {
     @Body() dto: RegisterImageDto,
     @CurrentUser() user: User,
   ) {
-    return this.doorsService.registerImage(id, dto, user.id, user.orgId);
+    return this.doorsService.registerImage(id, dto, user.id, user.orgId, user.role as Role);
   }
 
   // ── Door certificate ───────────────────────────────────────────────────────
@@ -97,20 +92,14 @@ export class DoorsController {
   @Post(':id/certificate/signed-upload')
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      'Request a signed GCS upload URL for a door certificate (admin only)',
-  })
+  @ApiOperation({ summary: 'Request a signed GCS upload URL for a door certificate (admin only)' })
   requestCertUpload(@Param('id') id: string, @CurrentUser() user: User) {
     return this.doorsService.requestCertificateUpload(id, user.orgId);
   }
 
   @Post(':id/certificate/register')
   @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary:
-      'Register door certificate → sets door CERTIFIED + notifies inspectors',
-  })
+  @ApiOperation({ summary: 'Register door certificate → sets door CERTIFIED + notifies inspectors' })
   registerCertificate(
     @Param('id') id: string,
     @Body() dto: RegisterDoorCertificateDto,
@@ -120,10 +109,8 @@ export class DoorsController {
   }
 
   @Get(':id/certificate/signed-download')
-  @ApiOperation({
-    summary: 'Get a signed download URL for the door certificate',
-  })
+  @ApiOperation({ summary: 'Get a signed download URL for the door certificate' })
   getCertDownloadUrl(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.doorsService.getCertificateDownloadUrl(id, user.orgId);
+    return this.doorsService.getCertificateDownloadUrl(id, user.orgId, user.id, user.role as Role);
   }
 }

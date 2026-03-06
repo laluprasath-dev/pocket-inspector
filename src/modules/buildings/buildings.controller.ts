@@ -33,23 +33,24 @@ export class BuildingsController {
   // ── Building CRUD ──────────────────────────────────────────────────────────
 
   @Get()
-  @ApiOperation({ summary: 'List buildings (optionally filter by siteId)' })
+  @ApiOperation({
+    summary: 'List buildings — admin sees all, inspector sees own + assigned',
+  })
   @ApiQuery({ name: 'siteId', required: false })
   findAll(@CurrentUser() user: User, @Query('siteId') siteId?: string) {
-    return this.buildingsService.findAll(user.orgId, siteId);
+    return this.buildingsService.findAll(user.orgId, user.id, user.role as Role, siteId);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Create a building (admin only)' })
+  @ApiOperation({ summary: 'Create a building (admin or inspector)' })
   create(@Body() dto: CreateBuildingDto, @CurrentUser() user: User) {
-    return this.buildingsService.create(dto, user.orgId);
+    return this.buildingsService.create(dto, user.orgId, user.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a building by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.buildingsService.findById(id, user.orgId);
+    return this.buildingsService.findById(id, user.orgId, user.id, user.role as Role);
   }
 
   @Patch(':id')
@@ -66,7 +67,7 @@ export class BuildingsController {
   @Get(':id/floors')
   @ApiOperation({ summary: 'List floors of a building' })
   getFloors(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.buildingsService.getFloors(id, user.orgId);
+    return this.buildingsService.getFloors(id, user.orgId, user.id, user.role as Role);
   }
 
   // ── Building certificate ───────────────────────────────────────────────────
@@ -75,8 +76,7 @@ export class BuildingsController {
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Request a signed GCS upload URL for a building certificate (admin only)',
+    summary: 'Request a signed GCS upload URL for a building certificate (admin only)',
   })
   requestCertUpload(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.requestCertificateUpload(id, user.orgId);
@@ -92,18 +92,11 @@ export class BuildingsController {
     @Body() dto: RegisterBuildingCertificateDto,
     @CurrentUser() user: User,
   ) {
-    return this.buildingsService.registerCertificate(
-      id,
-      dto,
-      user.id,
-      user.orgId,
-    );
+    return this.buildingsService.registerCertificate(id, dto, user.id, user.orgId);
   }
 
   @Get(':id/certificate/signed-download')
-  @ApiOperation({
-    summary: 'Get a signed download URL for the building certificate',
-  })
+  @ApiOperation({ summary: 'Get a signed download URL for the building certificate' })
   getCertDownloadUrl(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.getCertificateDownloadUrl(id, user.orgId);
   }

@@ -98,6 +98,10 @@ model User {
   org                   Org                    @relation(fields: [orgId], references: [id])
   sessions              Session[]
   assignments           InspectionAssignment[]
+  createdSites          Site[]                 @relation("SiteCreatedBy")
+  createdBuildings      Building[]             @relation("BuildingCreatedBy")
+  createdFloors         Floor[]                @relation("FloorCreatedBy")
+  createdDoors          Door[]                 @relation("DoorCreatedBy")
   doorSubmissions       Door[]                 @relation("DoorSubmittedBy")
   doorCertifications    Door[]                 @relation("DoorCertifiedBy")
   uploadedDoorImages    DoorImage[]
@@ -143,9 +147,11 @@ model Site {
   name           String
   referenceCode  String?
   locationNotes  String?
+  createdById    String?
   createdAt      DateTime @default(now())
 
   org         Org          @relation(fields: [orgId], references: [id])
+  createdBy   User?        @relation("SiteCreatedBy", fields: [createdById], references: [id])
   buildings   Building[]
   inspections Inspection[]
 
@@ -159,10 +165,12 @@ model Building {
   name          String
   buildingCode  String?
   locationNotes String?
+  createdById   String?
   createdAt     DateTime @default(now())
 
   org         Org                  @relation(fields: [orgId], references: [id])
   site        Site?                @relation(fields: [siteId], references: [id])
+  createdBy   User?                @relation("BuildingCreatedBy", fields: [createdById], references: [id])
   floors      Floor[]
   inspections Inspection[]
   certificate BuildingCertificate?
@@ -171,14 +179,16 @@ model Building {
 }
 
 model Floor {
-  id         String   @id @default(cuid())
-  buildingId String
-  label      String?
-  notes      String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  buildingId  String
+  label       String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
 
-  building Building @relation(fields: [buildingId], references: [id])
-  doors    Door[]
+  building  Building @relation(fields: [buildingId], references: [id])
+  createdBy User?    @relation("FloorCreatedBy", fields: [createdById], references: [id])
+  doors     Door[]
 
   @@map("floors")
 }
@@ -193,13 +203,15 @@ model Door {
   submittedById String?
   certifiedAt   DateTime?
   certifiedById String?
+  createdById   String?
   createdAt     DateTime   @default(now())
 
-  floor         Floor            @relation(fields: [floorId], references: [id])
-  submittedBy   User?            @relation("DoorSubmittedBy", fields: [submittedById], references: [id])
-  certifiedBy   User?            @relation("DoorCertifiedBy", fields: [certifiedById], references: [id])
-  images        DoorImage[]
-  certificate   DoorCertificate?
+  floor       Floor            @relation(fields: [floorId], references: [id])
+  createdBy   User?            @relation("DoorCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?            @relation("DoorSubmittedBy", fields: [submittedById], references: [id])
+  certifiedBy User?            @relation("DoorCertifiedBy", fields: [certifiedById], references: [id])
+  images      DoorImage[]
+  certificate DoorCertificate?
 
   @@map("doors")
 }
