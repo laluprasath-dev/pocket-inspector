@@ -47,49 +47,48 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  // ── Dev-only: serve Postman collection + environment as importable URLs ──
-  if (!isProduction) {
-    const fastify = app.getHttpAdapter().getInstance();
-    const postmanDir = join(process.cwd(), 'postman');
+  // ── Serve Postman collection + environment as importable URLs (all envs) ──
+  // The collection contains no secrets — safe to expose publicly.
+  const fastify = app.getHttpAdapter().getInstance();
+  const postmanDir = join(process.cwd(), 'postman');
 
-    fastify.get(
-      '/dev/postman/collection',
-      (
-        _req: unknown,
-        reply: {
-          header: (k: string, v: string) => void;
-          send: (b: string) => void;
-        },
-      ) => {
-        reply.header('Content-Type', 'application/json');
-        reply.send(
-          readFileSync(
-            join(postmanDir, 'Pocket-Inspector.postman_collection.json'),
-            'utf8',
-          ),
-        );
+  fastify.get(
+    '/dev/postman/collection',
+    (
+      _req: unknown,
+      reply: {
+        header: (k: string, v: string) => void;
+        send: (b: string) => void;
       },
-    );
+    ) => {
+      reply.header('Content-Type', 'application/json');
+      reply.send(
+        readFileSync(
+          join(postmanDir, 'Pocket-Inspector.postman_collection.json'),
+          'utf8',
+        ),
+      );
+    },
+  );
 
-    fastify.get(
-      '/dev/postman/environment',
-      (
-        _req: unknown,
-        reply: {
-          header: (k: string, v: string) => void;
-          send: (b: string) => void;
-        },
-      ) => {
-        reply.header('Content-Type', 'application/json');
-        reply.send(
-          readFileSync(
-            join(postmanDir, 'Pocket-Inspector.postman_environment.json'),
-            'utf8',
-          ),
-        );
+  fastify.get(
+    '/dev/postman/environment',
+    (
+      _req: unknown,
+      reply: {
+        header: (k: string, v: string) => void;
+        send: (b: string) => void;
       },
-    );
-  }
+    ) => {
+      reply.header('Content-Type', 'application/json');
+      reply.send(
+        readFileSync(
+          join(postmanDir, 'Pocket-Inspector.postman_environment.json'),
+          'utf8',
+        ),
+      );
+    },
+  );
 
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()

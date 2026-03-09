@@ -28,7 +28,6 @@ dist
 # Docs
 docs
 README.md
-postman
 
 # Docker itself
 Dockerfile
