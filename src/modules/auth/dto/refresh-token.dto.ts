@@ -6,7 +6,10 @@ export class RefreshTokenDto {
   @IsString()
   refreshToken: string;
 
-  @ApiPropertyOptional({ description: 'Same deviceId sent at login — used to verify token belongs to this device' })
+  @ApiPropertyOptional({
+    description:
+      'Same deviceId sent at login — used to verify token belongs to this device',
+  })
   @IsOptional()
   @IsString()
   deviceId?: string;

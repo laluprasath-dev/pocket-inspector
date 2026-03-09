@@ -40,11 +40,14 @@ enum DoorStatus {
 }
 
 enum ImageRole {
-  FRONT
-  BACK
-  LOCK
-  FRAME
-  OTHER
+  FRONT_FACE         // Door face condition
+  REAR_FACE          // Opposite side
+  FRAME_GAP          // Gap between door and frame (must be ≤3mm)
+  INTUMESCENT_STRIP  // Fire/smoke seal around the edge
+  SELF_CLOSER        // Closer mechanism
+  HINGES             // Hinge type and fitment
+  SIGNAGE            // Fire door keep shut sign
+  OTHER              // Anything else — use label field to describe
 }
 
 enum DevicePlatform {
@@ -81,6 +84,7 @@ model Org {
   buildings            Building[]
   inspections          Inspection[]
   bulkExportJobs       BulkExportJob[]
+  auditLogs            AuditLog[]
 
   @@map("orgs")
 }
@@ -110,6 +114,7 @@ model User {
   deviceTokens          UserDeviceToken[]
   createdInspections    Inspection[]
   createdBulkExports    BulkExportJob[]
+  auditLogs             AuditLog[]
 
   @@map("users")
 }
@@ -263,7 +268,8 @@ model InspectionAssignment {
 model DoorImage {
   id                  String    @id @default(cuid())
   doorId              String
-  role                ImageRole @default(OTHER)
+  role                ImageRole
+  label               String?
   objectPathOriginal  String
   objectPathThumb     String?
   uploadedById        String
@@ -317,6 +323,28 @@ model UserDeviceToken {
 
   @@unique([userId, token])
   @@map("user_device_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Audit log — immutable record of destructive / sensitive actions
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  orgId         String
+  performedById String
+  action        String   // e.g. DOOR_IMAGE_DELETED
+  entityType    String   // e.g. DoorImage
+  entityId      String   // ID of the affected record
+  metadata      Json?    // snapshot of key fields before deletion
+  performedAt   DateTime @default(now())
+
+  org         Org  @relation(fields: [orgId], references: [id])
+  performedBy User @relation(fields: [performedById], references: [id])
+
+  @@index([orgId, action])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }
 
 // ---------------------------------------------------------------------------

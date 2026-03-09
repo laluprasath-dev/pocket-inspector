@@ -53,7 +53,10 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
-  @ApiOperation({ summary: 'Login — returns access + refresh tokens and creates a device session' })
+  @ApiOperation({
+    summary:
+      'Login — returns access + refresh tokens and creates a device session',
+  })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, type: TokenResponseDto })
   login(
@@ -70,7 +73,9 @@ export class AuthController {
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Exchange a refresh token for a new token pair (token rotation)' })
+  @ApiOperation({
+    summary: 'Exchange a refresh token for a new token pair (token rotation)',
+  })
   @ApiResponse({ status: 200, type: TokenResponseDto })
   refresh(
     @Body() dto: RefreshTokenDto,
@@ -95,7 +100,7 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Logout — revoke current device session' })
   async logout(@Req() req: FastifyRequest & { user: User }): Promise<void> {
-    const payload = req.user as unknown as JwtPayload & User;
+    void (req.user as unknown as JwtPayload & User);
     // The session ID is embedded in the validated user via JWT payload
     // We reach it via the raw JWT in the Authorization header
     const token = (req.headers.authorization ?? '').replace('Bearer ', '');
@@ -111,9 +116,14 @@ export class AuthController {
 
   @Get('sessions')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'List all active sessions (devices) for the current user' })
+  @ApiOperation({
+    summary: 'List all active sessions (devices) for the current user',
+  })
   @ApiResponse({ status: 200, type: [SessionResponseDto] })
-  getSessions(@CurrentUser() user: User, @Req() req: FastifyRequest): Promise<SessionResponseDto[]> {
+  getSessions(
+    @CurrentUser() user: User,
+    @Req() req: FastifyRequest,
+  ): Promise<SessionResponseDto[]> {
     const token = (req.headers.authorization ?? '').replace('Bearer ', '');
     const decoded = this.decodeToken(token);
     return this.authService.getSessions(user.id, decoded?.sid ?? '');
@@ -145,7 +155,8 @@ export class AuthController {
   ): Promise<void> {
     const token = (req.headers.authorization ?? '').replace('Bearer ', '');
     const decoded = this.decodeToken(token);
-    const exceptId = keepCurrent === 'true' ? (decoded?.sid ?? undefined) : undefined;
+    const exceptId =
+      keepCurrent === 'true' ? (decoded?.sid ?? undefined) : undefined;
     return this.authService.revokeAllSessions(user.id, exceptId);
   }
 
@@ -154,7 +165,9 @@ export class AuthController {
   private decodeToken(token: string): (JwtPayload & { sid?: string }) | null {
     try {
       const parts = token.split('.');
-      return JSON.parse(Buffer.from(parts[1], 'base64').toString()) as JwtPayload;
+      return JSON.parse(
+        Buffer.from(parts[1], 'base64').toString(),
+      ) as JwtPayload;
     } catch {
       return null;
     }

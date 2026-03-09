@@ -392,7 +392,7 @@ describe('Domain Endpoints (e2e)', () => {
       await prisma.doorImage.create({
         data: {
           doorId,
-          role: 'FRONT',
+          role: 'FRONT_FACE',
           objectPathOriginal: 'orgs/test/buildings/b/floors/f/doors/d/images/original/front/img.jpg',
           uploadedById: seeds.inspector.id,
         },
@@ -411,7 +411,7 @@ describe('Domain Endpoints (e2e)', () => {
       await prisma.doorImage.create({
         data: {
           doorId,
-          role: 'FRONT',
+          role: 'FRONT_FACE',
           objectPathOriginal: 'test/path.jpg',
           uploadedById: seeds.inspector.id,
         },
@@ -432,7 +432,7 @@ describe('Domain Endpoints (e2e)', () => {
       await prisma.doorImage.create({
         data: {
           doorId,
-          role: 'BACK',
+          role: 'REAR_FACE',
           objectPathOriginal: 'test/path.jpg',
           uploadedById: seeds.inspector.id,
         },

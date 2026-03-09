@@ -17,7 +17,12 @@ export class BuildingsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  findAll(orgId: string, userId: string, role: Role, siteId?: string): Promise<Building[]> {
+  findAll(
+    orgId: string,
+    userId: string,
+    role: Role,
+    siteId?: string,
+  ): Promise<Building[]> {
     return this.prisma.building.findMany({
       where: {
         ...(siteId ? { siteId } : {}),
@@ -27,7 +32,12 @@ export class BuildingsService {
     });
   }
 
-  async findById(id: string, orgId: string, userId: string, role: Role): Promise<Building> {
+  async findById(
+    id: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ): Promise<Building> {
     const building = await this.prisma.building.findFirst({
       where: { id, ...this.accessFilter(orgId, userId, role) },
       include: { certificate: true },
@@ -36,17 +46,34 @@ export class BuildingsService {
     return building;
   }
 
-  create(dto: CreateBuildingDto, orgId: string, userId: string): Promise<Building> {
-    return this.prisma.building.create({ data: { ...dto, orgId, createdById: userId } });
+  create(
+    dto: CreateBuildingDto,
+    orgId: string,
+    userId: string,
+  ): Promise<Building> {
+    return this.prisma.building.create({
+      data: { ...dto, orgId, createdById: userId },
+    });
   }
 
-  async update(id: string, dto: UpdateBuildingDto, orgId: string): Promise<Building> {
-    const building = await this.prisma.building.findFirst({ where: { id, orgId } });
+  async update(
+    id: string,
+    dto: UpdateBuildingDto,
+    orgId: string,
+  ): Promise<Building> {
+    const building = await this.prisma.building.findFirst({
+      where: { id, orgId },
+    });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
     return this.prisma.building.update({ where: { id }, data: dto });
   }
 
-  async getFloors(buildingId: string, orgId: string, userId: string, role: Role): Promise<Floor[]> {
+  async getFloors(
+    buildingId: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ): Promise<Floor[]> {
     await this.findById(buildingId, orgId, userId, role);
     return this.prisma.floor.findMany({
       where: { buildingId },
@@ -57,8 +84,11 @@ export class BuildingsService {
   // ── Building certificate ───────────────────────────────────────────────────
 
   async requestCertificateUpload(buildingId: string, orgId: string) {
-    const building = await this.prisma.building.findFirst({ where: { id: buildingId, orgId } });
-    if (!building) throw new NotFoundException(`Building ${buildingId} not found`);
+    const building = await this.prisma.building.findFirst({
+      where: { id: buildingId, orgId },
+    });
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
 
     const certId = crypto.randomUUID();
     const objectPath = StoragePathBuilder.buildingCertificate({
@@ -81,8 +111,11 @@ export class BuildingsService {
     adminId: string,
     orgId: string,
   ) {
-    const building = await this.prisma.building.findFirst({ where: { id: buildingId, orgId } });
-    if (!building) throw new NotFoundException(`Building ${buildingId} not found`);
+    const building = await this.prisma.building.findFirst({
+      where: { id: buildingId, orgId },
+    });
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
 
     const cert = await this.prisma.buildingCertificate.upsert({
       where: { buildingId },
@@ -108,13 +141,19 @@ export class BuildingsService {
     return cert;
   }
 
-  async getCertificateDownloadUrl(buildingId: string, orgId: string): Promise<string> {
+  async getCertificateDownloadUrl(
+    buildingId: string,
+    orgId: string,
+  ): Promise<string> {
     const cert = await this.prisma.buildingCertificate.findFirst({
       where: { buildingId, building: { orgId } },
     });
-    if (!cert) throw new NotFoundException('No certificate found for this building');
+    if (!cert)
+      throw new NotFoundException('No certificate found for this building');
 
-    return this.gcs.getSignedDownloadUrl({ objectPath: cert.objectPathCertificate });
+    return this.gcs.getSignedDownloadUrl({
+      objectPath: cert.objectPathCertificate,
+    });
   }
 
   // ── Access filter ─────────────────────────────────────────────────────────
@@ -137,7 +176,9 @@ export class BuildingsService {
     };
   }
 
-  private async getInspectorIdsForBuilding(buildingId: string): Promise<string[]> {
+  private async getInspectorIdsForBuilding(
+    buildingId: string,
+  ): Promise<string[]> {
     const inspections = await this.prisma.inspection.findMany({
       where: { buildingId },
       include: { assignments: { select: { inspectorId: true } } },

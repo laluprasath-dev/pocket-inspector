@@ -70,16 +70,6 @@
       "key": "exportJobId",
       "value": "",
       "type": "string"
-    },
-    {
-      "key": "adminToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "inspectorToken",
-      "value": "",
-      "type": "string"
     }
   ],
   "item": [
@@ -97,6 +87,7 @@
                   "if (json.data) {",
                   "    pm.environment.set('accessToken',  json.data.accessToken);",
                   "    pm.environment.set('adminToken', json.data.accessToken);",
+                  "    pm.collectionVariables.set('adminToken', json.data.accessToken);",
                   "    pm.environment.set('refreshToken', json.data.refreshToken);",
                   "    // Save deviceId returned by server (auto-detected from User-Agent)",
                   "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
@@ -149,7 +140,7 @@
                 "login"
               ]
             },
-            "description": "Login with admin credentials. Only email and password are needed — device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
+            "description": "Login with admin credentials. Only email and password are needed \u2014 device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
           }
         },
         {
@@ -163,6 +154,7 @@
                   "if (json.data) {",
                   "    pm.environment.set('accessToken',  json.data.accessToken);",
                   "    pm.environment.set('inspectorToken', json.data.accessToken);",
+                  "    pm.collectionVariables.set('inspectorToken', json.data.accessToken);",
                   "    pm.environment.set('refreshToken', json.data.refreshToken);",
                   "    // Save deviceId returned by server (auto-detected from User-Agent)",
                   "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
@@ -697,8 +689,20 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
+                  "const base = pm.environment.get('baseUrl');",
+                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                  "pm.sendRequest({",
+                  "    url: base + '/v1/auth/login', method: 'POST',",
+                  "    header: {'Content-Type': 'application/json'},",
+                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                  "}, function(err, res) {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        const t = res.json().data.accessToken;",
+                  "        pm.environment.set('inspectorToken', t);",
+                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                  "    }",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -716,6 +720,9 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -737,7 +744,7 @@
                 "sites"
               ]
             },
-            "description": "Verifies that an INSPECTOR can create a site. Saves inspectorSiteId. The inspector will only see this site in their own list — admin sees it in the full list."
+            "description": "Verifies that an INSPECTOR can create a site. Saves inspectorSiteId. The inspector will only see this site in their own list \u2014 admin sees it in the full list."
           }
         },
         {
@@ -873,7 +880,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"siteId\": \"{{siteId}}\",\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\"\n}"
+              "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/buildings",
@@ -895,8 +902,20 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
+                  "const base = pm.environment.get('baseUrl');",
+                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                  "pm.sendRequest({",
+                  "    url: base + '/v1/auth/login', method: 'POST',",
+                  "    header: {'Content-Type': 'application/json'},",
+                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                  "}, function(err, res) {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        const t = res.json().data.accessToken;",
+                  "        pm.environment.set('inspectorToken', t);",
+                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                  "    }",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -914,6 +933,9 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -1165,8 +1187,20 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
+                  "const base = pm.environment.get('baseUrl');",
+                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                  "pm.sendRequest({",
+                  "    url: base + '/v1/auth/login', method: 'POST',",
+                  "    header: {'Content-Type': 'application/json'},",
+                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                  "}, function(err, res) {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        const t = res.json().data.accessToken;",
+                  "        pm.environment.set('inspectorToken', t);",
+                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                  "    }",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -1184,6 +1218,9 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -1324,6 +1361,33 @@
                 ],
                 "type": "text/javascript"
               }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-login if no valid admin token",
+                  "if (!pm.environment.get('adminToken')) {",
+                  "  pm.sendRequest({",
+                  "    url: pm.environment.get('baseUrl') + '/v1/auth/login',",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: {",
+                  "      mode: 'raw',",
+                  "      raw: JSON.stringify({",
+                  "        email:    pm.environment.get('adminEmail')    || 'admin@example.com',",
+                  "        password: pm.environment.get('adminPassword') || 'Admin1234!'",
+                  "      })",
+                  "    }",
+                  "  }, (err, res) => {",
+                  "    if (!err && res.json().data) {",
+                  "      pm.environment.set('adminToken', res.json().data.accessToken);",
+                  "    }",
+                  "  });",
+                  "}"
+                ]
+              }
             }
           ],
           "request": {
@@ -1358,8 +1422,20 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
+                  "const base = pm.environment.get('baseUrl');",
+                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                  "pm.sendRequest({",
+                  "    url: base + '/v1/auth/login', method: 'POST',",
+                  "    header: {'Content-Type': 'application/json'},",
+                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                  "}, function(err, res) {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        const t = res.json().data.accessToken;",
+                  "        pm.environment.set('inspectorToken', t);",
+                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                  "    }",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -1377,6 +1453,9 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -1475,7 +1554,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"FRONT\",\n  \"contentType\": \"image/jpeg\"\n}"
+              "raw": "{\n  \"role\": \"FRONT_FACE\",\n  \"contentType\": \"image/jpeg\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/signed-upload",
@@ -1490,7 +1569,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Get a pre-signed GCS URL to upload a door photo. URL expires in 15 minutes."
+            "description": "STEP 1 of 3 \u2014 Request a signed GCS upload URL for a single door image.\n\nWhy is 'role' required here?\nThe role is embedded into the GCS storage path (e.g. orgs/.../images/FRONT_FACE/uuid.jpg). Without knowing the role at this point, the server cannot build the path and therefore cannot generate the signed URL.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER\n\nResponse returns: { signedUrl, objectPath, imageId, role }\n\n\u279c NEXT: Use the returned signedUrl in 'Upload Image to GCS (PUT signed URL)' \u2014 PUT the image binary directly to that URL. No Authorization header needed.\n\n\u279c THEN: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath to save the record."
           }
         },
         {
@@ -1505,7 +1584,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"imageId\": \"{{imageUploadId}}\",\n  \"objectPath\": \"{{imageObjectPath}}\",\n  \"role\": \"FRONT\"\n}"
+              "raw": "{\n  \"imageId\": \"{{imageUploadId}}\",\n  \"objectPath\": \"{{imageObjectPath}}\",\n  \"role\": \"FRONT_FACE\",\n  \"label\": \"Front face of door\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/register",
@@ -1520,7 +1599,7 @@
                 "register"
               ]
             },
-            "description": "After uploading photo to GCS, register it here. Saves imageUploadId."
+            "description": "STEP 3 of 3 \u2014 Register the image in the database after it has been uploaded to GCS.\n\nUse the imageId and objectPath returned from Step 1 (Request Image Upload URL).\n'label' is optional \u2014 use it to add a human-readable description, especially for OTHER images.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER"
           },
           "event": [
             {
@@ -1546,6 +1625,126 @@
           ]
         },
         {
+          "name": "Upload Image to GCS (PUT signed URL)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This request must be run manually \u2014 paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
+                  "// Skipped automatically during Newman runs when no real URL is set.",
+                  "const url = pm.environment.get('signedUploadUrl') || '';",
+                  "if (!url || !url.startsWith('https://storage.googleapis.com')) {",
+                  "    pm.execution.skipRequest();",
+                  "}",
+                  "// Remove Authorization header \u2014 GCS signed URLs must NOT receive a Bearer token.",
+                  "pm.request.headers.remove('Authorization');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg",
+                "description": "Must exactly match the contentType you passed to signed-upload (e.g. image/jpeg, image/png, image/heic)"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {}
+            },
+            "url": "{{signedUploadUrl}}",
+            "description": "STEP 2 of 3 \u2014 Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab \u2192 select 'binary' \u2192 click 'Select File' \u2192 pick your image file\n5. Send \u2014 GCS returns 200 OK with an empty body if successful\n\n\u26a0\ufe0f  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n\u26a0\ufe0f  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n\u279c NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
+          }
+        },
+        {
+          "name": "Batch Request Image Upload URLs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"images\": [\n    { \"role\": \"FRONT_FACE\",        \"contentType\": \"image/jpeg\" },\n    { \"role\": \"REAR_FACE\",         \"contentType\": \"image/jpeg\" },\n    { \"role\": \"FRAME_GAP\",         \"contentType\": \"image/jpeg\" },\n    { \"role\": \"INTUMESCENT_STRIP\", \"contentType\": \"image/jpeg\" },\n    { \"role\": \"SELF_CLOSER\",       \"contentType\": \"image/jpeg\" },\n    { \"role\": \"HINGES\",            \"contentType\": \"image/jpeg\" },\n    { \"role\": \"SIGNAGE\",           \"contentType\": \"image/jpeg\" },\n    { \"role\": \"OTHER\",             \"contentType\": \"image/jpeg\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/signed-upload/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "images",
+                "signed-upload",
+                "batch"
+              ]
+            },
+            "description": "STEP 1 of 3 (Batch) \u2014 Request signed GCS upload URLs for up to 10 door images in a single call.\n\nWhy is 'role' required per image?\nThe role is embedded into each image's GCS storage path (e.g. orgs/.../images/FRONT_FACE/uuid.jpg). Without it the server cannot build the path or generate the signed URL.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER\n\nResponse returns an array of: { signedUrl, objectPath, imageId, role }\n\n\u279c NEXT: For each item in the response, PUT the image binary to its signedUrl. See 'Upload Image to GCS (PUT signed URL)'. Run all PUTs in parallel for best performance \u2014 no Authorization header on any of them.\n\n\u279c THEN: Call 'Batch Register Image URLs' with all imageId + objectPath pairs to save all records in one request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && Array.isArray(json.data)) {",
+                  "    pm.environment.set('batchUploadResults', JSON.stringify(json.data));",
+                  "    pm.test('Batch signed URLs returned \u2014 ' + json.data.length + ' items', () => {",
+                  "        pm.response.to.have.status(200);",
+                  "        pm.expect(json.data.length).to.be.greaterThan(0);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Register Image URLs (after GCS uploads)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"images\": [\n    { \"imageId\": \"<imageId-1>\", \"objectPath\": \"<objectPath-1>\", \"role\": \"FRONT_FACE\",        \"label\": \"Front face of door\" },\n    { \"imageId\": \"<imageId-2>\", \"objectPath\": \"<objectPath-2>\", \"role\": \"REAR_FACE\",         \"label\": \"Rear face of door\" },\n    { \"imageId\": \"<imageId-3>\", \"objectPath\": \"<objectPath-3>\", \"role\": \"FRAME_GAP\",         \"label\": \"Gap measurement at frame\" },\n    { \"imageId\": \"<imageId-4>\", \"objectPath\": \"<objectPath-4>\", \"role\": \"INTUMESCENT_STRIP\", \"label\": \"Intumescent strip condition\" },\n    { \"imageId\": \"<imageId-5>\", \"objectPath\": \"<objectPath-5>\", \"role\": \"SELF_CLOSER\",       \"label\": \"Self-closer mechanism\" },\n    { \"imageId\": \"<imageId-6>\", \"objectPath\": \"<objectPath-6>\", \"role\": \"HINGES\",            \"label\": \"Hinge type and fitment\" },\n    { \"imageId\": \"<imageId-7>\", \"objectPath\": \"<objectPath-7>\", \"role\": \"SIGNAGE\",           \"label\": \"Fire door keep shut sign\" },\n    { \"imageId\": \"<imageId-8>\", \"objectPath\": \"<objectPath-8>\", \"role\": \"OTHER\",             \"label\": \"Describe what this photo shows\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/register/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "images",
+                "register",
+                "batch"
+              ]
+            },
+            "description": "STEP 3 of 3 (Batch) \u2014 Register all images in the database after uploading them to GCS.\n\nReplace each <imageId-N> and <objectPath-N> with the values returned from 'Batch Request Image Upload URLs' (Step 1). All records are saved in a single database transaction.\n\n'label' is optional on each image \u2014 use it to add a human-readable description, especially useful for OTHER images.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER"
+          }
+        },
+        {
           "name": "List Door Images",
           "request": {
             "method": "GET",
@@ -1561,8 +1760,128 @@
                 "images"
               ]
             },
-            "description": "List all photos uploaded for a door."
-          }
+            "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` \u2014 signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` \u2014 signed URL for the 400\u00d7400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use \u2014 re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('returns array', () => pm.expect(body.data).to.be.an('array'));",
+                  "if (body.data && body.data.length > 0) {",
+                  "  const imgs = body.data;",
+                  "  pm.environment.set('imageId', imgs[0].id);",
+                  "  // Use last image for delete so imageId stays valid for signed-download",
+                  "  pm.environment.set('deleteImageId', imgs[imgs.length - 1].id);",
+                  "  const img = imgs[0];",
+                  "  pm.test('has downloadUrl', () => pm.expect(img.downloadUrl).to.be.a('string'));",
+                  "  pm.test('has downloadUrlExpiresAt', () => pm.expect(img.downloadUrlExpiresAt).to.be.a('string'));",
+                  "  pm.test('downloadUrlExpiresAt is ISO date', () => {",
+                  "    pm.expect(new Date(img.downloadUrlExpiresAt).toISOString()).to.equal(img.downloadUrlExpiresAt);",
+                  "  });",
+                  "  if (img.downloadUrlThumb) {",
+                  "    pm.test('has downloadUrlThumbExpiresAt', () => pm.expect(img.downloadUrlThumbExpiresAt).to.be.a('string'));",
+                  "    const thumbExpiry = new Date(img.downloadUrlThumbExpiresAt);",
+                  "    const origExpiry  = new Date(img.downloadUrlExpiresAt);",
+                  "    pm.test('thumb expires later than original', () => {",
+                  "      pm.expect(thumbExpiry.getTime()).to.be.above(origExpiry.getTime());",
+                  "    });",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Image Download URL",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/{{imageId}}/signed-download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "images",
+                "{{imageId}}",
+                "signed-download"
+              ]
+            },
+            "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` \u2014 refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const d = body.data;",
+                  "pm.test('has downloadUrl',          () => pm.expect(d.downloadUrl).to.be.a('string'));",
+                  "pm.test('has downloadUrlExpiresAt', () => pm.expect(d.downloadUrlExpiresAt).to.be.a('string'));",
+                  "pm.test('expiresAt is ISO 8601',    () => {",
+                  "  pm.expect(new Date(d.downloadUrlExpiresAt).toISOString()).to.equal(d.downloadUrlExpiresAt);",
+                  "});",
+                  "pm.test('has role', () => pm.expect(d.role).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk Delete Door Images",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageIds\": [\n    \"{{deleteImageId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "images",
+                "bulk"
+              ]
+            },
+            "description": "Permanently deletes 1\u201320 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Inspector can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('deleted count returned', () => {",
+                  "  pm.expect(body.data).to.have.property('deleted');",
+                  "  pm.expect(body.data.deleted).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Submit Door (Inspector) \u2014 requires \u22651 image",

@@ -29,7 +29,7 @@ export class SitesController {
     summary: 'List sites — admin sees all, inspector sees own + assigned',
   })
   findAll(@CurrentUser() user: User) {
-    return this.sitesService.findAll(user.orgId, user.id, user.role as Role);
+    return this.sitesService.findAll(user.orgId, user.id, user.role);
   }
 
   @Post()
@@ -41,7 +41,7 @@ export class SitesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a site by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.sitesService.findById(id, user.orgId, user.id, user.role as Role);
+    return this.sitesService.findById(id, user.orgId, user.id, user.role);
   }
 
   @Patch(':id')

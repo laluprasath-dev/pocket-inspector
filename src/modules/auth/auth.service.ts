@@ -45,7 +45,12 @@ export class AuthService {
 
   // ── Login: create/update session, return tokens ───────────────────────────
 
-  async login(user: User, dto: LoginDto, ip?: string, userAgent?: string): Promise<LoginTokenPair> {
+  async login(
+    user: User,
+    dto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<LoginTokenPair> {
     const deviceId = dto.deviceId ?? randomUUID();
 
     // Auto-detect device info from User-Agent if not provided by the client
@@ -111,8 +116,10 @@ export class AuthService {
     });
 
     if (!session) throw new UnauthorizedException('Session not found');
-    if (session.revokedAt) throw new UnauthorizedException('Session revoked — please log in again');
-    if (session.userId !== payload.sub) throw new UnauthorizedException('Token mismatch');
+    if (session.revokedAt)
+      throw new UnauthorizedException('Session revoked — please log in again');
+    if (session.userId !== payload.sub)
+      throw new UnauthorizedException('Token mismatch');
 
     // Verify refresh token hash (prevents refresh token reuse after rotation)
     if (sha256(dto.refreshToken) !== session.refreshTokenHash) {
@@ -121,7 +128,9 @@ export class AuthService {
         where: { id: session.id },
         data: { revokedAt: new Date() },
       });
-      throw new UnauthorizedException('Refresh token already used — session revoked for security');
+      throw new UnauthorizedException(
+        'Refresh token already used — session revoked for security',
+      );
     }
 
     // Optionally verify device hasn't changed
@@ -156,7 +165,10 @@ export class AuthService {
 
   // ── List active sessions for a user ──────────────────────────────────────
 
-  async getSessions(userId: string, currentSessionId: string): Promise<SessionResponseDto[]> {
+  async getSessions(
+    userId: string,
+    currentSessionId: string,
+  ): Promise<SessionResponseDto[]> {
     const sessions = await this.prisma.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { lastUsedAt: 'desc' },
@@ -178,9 +190,12 @@ export class AuthService {
   // ── Revoke a specific session ─────────────────────────────────────────────
 
   async revokeSession(sessionId: string, userId: string): Promise<void> {
-    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
     if (!session) throw new NotFoundException('Session not found');
-    if (session.userId !== userId) throw new ForbiddenException('Cannot revoke another user\'s session');
+    if (session.userId !== userId)
+      throw new ForbiddenException("Cannot revoke another user's session");
     await this.prisma.session.update({
       where: { id: sessionId },
       data: { revokedAt: new Date() },
@@ -189,7 +204,10 @@ export class AuthService {
 
   // ── Revoke ALL sessions (logout everywhere) ───────────────────────────────
 
-  async revokeAllSessions(userId: string, exceptSessionId?: string): Promise<void> {
+  async revokeAllSessions(
+    userId: string,
+    exceptSessionId?: string,
+  ): Promise<void> {
     await this.prisma.session.updateMany({
       where: {
         userId,
@@ -233,11 +251,16 @@ function sha256(data: string): string {
 
 function jwtExpiry(token: string): Date {
   const parts = token.split('.');
-  const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString()) as { exp: number };
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString()) as {
+    exp: number;
+  };
   return new Date(payload.exp * 1000);
 }
 
-function parseUserAgent(ua: string): { deviceName: string; deviceType: string } {
+function parseUserAgent(ua: string): {
+  deviceName: string;
+  deviceType: string;
+} {
   const s = ua.toLowerCase();
 
   let deviceType = 'web';
@@ -265,7 +288,12 @@ function parseUserAgent(ua: string): { deviceName: string; deviceType: string } 
   } else if (macMatch) {
     deviceName = `Mac (macOS ${macMatch[1].replace(/_/g, '.')})`;
   } else if (windowsMatch) {
-    const versions: Record<string, string> = { '10.0': 'Windows 10/11', '6.3': 'Windows 8.1', '6.2': 'Windows 8', '6.1': 'Windows 7' };
+    const versions: Record<string, string> = {
+      '10.0': 'Windows 10/11',
+      '6.3': 'Windows 8.1',
+      '6.2': 'Windows 8',
+      '6.1': 'Windows 7',
+    };
     deviceName = versions[windowsMatch[1]] ?? `Windows NT ${windowsMatch[1]}`;
   } else if (linuxMatch) {
     deviceName = 'Linux';

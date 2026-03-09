@@ -33,7 +33,8 @@ export class FloorsService {
     const building = await this.prisma.building.findFirst({
       where: { id: dto.buildingId, orgId },
     });
-    if (!building) throw new NotFoundException(`Building ${dto.buildingId} not found`);
+    if (!building)
+      throw new NotFoundException(`Building ${dto.buildingId} not found`);
 
     return this.prisma.floor.create({
       data: {
@@ -61,7 +62,12 @@ export class FloorsService {
     await this.prisma.floor.delete({ where: { id } });
   }
 
-  async getDoors(floorId: string, orgId: string, userId: string, role: Role): Promise<DoorSummary[]> {
+  async getDoors(
+    floorId: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ): Promise<DoorSummary[]> {
     await this.findById(floorId, orgId, userId, role);
 
     const doors = await this.prisma.door.findMany({

@@ -1,6 +1,6 @@
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -52,15 +52,43 @@ async function bootstrap(): Promise<void> {
     const fastify = app.getHttpAdapter().getInstance();
     const postmanDir = join(process.cwd(), 'postman');
 
-    fastify.get('/dev/postman/collection', (_req: unknown, reply: { header: (k: string, v: string) => void; send: (b: string) => void }) => {
-      reply.header('Content-Type', 'application/json');
-      reply.send(readFileSync(join(postmanDir, 'Pocket-Inspector.postman_collection.json'), 'utf8'));
-    });
+    fastify.get(
+      '/dev/postman/collection',
+      (
+        _req: unknown,
+        reply: {
+          header: (k: string, v: string) => void;
+          send: (b: string) => void;
+        },
+      ) => {
+        reply.header('Content-Type', 'application/json');
+        reply.send(
+          readFileSync(
+            join(postmanDir, 'Pocket-Inspector.postman_collection.json'),
+            'utf8',
+          ),
+        );
+      },
+    );
 
-    fastify.get('/dev/postman/environment', (_req: unknown, reply: { header: (k: string, v: string) => void; send: (b: string) => void }) => {
-      reply.header('Content-Type', 'application/json');
-      reply.send(readFileSync(join(postmanDir, 'Pocket-Inspector.postman_environment.json'), 'utf8'));
-    });
+    fastify.get(
+      '/dev/postman/environment',
+      (
+        _req: unknown,
+        reply: {
+          header: (k: string, v: string) => void;
+          send: (b: string) => void;
+        },
+      ) => {
+        reply.header('Content-Type', 'application/json');
+        reply.send(
+          readFileSync(
+            join(postmanDir, 'Pocket-Inspector.postman_environment.json'),
+            'utf8',
+          ),
+        );
+      },
+    );
   }
 
   if (!isProduction) {

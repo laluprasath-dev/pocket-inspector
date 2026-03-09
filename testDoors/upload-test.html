@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pocket Inspector — GCS Upload Tester</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --border:   #232738;
+      --accent:   #4f8ef7;
+      --accent2:  #7c3aed;
+      --success:  #22c55e;
+      --error:    #ef4444;
+      --warn:     #f59e0b;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --radius:   12px;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 720px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .header .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(79,142,247,.12);
+      border: 1px solid rgba(79,142,247,.25);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -.02em;
+    }
+    .header p {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    /* Steps */
+    .steps {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .step {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      position: relative;
+      transition: border-color .2s;
+    }
+    .step.active  { border-color: var(--accent); }
+    .step.done    { border-color: var(--success); }
+    .step.error   { border-color: var(--error); }
+    .step-num {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600;
+      margin-bottom: 8px;
+      transition: background .2s;
+    }
+    .step.active .step-num  { background: var(--accent); color: #fff; }
+    .step.done   .step-num  { background: var(--success); color: #fff; }
+    .step.error  .step-num  { background: var(--error);   color: #fff; }
+    .step-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .step.active .step-label { color: var(--accent); }
+    .step.done   .step-label { color: var(--success); }
+    .step.error  .step-label { color: var(--error); }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title span { color: var(--text); }
+
+    /* Form */
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    input[type="text"], select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .2s;
+      margin-bottom: 16px;
+    }
+    input[type="text"]:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--surface); }
+
+    /* File drop zone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(79,142,247,.04); }
+    .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .dropzone-icon { font-size: 36px; margin-bottom: 10px; }
+    .dropzone-text { font-size: 14px; color: var(--muted); }
+    .dropzone-text strong { color: var(--accent); }
+    .dropzone-preview {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      text-align: left;
+    }
+    .dropzone-preview img {
+      width: 60px; height: 60px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .dropzone-preview .file-info .name { font-size: 13px; font-weight: 500; }
+    .dropzone-preview .file-info .size { font-size: 12px; color: var(--muted); }
+
+    /* Button */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-reset   { background: var(--border);  color: var(--text); margin-top: 10px; }
+
+    /* Progress bar */
+    .progress-wrap {
+      display: none;
+      margin-bottom: 16px;
+    }
+    .progress-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+    .progress-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    /* Result */
+    .result {
+      display: none;
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .result.success { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25); }
+    .result.error   { background: rgba(239,68,68,.08);  border: 1px solid rgba(239,68,68,.25); }
+    .result-title {
+      font-size: 15px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+    }
+    .result.success .result-title { color: var(--success); }
+    .result.error   .result-title { color: var(--error); }
+    .result-body { font-size: 13px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+    /* Log */
+    .log {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      max-height: 160px;
+      overflow-y: auto;
+      line-height: 1.8;
+    }
+    .log .line-ok   { color: var(--success); }
+    .log .line-err  { color: var(--error); }
+    .log .line-info { color: var(--accent); }
+    .log .line-warn { color: var(--warn); }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    .tip {
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(245,158,11,.06);
+      border: 1px solid rgba(245,158,11,.15);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .tip strong { color: var(--warn); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="badge">🔥 Fire Door Inspection</div>
+    <h1>GCS Upload Tester</h1>
+    <p>Test the signed URL image upload flow directly from the browser</p>
+  </div>
+
+  <!-- Step indicators -->
+  <div class="steps">
+    <div class="step active" id="s1">
+      <div class="step-num">1</div>
+      <div class="step-label">Signed URL</div>
+    </div>
+    <div class="step" id="s2">
+      <div class="step-num">2</div>
+      <div class="step-label">Pick Image</div>
+    </div>
+    <div class="step" id="s3">
+      <div class="step-num">3</div>
+      <div class="step-label">Upload to GCS</div>
+    </div>
+    <div class="step" id="s4">
+      <div class="step-num">4</div>
+      <div class="step-label">Done</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Signed URL -->
+  <div class="card">
+    <div class="card-title">Step 1 — <span>Paste Signed URL from API</span></div>
+    <div class="tip">
+      <strong>⚠️ How to get the URL:</strong> Call
+      <code>POST /v1/doors/:id/images/signed-upload</code> from Postman first,
+      then copy the <code>signedUrl</code> value from the response and paste it below.
+    </div>
+    <label>Signed URL</label>
+    <input type="text" id="signedUrl" placeholder="https://storage.googleapis.com/pocket-inspector-dev-bucket/..." />
+    <label>Content Type</label>
+    <select id="contentType">
+      <option value="image/jpeg">image/jpeg (JPEG / JPG)</option>
+      <option value="image/png">image/png (PNG)</option>
+      <option value="image/heic">image/heic (iPhone HEIC)</option>
+      <option value="image/webp">image/webp (WebP)</option>
+    </select>
+  </div>
+
+  <!-- Step 2: File picker -->
+  <div class="card">
+    <div class="card-title">Step 2 — <span>Pick Image File</span></div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*" />
+      <div id="dropPlaceholder">
+        <div class="dropzone-icon">📷</div>
+        <div class="dropzone-text">
+          <strong>Click to select</strong> or drag &amp; drop your door photo
+        </div>
+      </div>
+      <div class="dropzone-preview" id="filePreview">
+        <img id="previewImg" src="" alt="preview" />
+        <div class="file-info">
+          <div class="name" id="fileName"></div>
+          <div class="size" id="fileSize"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-label" id="progressLabel">Uploading...</div>
+  </div>
+
+  <!-- Result -->
+  <div class="result" id="result">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-body" id="resultBody"></div>
+  </div>
+
+  <!-- Upload button -->
+  <button class="btn btn-primary" id="uploadBtn" disabled onclick="startUpload()">
+    <span>⬆</span> Upload to GCS
+  </button>
+  <button class="btn btn-reset" id="resetBtn" style="display:none" onclick="reset()">
+    ↺ Test another image
+  </button>
+
+  <div class="divider"></div>
+
+  <!-- Log -->
+  <div class="card-title" style="margin-bottom:10px">Activity Log</div>
+  <div class="log" id="log"><span class="line-info">Waiting for input...</span></div>
+
+</div>
+
+<script>
+  let selectedFile = null;
+
+  // ── File picker ──────────────────────────────────────────────────────────
+  const fileInput   = document.getElementById('fileInput');
+  const dropzone    = document.getElementById('dropzone');
+  const placeholder = document.getElementById('dropPlaceholder');
+  const filePreview = document.getElementById('filePreview');
+  const previewImg  = document.getElementById('previewImg');
+  const fileName    = document.getElementById('fileName');
+  const fileSize    = document.getElementById('fileSize');
+
+  fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file) return;
+    selectedFile = file;
+    placeholder.style.display = 'none';
+    filePreview.style.display  = 'flex';
+    fileName.textContent = file.name;
+    fileSize.textContent = formatBytes(file.size);
+    const reader = new FileReader();
+    reader.onload = e => previewImg.src = e.target.result;
+    reader.readAsDataURL(file);
+    setStep(2);
+    checkReady();
+    logLine('info', `File selected: ${file.name} (${formatBytes(file.size)})`);
+  }
+
+  // ── URL input ────────────────────────────────────────────────────────────
+  document.getElementById('signedUrl').addEventListener('input', function() {
+    checkReady();
+    if (this.value.startsWith('https://storage.googleapis.com')) {
+      setStep(2);
+      logLine('info', 'Signed URL detected ✓');
+    }
+  });
+
+  function checkReady() {
+    const url = document.getElementById('signedUrl').value.trim();
+    const hasUrl  = url.startsWith('https://storage.googleapis.com');
+    const hasFile = selectedFile !== null;
+    document.getElementById('uploadBtn').disabled = !(hasUrl && hasFile);
+    if (hasUrl && hasFile) setStep(3);
+  }
+
+  // ── Upload ───────────────────────────────────────────────────────────────
+  async function startUpload() {
+    const signedUrl   = document.getElementById('signedUrl').value.trim();
+    const contentType = document.getElementById('contentType').value;
+
+    document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('progressWrap').style.display = 'block';
+    setProgress(10, 'Reading file...');
+    logLine('info', `Starting upload → ${contentType}`);
+    logLine('info', `URL: ${signedUrl.substring(0, 70)}...`);
+
+    try {
+      const buffer = await selectedFile.arrayBuffer();
+      setProgress(30, 'Connecting to GCS...');
+      logLine('info', 'Sending PUT request to GCS...');
+
+      const response = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: buffer,
+      });
+
+      setProgress(90, 'Finalising...');
+
+      if (response.ok || response.status === 200) {
+        setProgress(100, 'Done');
+        showResult('success', '✅ Upload successful!',
+          `HTTP ${response.status} — Image uploaded to GCS successfully.\n\nNext: call POST /v1/doors/:id/images/register with the imageId and objectPath from Step 1 to save the record.`);
+        setStep(4, true);
+        logLine('ok', `GCS responded with HTTP ${response.status} — upload succeeded`);
+        document.getElementById('resetBtn').style.display = 'flex';
+      } else {
+        const text = await response.text();
+        setProgress(100, 'Failed');
+        showResult('error', `❌ Upload failed — HTTP ${response.status}`,
+          text.slice(0, 300) || 'No response body');
+        setStep(3, false, true);
+        logLine('err', `GCS responded with HTTP ${response.status}`);
+        logLine('err', text.slice(0, 200));
+        document.getElementById('uploadBtn').disabled = false;
+      }
+    } catch (err) {
+      setProgress(100, 'Error');
+      const msg = err.message || String(err);
+      if (msg.includes('Failed to fetch') || msg.includes('CORS')) {
+        showResult('error', '❌ CORS / Network error',
+          'The browser blocked the request.\n\nFix: Go to your GCS bucket → CORS configuration → add this origin.\n\nOr test using the curl script: bash scripts/curl-upload-test.sh');
+        logLine('warn', 'CORS error — browser blocked the PUT request');
+        logLine('warn', 'The curl script and npm run test:image-upload both work fine');
+      } else {
+        showResult('error', '❌ Network error', msg);
+        logLine('err', msg);
+      }
+      document.getElementById('uploadBtn').disabled = false;
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function setStep(active, success = false, error = false) {
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById('s' + i);
+      el.className = 'step';
+      if (i < active)  el.classList.add('done');
+      if (i === active) {
+        if (error)        el.classList.add('error');
+        else if (success) el.classList.add('done');
+        else              el.classList.add('active');
+      }
+    }
+  }
+
+  function setProgress(pct, label) {
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = label;
+  }
+
+  function showResult(type, title, body) {
+    const el = document.getElementById('result');
+    el.style.display = 'block';
+    el.className = 'result ' + type;
+    document.getElementById('resultTitle').textContent = title;
+    document.getElementById('resultBody').textContent = body;
+  }
+
+  function logLine(type, text) {
+    const log = document.getElementById('log');
+    if (log.querySelector('.line-info')?.textContent === 'Waiting for input...') log.innerHTML = '';
+    const line = document.createElement('div');
+    line.className = 'line-' + type;
+    const time = new Date().toLocaleTimeString('en', { hour12: false });
+    line.textContent = `[${time}] ${text}`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1024 / 1024).toFixed(2) + ' MB';
+  }
+
+  function reset() {
+    selectedFile = null;
+    document.getElementById('signedUrl').value = '';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'none';
+    placeholder.style.display = 'block';
+    filePreview.style.display = 'none';
+    previewImg.src = '';
+    document.getElementById('uploadBtn').disabled = true;
+    setStep(1);
+    logLine('info', 'Reset — ready for next test');
+  }
+</script>
+</body>
+</html>

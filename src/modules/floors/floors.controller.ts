@@ -25,7 +25,9 @@ export class FloorsController {
   constructor(private readonly floorsService: FloorsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a floor in a building (admin or inspector)' })
+  @ApiOperation({
+    summary: 'Create a floor in a building (admin or inspector)',
+  })
   create(@Body() dto: CreateFloorDto, @CurrentUser() user: User) {
     return this.floorsService.create(dto, user.orgId, user.id);
   }
@@ -33,7 +35,7 @@ export class FloorsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a floor by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.floorsService.findById(id, user.orgId, user.id, user.role as Role);
+    return this.floorsService.findById(id, user.orgId, user.id, user.role);
   }
 
   @Patch(':id')
@@ -57,9 +59,10 @@ export class FloorsController {
 
   @Get(':id/doors')
   @ApiOperation({
-    summary: 'List doors on a floor — inspector only sees doors in accessible buildings',
+    summary:
+      'List doors on a floor — inspector only sees doors in accessible buildings',
   })
   getDoors(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.floorsService.getDoors(id, user.orgId, user.id, user.role as Role);
+    return this.floorsService.getDoors(id, user.orgId, user.id, user.role);
   }
 }

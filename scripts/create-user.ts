@@ -24,10 +24,17 @@ function arg(flag: string): string | undefined {
 }
 
 function rl(): readline.Interface {
-  return readline.createInterface({ input: process.stdin, output: process.stdout });
+  return readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 }
 
-async function prompt(iface: readline.Interface, question: string, hidden = false): Promise<string> {
+async function prompt(
+  iface: readline.Interface,
+  question: string,
+  hidden = false,
+): Promise<string> {
   return new Promise((resolve) => {
     if (hidden && process.stdout.isTTY) {
       process.stdout.write(question);
@@ -44,7 +51,10 @@ async function prompt(iface: readline.Interface, question: string, hidden = fals
         } else if (char === '\u0003') {
           process.exit();
         } else if (char === '\u007f') {
-          if (value.length > 0) { value = value.slice(0, -1); process.stdout.write('\b \b'); }
+          if (value.length > 0) {
+            value = value.slice(0, -1);
+            process.stdout.write('\b \b');
+          }
         } else {
           value += char;
           process.stdout.write('*');
@@ -65,8 +75,10 @@ function validateEmail(email: string): boolean {
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
-  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+  if (!/[A-Z]/.test(password))
+    return 'Password must contain at least one uppercase letter';
+  if (!/[0-9]/.test(password))
+    return 'Password must contain at least one number';
   return null;
 }
 
@@ -99,26 +111,40 @@ async function main(): Promise<void> {
   let pwError = validatePassword(password);
   while (pwError) {
     if (password) console.log(`  ⚠  ${pwError}`);
-    password = await prompt(iface, '  Password (min 8 chars, 1 uppercase, 1 number): ', true);
+    password = await prompt(
+      iface,
+      '  Password (min 8 chars, 1 uppercase, 1 number): ',
+      true,
+    );
     pwError = validatePassword(password);
   }
 
   let role = (arg('--role') ?? '').toUpperCase();
   while (role !== 'ADMIN' && role !== 'INSPECTOR') {
     if (role) console.log('  ⚠  Role must be ADMIN or INSPECTOR.');
-    role = (await prompt(iface, '  Role (ADMIN / INSPECTOR): ')).trim().toUpperCase();
+    role = (await prompt(iface, '  Role (ADMIN / INSPECTOR): '))
+      .trim()
+      .toUpperCase();
   }
 
   const firstNameArg = arg('--first-name');
-  const firstName = firstNameArg != null ? firstNameArg : ((await prompt(iface, '  First name (optional): ')).trim() || undefined);
+  const firstName =
+    firstNameArg != null
+      ? firstNameArg
+      : (await prompt(iface, '  First name (optional): ')).trim() || undefined;
   const lastNameArg = arg('--last-name');
-  const lastName  = lastNameArg  != null ? lastNameArg  : ((await prompt(iface, '  Last name  (optional): ')).trim() || undefined);
+  const lastName =
+    lastNameArg != null
+      ? lastNameArg
+      : (await prompt(iface, '  Last name  (optional): ')).trim() || undefined;
 
   // ── Org: pick existing or use the only one ──────────────────────────────────
 
   const orgs = await prisma.org.findMany({ orderBy: { createdAt: 'asc' } });
   if (orgs.length === 0) {
-    console.error('\n❌  No organisations found. Run `npm run db:seed` first.\n');
+    console.error(
+      '\n❌  No organisations found. Run `npm run db:seed` first.\n',
+    );
     await prisma.$disconnect();
     iface.close();
     process.exit(1);
@@ -132,10 +158,14 @@ async function main(): Promise<void> {
       console.log(`\n  ℹ  Using org: ${orgs[0].name} (${orgId})`);
     } else {
       console.log('\n  Available organisations:');
-      orgs.forEach((o, i) => console.log(`    [${i + 1}] ${o.name}  —  ${o.id}`));
+      orgs.forEach((o, i) =>
+        console.log(`    [${i + 1}] ${o.name}  —  ${o.id}`),
+      );
       let pick = '';
       while (!pick) {
-        const raw = (await prompt(iface, `  Choose org [1-${orgs.length}]: `)).trim();
+        const raw = (
+          await prompt(iface, `  Choose org [1-${orgs.length}]: `)
+        ).trim();
         const idx = parseInt(raw, 10) - 1;
         if (idx >= 0 && idx < orgs.length) pick = orgs[idx].id;
         else console.log('  ⚠  Invalid selection.');
@@ -159,7 +189,9 @@ async function main(): Promise<void> {
   console.log('\n  ─────────────────────────────');
   console.log(`  Email     : ${email}`);
   console.log(`  Role      : ${role}`);
-  console.log(`  Name      : ${[firstName, lastName].filter(Boolean).join(' ') || '(not set)'}`);
+  console.log(
+    `  Name      : ${[firstName, lastName].filter(Boolean).join(' ') || '(not set)'}`,
+  );
   console.log(`  Org       : ${org.name}`);
   console.log('  ─────────────────────────────\n');
 
@@ -175,7 +207,14 @@ async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.create({
-    data: { email, passwordHash, role: role as 'ADMIN' | 'INSPECTOR', orgId, firstName, lastName },
+    data: {
+      email,
+      passwordHash,
+      role: role,
+      orgId,
+      firstName,
+      lastName,
+    },
   });
 
   console.log(`✅  User created successfully!`);

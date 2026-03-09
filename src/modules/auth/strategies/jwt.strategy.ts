@@ -29,7 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<User> {
     // Tokens without a session ID (issued before this feature) — legacy path
     if (!payload.sid) {
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
       if (!user) throw new UnauthorizedException('User no longer exists');
       return user;
     }
@@ -41,7 +43,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
 
     if (!session || !session.user) {
-      throw new UnauthorizedException('Session not found — please log in again');
+      throw new UnauthorizedException(
+        'Session not found — please log in again',
+      );
     }
 
     if (session.revokedAt) {

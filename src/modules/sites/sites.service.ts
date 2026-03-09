@@ -16,7 +16,12 @@ export class SitesService {
     });
   }
 
-  async findById(id: string, orgId: string, userId: string, role: Role): Promise<Site> {
+  async findById(
+    id: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ): Promise<Site> {
     const site = await this.prisma.site.findFirst({
       where: { id, ...this.accessFilter(orgId, userId, role) },
     });
@@ -25,7 +30,9 @@ export class SitesService {
   }
 
   create(dto: CreateSiteDto, orgId: string, userId: string): Promise<Site> {
-    return this.prisma.site.create({ data: { ...dto, orgId, createdById: userId } });
+    return this.prisma.site.create({
+      data: { ...dto, orgId, createdById: userId },
+    });
   }
 
   async update(id: string, dto: UpdateSiteDto, orgId: string): Promise<Site> {

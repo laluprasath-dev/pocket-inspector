@@ -38,6 +38,12 @@ export class ZipBuilderService {
         : import('stream').Readable,
     );
 
+    // Attach a no-op catch immediately so Node.js does not treat this as an
+    // unhandled rejection if GCS times out during the archive-building phase
+    // (which happens before `await uploadPromise` below). The real error will
+    // still propagate when we await the promise — this just prevents the crash.
+    uploadPromise.catch(() => undefined);
+
     switch (job.targetType) {
       case ExportTargetType.BUILDING:
         await this.addBuilding(archive, job.targetId, job.orgId);
@@ -57,7 +63,25 @@ export class ZipBuilderService {
     }
 
     await archive.finalize();
-    await uploadPromise;
+
+    // Wait for GCS upload with a 5-minute timeout — prevents the worker from
+    // hanging indefinitely if GCS is slow or unreachable.
+    const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+    await Promise.race([
+      uploadPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `GCS upload timed out after ${UPLOAD_TIMEOUT_MS / 1000}s`,
+              ),
+            ),
+          UPLOAD_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+
     return zipPath;
   }
 
@@ -243,6 +267,11 @@ export class ZipBuilderService {
   ): void {
     try {
       const stream = this.gcs.createReadStream(objectPath);
+      // Attach error handler BEFORE piping — prevents unhandled error events
+      // crashing the process when GCS objects are missing or inaccessible.
+      stream.on('error', (err) => {
+        this.logger.warn(`GCS stream error for ${objectPath}: ${String(err)}`);
+      });
       archive.append(stream, { name: archiveName });
     } catch (err) {
       this.logger.warn(`Could not append ${objectPath}: ${String(err)}`);

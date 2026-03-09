@@ -14,6 +14,11 @@ export interface SignedDownloadUrlOptions {
   expirySeconds?: number;
 }
 
+export interface SignedUrlWithExpiry {
+  url: string;
+  expiresAt: string; // ISO-8601 — client can parse directly, no GCS param parsing needed
+}
+
 @Injectable()
 export class GcsService {
   private readonly logger = new Logger(GcsService.name);
@@ -62,19 +67,26 @@ export class GcsService {
   }
 
   async getSignedDownloadUrl(opts: SignedDownloadUrlOptions): Promise<string> {
+    return (await this.getSignedDownloadUrlWithExpiry(opts)).url;
+  }
+
+  async getSignedDownloadUrlWithExpiry(
+    opts: SignedDownloadUrlOptions,
+  ): Promise<SignedUrlWithExpiry> {
     const expiry = opts.expirySeconds ?? this.defaultExpirySeconds;
+    const expiresAt = new Date(Date.now() + expiry * 1000);
     const [url] = await this.storage
       .bucket(this.bucketName)
       .file(opts.objectPath)
       .getSignedUrl({
         version: 'v4',
         action: 'read',
-        expires: Date.now() + expiry * 1000,
+        expires: expiresAt,
         ...(this.serviceAccountEmail
           ? { serviceAccountEmail: this.serviceAccountEmail }
           : {}),
       });
-    return url;
+    return { url, expiresAt: expiresAt.toISOString() };
   }
 
   async deleteObject(objectPath: string): Promise<void> {
