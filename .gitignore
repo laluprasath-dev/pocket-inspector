@@ -57,3 +57,10 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+# Test fixture images (binary — use scripts/test-image-upload.ts with your own images)
+testDoors/*.jpg
+testDoors/*.jpeg
+testDoors/*.png
+testDoors/*.heic
+testDoors/*.webp
