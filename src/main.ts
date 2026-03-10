@@ -20,7 +20,7 @@ async function bootstrap(): Promise<void> {
   );
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>('PORT', 3001);
   const isProduction = configService.get<string>('NODE_ENV') === 'production';
 
   await app.register(helmet, {

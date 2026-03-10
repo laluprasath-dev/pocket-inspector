@@ -33,7 +33,7 @@
 
 | Environment | Base URL |
 |---|---|
-| Local dev | `http://localhost:3000` |
+| Local dev | `http://localhost:3001` |
 | Production | `https://pocket-inspector-api-34292529156.europe-west2.run.app` |
 
 All API routes are versioned under `/v1/`:
@@ -43,7 +43,7 @@ GET  https://pocket-inspector-api-.../v1/buildings
 POST https://pocket-inspector-api-.../v1/auth/login
 ```
 
-**Swagger UI** (local dev only): `http://localhost:3000/api/docs`
+**Swagger UI** (local dev only): `http://localhost:3001/api/docs`
 
 ---
 
@@ -1013,8 +1013,8 @@ https://pocket-inspector-api-34292529156.europe-west2.run.app/dev/postman/enviro
 Or locally:
 
 ```
-http://localhost:3000/dev/postman/collection
-http://localhost:3000/dev/postman/environment
+http://localhost:3001/dev/postman/collection
+http://localhost:3001/dev/postman/environment
 ```
 
 The collection includes all endpoints with pre-request scripts that automatically handle login, token injection, and variable chaining (e.g., `doorId` is saved from Create Door and reused in image/certificate endpoints).

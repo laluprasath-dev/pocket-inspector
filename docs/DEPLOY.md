@@ -217,7 +217,7 @@ Every `git push origin main` automatically:
 | `JWT_REFRESH_SECRET` | Secret Manager | Min 32 chars |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | Secret Manager | Stringified JSON |
 | `NODE_ENV` | Cloud Run env var | `production` |
-| `PORT` | Cloud Run env var | `3000` |
+| `PORT` | Cloud Run env var | `3001` |
 | `GCS_PROJECT_ID` | Cloud Run env var | `pocket-inspector-production` |
 | `GCS_BUCKET_NAME` | Cloud Run env var | `pocket-inspector-prod-bucket` |
 | `FCM_PROJECT_ID` | Cloud Run env var | `pocket-inspector-production` |

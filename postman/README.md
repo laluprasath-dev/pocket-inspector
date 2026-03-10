@@ -5,8 +5,8 @@
 **Option A — by URL** (recommended, always up to date):
 1. Start the local server: `npm run start:dev`
 2. In Postman → **Import → Link**
-3. Import collection: `http://localhost:3000/dev/postman/collection`
-4. Import environment: `http://localhost:3000/dev/postman/environment`
+3. Import collection: `http://localhost:3001/dev/postman/collection`
+4. Import environment: `http://localhost:3001/dev/postman/environment`
 
 **Option B — by file:**
 1. Postman → **Import** → select `Pocket-Inspector.postman_collection.json`
@@ -14,7 +14,7 @@
 
 **After importing:**
 - Select **Pocket Inspector — Local** from the environment dropdown (top-right)
-- Set `baseUrl` Current Value to `http://localhost:3000`
+- Set `baseUrl` Current Value to `http://localhost:3001`
 
 ---
 
@@ -22,7 +22,7 @@
 
 | Environment | baseUrl |
 |-------------|---------|
-| Local | `http://localhost:3000` |
+| Local | `http://localhost:3001` |
 | Production | `https://pocket-inspector-api-34292529156.europe-west2.run.app` |
 
 To switch to production, change `baseUrl` Current Value in the environment editor.
