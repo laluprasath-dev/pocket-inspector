@@ -27,10 +27,21 @@ async function bootstrap(): Promise<void> {
     contentSecurityPolicy: isProduction,
   });
 
+  // ALLOWED_ORIGINS — comma-separated list of allowed origins (required in production).
+  // In dev/test with no env var set, falls back to '*'.
+  const rawOrigins = configService.get<string>('ALLOWED_ORIGINS', '');
+  const allowedOrigins = rawOrigins
+    ? rawOrigins
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : [];
+
   app.enableCors({
-    origin: isProduction ? false : '*',
+    origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   });
 
   app.enableVersioning({ type: VersioningType.URI });
