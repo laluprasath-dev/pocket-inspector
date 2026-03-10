@@ -12,7 +12,8 @@ echo "▶ Running database migrations..."
 if node_modules/.bin/prisma migrate deploy; then
   echo "✔ Migrations applied successfully"
 else
-  echo "✖ Migration failed — check DB connection and logs. Continuing startup..."
+  echo "✖ FATAL: Migration failed — refusing to start. Check DB connection and Cloud Run logs."
+  exit 1
 fi
 
 echo "▶ Starting Pocket Inspector API..."
