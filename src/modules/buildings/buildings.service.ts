@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Building, Floor } from '../../../generated/prisma/client';
-import { Role } from '../../../generated/prisma/enums';
+import { BuildingStatus, Role } from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -48,6 +52,11 @@ export class BuildingsService {
       locationNotes: building.locationNotes,
       createdById: building.createdById,
       createdAt: building.createdAt,
+      status: building.status,
+      approvedAt: building.approvedAt,
+      approvedById: building.approvedById,
+      certifiedAt: building.certifiedAt,
+      certifiedById: building.certifiedById,
       certificatePresent: building.certificate !== null,
       certificateUploadedAt: building.certificate?.uploadedAt ?? null,
     };
@@ -88,6 +97,33 @@ export class BuildingsService {
     });
   }
 
+  // ── Inspector approval ─────────────────────────────────────────────────────
+
+  async approve(id: string, userId: string, orgId: string) {
+    const building = await this.prisma.building.findFirst({
+      where: { id, ...this.accessFilter(orgId, userId, Role.INSPECTOR) },
+    });
+    if (!building) throw new NotFoundException(`Building ${id} not found`);
+
+    if (building.status === BuildingStatus.APPROVED) {
+      throw new BadRequestException('Building is already approved');
+    }
+    if (building.status === BuildingStatus.CERTIFIED) {
+      throw new BadRequestException(
+        'Building is already certified and cannot be re-approved',
+      );
+    }
+
+    return this.prisma.building.update({
+      where: { id },
+      data: {
+        status: BuildingStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedById: userId,
+      },
+    });
+  }
+
   // ── Building certificate ───────────────────────────────────────────────────
 
   async requestCertificateUpload(buildingId: string, orgId: string) {
@@ -96,6 +132,15 @@ export class BuildingsService {
     });
     if (!building)
       throw new NotFoundException(`Building ${buildingId} not found`);
+
+    if (
+      building.status !== BuildingStatus.APPROVED &&
+      building.status !== BuildingStatus.CERTIFIED
+    ) {
+      throw new BadRequestException(
+        'Building must be approved by an inspector before a certificate can be uploaded',
+      );
+    }
 
     const certId = crypto.randomUUID();
     const objectPath = StoragePathBuilder.buildingCertificate({
@@ -124,19 +169,39 @@ export class BuildingsService {
     if (!building)
       throw new NotFoundException(`Building ${buildingId} not found`);
 
-    const cert = await this.prisma.buildingCertificate.upsert({
-      where: { buildingId },
-      create: {
-        buildingId,
-        objectPathCertificate: dto.objectPath,
-        uploadedById: adminId,
-      },
-      update: {
-        objectPathCertificate: dto.objectPath,
-        uploadedById: adminId,
-        uploadedAt: new Date(),
-      },
-    });
+    if (
+      building.status !== BuildingStatus.APPROVED &&
+      building.status !== BuildingStatus.CERTIFIED
+    ) {
+      throw new BadRequestException(
+        'Building must be approved by an inspector before a certificate can be registered',
+      );
+    }
+
+    const now = new Date();
+    const [cert] = await this.prisma.$transaction([
+      this.prisma.buildingCertificate.upsert({
+        where: { buildingId },
+        create: {
+          buildingId,
+          objectPathCertificate: dto.objectPath,
+          uploadedById: adminId,
+        },
+        update: {
+          objectPathCertificate: dto.objectPath,
+          uploadedById: adminId,
+          uploadedAt: now,
+        },
+      }),
+      this.prisma.building.update({
+        where: { id: buildingId },
+        data: {
+          status: BuildingStatus.CERTIFIED,
+          certifiedAt: now,
+          certifiedById: adminId,
+        },
+      }),
+    ]);
 
     const inspectorIds = await this.getInspectorIdsForBuilding(buildingId);
     await this.notifications.notifyUsers(inspectorIds, {
@@ -178,7 +243,17 @@ export class BuildingsService {
     if (!cert)
       throw new NotFoundException('No certificate found for this building');
 
-    await this.prisma.buildingCertificate.delete({ where: { buildingId } });
+    await this.prisma.$transaction([
+      this.prisma.buildingCertificate.delete({ where: { buildingId } }),
+      this.prisma.building.update({
+        where: { id: buildingId },
+        data: {
+          status: BuildingStatus.APPROVED,
+          certifiedAt: null,
+          certifiedById: null,
+        },
+      }),
+    ]);
     await this.gcs.deleteObject(cert.objectPathCertificate);
   }
 

@@ -76,6 +76,19 @@ export class BuildingsController {
     return this.buildingsService.getFloors(id, user.orgId, user.id, user.role);
   }
 
+  // ── Inspector approval ─────────────────────────────────────────────────────
+
+  @Post(':id/approve')
+  @Roles(Role.INSPECTOR)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Inspector approves a building (sets APPROVED — required before admin can upload certificate)',
+  })
+  approve(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.buildingsService.approve(id, user.id, user.orgId);
+  }
+
   // ── Building certificate ───────────────────────────────────────────────────
 
   @Post(':id/certificate/signed-upload')

@@ -370,6 +370,38 @@ PATCH /v1/buildings/:id
 GET /v1/buildings/:id/floors
 ```
 
+### Building status
+
+`GET /v1/buildings/:id` now returns status fields alongside the certificate info:
+
+```json
+{
+  "id": "...",
+  "name": "Block A",
+  "buildingCode": "BLD-001",
+  "status": "APPROVED",
+  "approvedAt": "2026-03-10T10:00:00.000Z",
+  "approvedById": "user123",
+  "certifiedAt": null,
+  "certifiedById": null,
+  "certificatePresent": false,
+  "certificateUploadedAt": null
+}
+```
+
+> Use `status` to drive UI badges in the building section: `DRAFT` → `APPROVED` → `CERTIFIED ✅`  
+> Show an **"Inspector Approved"** badge when `status === 'APPROVED'` and a **"Certified ✅"** badge when `status === 'CERTIFIED'`.  
+> Hide the "Upload Certificate" button until `status === 'APPROVED'` or `status === 'CERTIFIED'`.  
+> Show the "Download Certificate" button only when `certificatePresent === true`.
+
+### Approve a building *(inspector action — shown for completeness)*
+
+```
+POST /v1/buildings/:id/approve
+```
+
+Sets building status from `DRAFT` → `APPROVED`. This is an **inspector** action — the admin panel does not need to call this endpoint, but the admin can **display the current `status`** to show whether the inspector has approved the building. Until the inspector approves, the admin's "Upload Certificate" button should be disabled or hidden.
+
 ---
 
 ## 9. Module: Floors
@@ -482,7 +514,7 @@ PATCH /v1/doors/:id
 POST /v1/doors/:id/submit
 ```
 
-Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is an inspector action — the admin panel does not need to call this.
+Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is an **inspector** action — the admin panel does not need to call this endpoint, but the admin can display the current `status` to show whether the inspector has submitted the door. Until the inspector submits, the admin's "Upload Certificate" button should be disabled or hidden.
 
 ---
 
@@ -659,7 +691,14 @@ POST /v1/doors/:id/images/register/batch
 
 ## 12. Module: Certificates (Door & Building)
 
-Certificates are PDFs uploaded by the admin. Uploading a door certificate automatically sets the door status to `CERTIFIED` and sends push notifications to assigned inspectors.
+Certificates are PDFs uploaded by the admin. Both door and building certificates require an inspector action first:
+
+| Entity | Inspector action | Status gate for certificate upload |
+|---|---|---|
+| Door | `POST /v1/doors/:id/submit` | `SUBMITTED` or `CERTIFIED` |
+| Building | `POST /v1/buildings/:id/approve` | `APPROVED` or `CERTIFIED` |
+
+Uploading a certificate automatically sets the entity status to `CERTIFIED` and sends push notifications to assigned inspectors.
 
 ### Door certificate *(admin only)*
 
@@ -715,6 +754,8 @@ Returns `{ signedUrl, expiresAt }`. Open or stream this URL to display/download 
 
 ### Building certificate *(admin only)*
 
+> **Pre-requisite**: The building must be approved by an inspector (`status === 'APPROVED'` or `'CERTIFIED'`) before the admin can upload a certificate. The API will return `400 Bad Request` if you try to upload or register while the building is still `DRAFT`.
+
 Same 3-step pattern as door certificates.
 
 **Step 1 — Request upload URL**
@@ -723,7 +764,14 @@ Same 3-step pattern as door certificates.
 POST /v1/buildings/:id/certificate/signed-upload
 ```
 
-**Step 2 — PUT PDF to signedUrl**
+No body needed. Returns `{ signedUrl, objectPath, certId }`.
+
+**Step 2 — PUT the PDF binary to the signedUrl**
+
+```
+PUT <signedUrl>
+Content-Type: application/pdf
+```
 
 **Step 3 — Register**
 
@@ -733,16 +781,28 @@ POST /v1/buildings/:id/certificate/register
 
 ```json
 {
-  "certId": "<certId>",
-  "objectPath": "<objectPath>"
+  "certId": "<certId from step 1>",
+  "objectPath": "<objectPath from step 1>"
 }
 ```
+
+This sets the building status to `CERTIFIED` and notifies assigned inspectors.
 
 **Download**
 
 ```
 GET /v1/buildings/:id/certificate/signed-download
 ```
+
+Returns `{ signedUrl, expiresAt }`. Open or stream this URL to display/download the PDF.
+
+**Delete certificate (and reset to APPROVED)**
+
+```
+DELETE /v1/buildings/:id/certificate
+```
+
+Returns `204 No Content`. Removes the PDF from GCS and resets the building status back to `APPROVED`, allowing a new certificate to be uploaded.
 
 ---
 

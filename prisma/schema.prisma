@@ -39,6 +39,12 @@ enum DoorStatus {
   CERTIFIED
 }
 
+enum BuildingStatus {
+  DRAFT
+  APPROVED
+  CERTIFIED
+}
+
 enum ImageRole {
   FRONT_FACE         // Door face condition
   REAR_FACE          // Opposite side
@@ -104,6 +110,8 @@ model User {
   assignments           InspectionAssignment[]
   createdSites          Site[]                 @relation("SiteCreatedBy")
   createdBuildings      Building[]             @relation("BuildingCreatedBy")
+  approvedBuildings     Building[]             @relation("BuildingApprovedBy")
+  certifiedBuildings    Building[]             @relation("BuildingCertifiedBy")
   createdFloors         Floor[]                @relation("FloorCreatedBy")
   createdDoors          Door[]                 @relation("DoorCreatedBy")
   doorSubmissions       Door[]                 @relation("DoorSubmittedBy")
@@ -164,18 +172,25 @@ model Site {
 }
 
 model Building {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   orgId         String
   siteId        String?
   name          String
   buildingCode  String?
   locationNotes String?
+  status        BuildingStatus @default(DRAFT)
+  approvedAt    DateTime?
+  approvedById  String?
+  certifiedAt   DateTime?
+  certifiedById String?
   createdById   String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime       @default(now())
 
   org         Org                  @relation(fields: [orgId], references: [id])
   site        Site?                @relation(fields: [siteId], references: [id])
   createdBy   User?                @relation("BuildingCreatedBy", fields: [createdById], references: [id])
+  approvedBy  User?                @relation("BuildingApprovedBy", fields: [approvedById], references: [id])
+  certifiedBy User?                @relation("BuildingCertifiedBy", fields: [certifiedById], references: [id])
   floors      Floor[]
   inspections Inspection[]
   certificate BuildingCertificate?
