@@ -126,6 +126,11 @@ async function bootstrap(): Promise<void> {
         },
       ) => {
         reply.header('Content-Type', 'text/html; charset=utf-8');
+        // Override helmet's CSP for this test-only page — inline scripts are required
+        reply.header(
+          'Content-Security-Policy',
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://storage.googleapis.com; img-src 'self' data: blob:;",
+        );
         reply.send(uploadTestHtml);
       },
     );
