@@ -54,6 +54,9 @@ COPY --from=builder /app/prisma.config.ts ./
 # Copy generated Prisma client (patched)
 COPY --from=builder /app/generated ./generated
 
+# Copy Postman collection + environment (served at /dev/postman/*)
+COPY postman ./postman
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh

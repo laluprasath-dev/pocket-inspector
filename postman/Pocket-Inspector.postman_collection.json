@@ -1119,6 +1119,25 @@
             },
             "description": "Get a pre-signed URL to download the building certificate PDF."
           }
+        },
+        {
+          "name": "Delete Building Certificate (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "buildings",
+                "{{buildingId}}",
+                "certificate"
+              ]
+            },
+            "description": "Delete the building certificate. Removes the PDF from GCS and deletes the certificate record so a new one can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
+          }
         }
       ],
       "event": [
@@ -2007,6 +2026,25 @@
               ]
             },
             "description": "Get a signed URL to download the door certificate PDF."
+          }
+        },
+        {
+          "name": "Delete Door Certificate (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "certificate"
+              ]
+            },
+            "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED so a new certificate can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
           }
         }
       ],

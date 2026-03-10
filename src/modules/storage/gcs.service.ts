@@ -12,6 +12,8 @@ export interface SignedUploadUrlOptions {
 export interface SignedDownloadUrlOptions {
   objectPath: string;
   expirySeconds?: number;
+  /** Sets Content-Disposition on the signed URL so the browser downloads the file */
+  responseDisposition?: string;
 }
 
 export interface SignedUrlWithExpiry {
@@ -82,6 +84,9 @@ export class GcsService {
         version: 'v4',
         action: 'read',
         expires: expiresAt,
+        ...(opts.responseDisposition
+          ? { responseDisposition: opts.responseDisposition }
+          : {}),
         ...(this.serviceAccountEmail
           ? { serviceAccountEmail: this.serviceAccountEmail }
           : {}),

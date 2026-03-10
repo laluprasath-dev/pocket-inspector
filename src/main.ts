@@ -100,6 +100,28 @@ async function bootstrap(): Promise<void> {
     );
   }
 
+  // ── Serve upload test page (dev only) ──
+  if (!isProduction) {
+    const uploadTestPath = join(process.cwd(), 'testDoors', 'upload-test.html');
+    if (existsSync(uploadTestPath)) {
+      const uploadTestHtml = readFileSync(uploadTestPath, 'utf8');
+      const fastify = app.getHttpAdapter().getInstance();
+      fastify.get(
+        '/upload-test.html',
+        (
+          _req: unknown,
+          reply: {
+            header: (k: string, v: string) => void;
+            send: (b: string) => void;
+          },
+        ) => {
+          reply.header('Content-Type', 'text/html; charset=utf-8');
+          reply.send(uploadTestHtml);
+        },
+      );
+    }
+  }
+
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Pocket Inspector API')

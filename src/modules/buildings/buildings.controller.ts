@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -112,5 +113,16 @@ export class BuildingsController {
   })
   getCertDownloadUrl(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.getCertificateDownloadUrl(id, user.orgId);
+  }
+
+  @Delete(':id/certificate')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete the building certificate — removes the PDF from GCS and deletes the record so a new certificate can be uploaded',
+  })
+  deleteCertificate(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.buildingsService.deleteCertificate(id, user.orgId);
   }
 }

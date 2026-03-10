@@ -228,4 +228,15 @@ export class DoorsController {
       user.role,
     );
   }
+
+  @Delete(':id/certificate')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete the door certificate — removes the PDF from GCS and resets the door to SUBMITTED so a new certificate can be uploaded',
+  })
+  deleteCertificate(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.doorsService.deleteCertificate(id, user.orgId);
+  }
 }

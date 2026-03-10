@@ -475,9 +475,9 @@ export class DoorsService {
       Role.ADMIN,
     );
 
-    if (door.status !== DoorStatus.SUBMITTED) {
+    if (door.status === DoorStatus.DRAFT) {
       throw new BadRequestException(
-        'Door must be SUBMITTED before a certificate can be uploaded',
+        'Door must be submitted by an inspector before a certificate can be uploaded',
       );
     }
 
@@ -502,9 +502,9 @@ export class DoorsService {
   ) {
     const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
 
-    if (door.status !== DoorStatus.SUBMITTED) {
+    if (door.status === DoorStatus.DRAFT) {
       throw new BadRequestException(
-        'Door must be SUBMITTED to register a certificate',
+        'Door must be submitted by an inspector before a certificate can be registered',
       );
     }
 
@@ -547,7 +547,7 @@ export class DoorsService {
     orgId: string,
     userId: string,
     role: Role,
-  ): Promise<string> {
+  ): Promise<{ signedUrl: string; expiresAt: string }> {
     await this.getDoorContext(doorId, orgId, userId, role);
     const cert = await this.prisma.doorCertificate.findFirst({
       where: { doorId, door: { floor: { building: { orgId } } } },
@@ -555,9 +555,41 @@ export class DoorsService {
     if (!cert)
       throw new NotFoundException('No certificate found for this door');
 
-    return this.gcs.getSignedDownloadUrl({
+    const { url, expiresAt } = await this.gcs.getSignedDownloadUrlWithExpiry({
       objectPath: cert.objectPathCertificate,
+      responseDisposition: 'attachment; filename="certificate.pdf"',
     });
+    return { signedUrl: url, expiresAt };
+  }
+
+  async deleteCertificate(doorId: string, orgId: string): Promise<void> {
+    const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
+
+    if (door.status !== DoorStatus.CERTIFIED) {
+      throw new BadRequestException(
+        'Only a CERTIFIED door has a certificate that can be deleted',
+      );
+    }
+
+    const cert = await this.prisma.doorCertificate.findUnique({
+      where: { doorId },
+    });
+    if (!cert)
+      throw new NotFoundException('No certificate found for this door');
+
+    await this.prisma.$transaction([
+      this.prisma.doorCertificate.delete({ where: { doorId } }),
+      this.prisma.door.update({
+        where: { id: doorId },
+        data: {
+          status: DoorStatus.SUBMITTED,
+          certifiedAt: null,
+          certifiedById: null,
+        },
+      }),
+    ]);
+
+    await this.gcs.deleteObject(cert.objectPathCertificate);
   }
 
   // ── Thumbnail generation ───────────────────────────────────────────────────

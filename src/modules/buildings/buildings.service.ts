@@ -32,18 +32,25 @@ export class BuildingsService {
     });
   }
 
-  async findById(
-    id: string,
-    orgId: string,
-    userId: string,
-    role: Role,
-  ): Promise<Building> {
+  async findById(id: string, orgId: string, userId: string, role: Role) {
     const building = await this.prisma.building.findFirst({
       where: { id, ...this.accessFilter(orgId, userId, role) },
-      include: { certificate: true },
+      include: { certificate: { select: { id: true, uploadedAt: true } } },
     });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
-    return building;
+
+    return {
+      id: building.id,
+      orgId: building.orgId,
+      siteId: building.siteId,
+      name: building.name,
+      buildingCode: building.buildingCode,
+      locationNotes: building.locationNotes,
+      createdById: building.createdById,
+      createdAt: building.createdAt,
+      certificatePresent: building.certificate !== null,
+      certificateUploadedAt: building.certificate?.uploadedAt ?? null,
+    };
   }
 
   create(
@@ -144,16 +151,35 @@ export class BuildingsService {
   async getCertificateDownloadUrl(
     buildingId: string,
     orgId: string,
-  ): Promise<string> {
+  ): Promise<{ signedUrl: string; expiresAt: string }> {
     const cert = await this.prisma.buildingCertificate.findFirst({
       where: { buildingId, building: { orgId } },
     });
     if (!cert)
       throw new NotFoundException('No certificate found for this building');
 
-    return this.gcs.getSignedDownloadUrl({
+    const { url, expiresAt } = await this.gcs.getSignedDownloadUrlWithExpiry({
       objectPath: cert.objectPathCertificate,
+      responseDisposition: 'attachment; filename="certificate.pdf"',
     });
+    return { signedUrl: url, expiresAt };
+  }
+
+  async deleteCertificate(buildingId: string, orgId: string): Promise<void> {
+    const building = await this.prisma.building.findFirst({
+      where: { id: buildingId, orgId },
+    });
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
+
+    const cert = await this.prisma.buildingCertificate.findUnique({
+      where: { buildingId },
+    });
+    if (!cert)
+      throw new NotFoundException('No certificate found for this building');
+
+    await this.prisma.buildingCertificate.delete({ where: { buildingId } });
+    await this.gcs.deleteObject(cert.objectPathCertificate);
   }
 
   // ── Access filter ─────────────────────────────────────────────────────────
