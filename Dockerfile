@@ -47,8 +47,9 @@ COPY --from=builder /app/dist ./dist
 
 # Copy Prisma schema + migrations (needed for migrate deploy at startup)
 COPY --from=builder /app/prisma ./prisma
-# prisma.config.ts is intentionally NOT copied — it imports dotenv which is a
-# dev dependency. Cloud Run injects DATABASE_URL directly via Secret Manager.
+
+# Use the production Prisma config (no dotenv import — DATABASE_URL comes from Secret Manager)
+COPY prisma.config.prod.ts ./prisma.config.ts
 
 # Copy generated Prisma client (patched)
 COPY --from=builder /app/generated ./generated
