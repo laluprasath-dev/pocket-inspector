@@ -57,6 +57,9 @@ COPY --from=builder /app/generated ./generated
 # Copy Postman collection + environment (served at /dev/postman/*)
 COPY postman ./postman
 
+# Copy upload test page (served at /upload-test.html)
+COPY testDoors ./testDoors
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
