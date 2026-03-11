@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Building, Floor } from '../../../generated/prisma/client';
-import { BuildingStatus, Role } from '../../../generated/prisma/enums';
+import { BuildingStatus, Role, SurveyStatus } from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -39,9 +40,17 @@ export class BuildingsService {
   async findById(id: string, orgId: string, userId: string, role: Role) {
     const building = await this.prisma.building.findFirst({
       where: { id, ...this.accessFilter(orgId, userId, role) },
-      include: { certificate: { select: { id: true, uploadedAt: true } } },
+      include: {
+        surveys: {
+          where: { status: SurveyStatus.ACTIVE },
+          include: { buildingCertificate: { select: { id: true, uploadedAt: true } } },
+          take: 1,
+        },
+      },
     });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
+
+    const activeSurvey = building.surveys[0] ?? null;
 
     return {
       id: building.id,
@@ -57,8 +66,10 @@ export class BuildingsService {
       approvedById: building.approvedById,
       certifiedAt: building.certifiedAt,
       certifiedById: building.certifiedById,
-      certificatePresent: building.certificate !== null,
-      certificateUploadedAt: building.certificate?.uploadedAt ?? null,
+      currentSurveyId: activeSurvey?.id ?? null,
+      currentSurveyVersion: activeSurvey?.version ?? null,
+      certificatePresent: activeSurvey?.buildingCertificate !== null && activeSurvey !== null,
+      certificateUploadedAt: activeSurvey?.buildingCertificate?.uploadedAt ?? null,
     };
   }
 
@@ -91,8 +102,21 @@ export class BuildingsService {
     role: Role,
   ): Promise<Floor[]> {
     await this.findById(buildingId, orgId, userId, role);
+
+    // Find the active survey to filter floors
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+    });
+
+    // If no active survey exists yet (building has no survey), return all floors
+    // that have no surveyId (legacy data without survey assignment).
+    // Once a survey exists, only return floors tied to that survey.
+    const where = activeSurvey
+      ? { buildingId, surveyId: activeSurvey.id }
+      : { buildingId, surveyId: null as string | null };
+
     return this.prisma.floor.findMany({
-      where: { buildingId },
+      where,
       orderBy: { label: 'asc' },
     });
   }
@@ -142,6 +166,16 @@ export class BuildingsService {
       );
     }
 
+    // Ensure there is an active survey to attach the certificate to
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+    });
+    if (!activeSurvey) {
+      throw new BadRequestException(
+        'No active survey found for this building. Start a survey before uploading a certificate.',
+      );
+    }
+
     const certId = crypto.randomUUID();
     const objectPath = StoragePathBuilder.buildingCertificate({
       orgId,
@@ -178,21 +212,41 @@ export class BuildingsService {
       );
     }
 
+    // Find active survey — certificate is tied to the current survey
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+      include: { buildingCertificate: { select: { id: true } } },
+    });
+    if (!activeSurvey) {
+      throw new BadRequestException(
+        'No active survey found for this building. Start a survey before registering a certificate.',
+      );
+    }
+
     const now = new Date();
     const [cert] = await this.prisma.$transaction([
-      this.prisma.buildingCertificate.upsert({
-        where: { buildingId },
-        create: {
-          buildingId,
-          objectPathCertificate: dto.objectPath,
-          uploadedById: adminId,
-        },
-        update: {
-          objectPathCertificate: dto.objectPath,
-          uploadedById: adminId,
-          uploadedAt: now,
-        },
-      }),
+      // Upsert based on surveyId so each survey has its own certificate record
+      ...(activeSurvey.buildingCertificate
+        ? [
+            this.prisma.buildingCertificate.update({
+              where: { surveyId: activeSurvey.id },
+              data: {
+                objectPathCertificate: dto.objectPath,
+                uploadedById: adminId,
+                uploadedAt: now,
+              },
+            }),
+          ]
+        : [
+            this.prisma.buildingCertificate.create({
+              data: {
+                buildingId,
+                surveyId: activeSurvey.id,
+                objectPathCertificate: dto.objectPath,
+                uploadedById: adminId,
+              },
+            }),
+          ]),
       this.prisma.building.update({
         where: { id: buildingId },
         data: {
@@ -217,9 +271,21 @@ export class BuildingsService {
     buildingId: string,
     orgId: string,
   ): Promise<{ signedUrl: string; expiresAt: string }> {
-    const cert = await this.prisma.buildingCertificate.findFirst({
-      where: { buildingId, building: { orgId } },
+    // Find the active survey's certificate by default
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
     });
+
+    const cert = activeSurvey
+      ? await this.prisma.buildingCertificate.findUnique({
+          where: { surveyId: activeSurvey.id },
+        })
+      : // Fallback: find any certificate linked to this building (legacy or completed surveys)
+        await this.prisma.buildingCertificate.findFirst({
+          where: { buildingId, building: { orgId } },
+          orderBy: { uploadedAt: 'desc' },
+        });
+
     if (!cert)
       throw new NotFoundException('No certificate found for this building');
 
@@ -237,14 +303,24 @@ export class BuildingsService {
     if (!building)
       throw new NotFoundException(`Building ${buildingId} not found`);
 
+    // Only allow deletion if the active survey is not yet completed
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+    });
+    if (!activeSurvey) {
+      throw new NotFoundException(
+        'No active survey found — cannot delete a certificate from a completed survey',
+      );
+    }
+
     const cert = await this.prisma.buildingCertificate.findUnique({
-      where: { buildingId },
+      where: { surveyId: activeSurvey.id },
     });
     if (!cert)
       throw new NotFoundException('No certificate found for this building');
 
     await this.prisma.$transaction([
-      this.prisma.buildingCertificate.delete({ where: { buildingId } }),
+      this.prisma.buildingCertificate.delete({ where: { id: cert.id } }),
       this.prisma.building.update({
         where: { id: buildingId },
         data: {
@@ -255,6 +331,31 @@ export class BuildingsService {
       }),
     ]);
     await this.gcs.deleteObject(cert.objectPathCertificate);
+  }
+
+  // ── Certificate download for a specific historical survey ─────────────────
+
+  async getCertificateDownloadUrlBySurvey(
+    buildingId: string,
+    surveyId: string,
+    orgId: string,
+  ): Promise<{ signedUrl: string; expiresAt: string }> {
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, buildingId, orgId },
+    });
+    if (!survey) throw new NotFoundException(`Survey ${surveyId} not found`);
+
+    const cert = await this.prisma.buildingCertificate.findUnique({
+      where: { surveyId },
+    });
+    if (!cert)
+      throw new NotFoundException('No certificate found for this survey');
+
+    const { url, expiresAt } = await this.gcs.getSignedDownloadUrlWithExpiry({
+      objectPath: cert.objectPathCertificate,
+      responseDisposition: 'attachment; filename="certificate.pdf"',
+    });
+    return { signedUrl: url, expiresAt };
   }
 
   // ── Access filter ─────────────────────────────────────────────────────────
@@ -292,5 +393,22 @@ export class BuildingsService {
       }
     }
     return Array.from(ids);
+  }
+
+  // ── Guard: check if certificate operations are allowed on this building ───
+  // Used by the controller to forbid cert operations on completed surveys
+
+  async assertActiveSurveyExists(
+    buildingId: string,
+    orgId: string,
+  ): Promise<void> {
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+    });
+    if (!activeSurvey) {
+      throw new ForbiddenException(
+        'No active survey — all changes are locked. Start a new survey to continue.',
+      );
+    }
   }
 }

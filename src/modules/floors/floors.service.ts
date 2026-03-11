@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '../../../generated/prisma/enums';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Role, SurveyStatus } from '../../../generated/prisma/enums';
 import { DoorStatus } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SurveysService } from '../surveys/surveys.service';
 import { CreateFloorDto } from './dto/create-floor.dto';
 import { UpdateFloorDto } from './dto/update-floor.dto';
 
@@ -17,7 +22,10 @@ export interface DoorSummary {
 
 @Injectable()
 export class FloorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly surveys: SurveysService,
+  ) {}
 
   async findById(id: string, orgId: string, userId: string, role: Role) {
     const floor = await this.prisma.floor.findFirst({
@@ -29,16 +37,46 @@ export class FloorsService {
   }
 
   async create(dto: CreateFloorDto, orgId: string, userId: string) {
-    // Verify the building is accessible to this user (any role can create, but must own/be assigned)
     const building = await this.prisma.building.findFirst({
       where: { id: dto.buildingId, orgId },
     });
     if (!building)
       throw new NotFoundException(`Building ${dto.buildingId} not found`);
 
+    // Find or auto-create a survey for this building
+    let activeSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId: dto.buildingId, orgId, status: SurveyStatus.ACTIVE },
+    });
+
+    if (!activeSurvey) {
+      // Check if any survey has ever existed for this building
+      const surveyCount = await this.prisma.survey.count({
+        where: { buildingId: dto.buildingId },
+      });
+
+      if (surveyCount === 0) {
+        // Brand-new building — auto-create Survey v1
+        activeSurvey = await this.prisma.survey.create({
+          data: {
+            orgId,
+            buildingId: dto.buildingId,
+            version: 1,
+            status: SurveyStatus.ACTIVE,
+            createdById: userId,
+          },
+        });
+      } else {
+        // Surveys exist but none is active — admin must call start-next
+        throw new BadRequestException(
+          'No active survey found for this building. Use "Start Next Survey" to begin a new survey cycle.',
+        );
+      }
+    }
+
     return this.prisma.floor.create({
       data: {
         buildingId: dto.buildingId,
+        surveyId: activeSurvey.id,
         label: dto.label,
         notes: dto.notes,
         createdById: userId,
@@ -51,6 +89,10 @@ export class FloorsService {
       where: { id, building: { orgId } },
     });
     if (!floor) throw new NotFoundException(`Floor ${id} not found`);
+
+    // Guard: cannot modify floors in a completed survey
+    await this.surveys.assertFloorEditable(id);
+
     return this.prisma.floor.update({ where: { id }, data: dto });
   }
 
@@ -59,6 +101,10 @@ export class FloorsService {
       where: { id, building: { orgId } },
     });
     if (!floor) throw new NotFoundException(`Floor ${id} not found`);
+
+    // Guard: cannot delete floors in a completed survey
+    await this.surveys.assertFloorEditable(id);
+
     await this.prisma.floor.delete({ where: { id } });
   }
 
@@ -91,7 +137,6 @@ export class FloorsService {
   }
 
   // ── Access filter ─────────────────────────────────────────────────────────
-  // A floor is accessible if the inspector created it OR can access its building
 
   private accessFilter(orgId: string, userId: string, role: Role) {
     if (role === Role.ADMIN) return { building: { orgId } };
@@ -101,11 +146,9 @@ export class FloorsService {
       OR: [
         { createdById: userId },
         {
-          // Building the inspector created
           building: { createdById: userId },
         },
         {
-          // Building the inspector is assigned to via an inspection
           building: {
             inspections: {
               some: { assignments: { some: { inspectorId: userId } } },

@@ -103,7 +103,10 @@ export class ZipBuilderService {
             },
           },
         },
-        certificate: true,
+        certificates: {
+          orderBy: { uploadedAt: 'desc' },
+          take: 1,
+        },
       },
     });
     if (!building) return;
@@ -121,10 +124,11 @@ export class ZipBuilderService {
       await this.addFloor(archive, floor.id, orgId, bPrefix, ctx);
     }
 
-    if (building.certificate) {
+    const latestCert = building.certificates[0] ?? null;
+    if (latestCert) {
       this.appendGcsFile(
         archive,
-        building.certificate.objectPathCertificate,
+        latestCert.objectPathCertificate,
         `${bPrefix}/certificates/building_certificate.pdf`,
       );
     }

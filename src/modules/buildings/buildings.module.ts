@@ -11,3 +11,5 @@ import { BuildingsService } from './buildings.service';
   exports: [BuildingsService],
 })
 export class BuildingsModule {}
+// Note: SurveysModule is imported globally via app.module.ts and uses PrismaService directly,
+// so BuildingsService can rely on PrismaService for survey queries without a circular dependency.

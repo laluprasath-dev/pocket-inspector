@@ -22,10 +22,11 @@
 12. [Module: Certificates (Door & Building)](#12-module-certificates-door--building)
 13. [Module: Inspections & Assignments](#13-module-inspections--assignments)
 14. [Module: Exports (Bulk ZIP)](#14-module-exports-bulk-zip)
-15. [Signed URL Pattern — How it Works](#15-signed-url-pattern--how-it-works)
-16. [Signed URL Refresh Strategy](#16-signed-url-refresh-strategy)
-17. [Admin-only vs Shared Endpoints](#17-admin-only-vs-shared-endpoints)
-18. [Postman Collection](#18-postman-collection)
+15. [Module: Survey Versioning](#15-module-survey-versioning)
+16. [Signed URL Pattern — How it Works](#16-signed-url-pattern--how-it-works)
+17. [Signed URL Refresh Strategy](#17-signed-url-refresh-strategy)
+18. [Admin-only vs Shared Endpoints](#18-admin-only-vs-shared-endpoints)
+19. [Postman Collection](#19-postman-collection)
 
 ---
 
@@ -188,6 +189,7 @@ Use these exact string values in request bodies.
 | `DevicePlatform` | `IOS`, `ANDROID` |
 | `ExportTargetType` | `DOOR`, `FLOOR`, `BUILDING`, `SITE`, `INSPECTION` |
 | `ExportStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` |
+| `SurveyStatus` | `ACTIVE`, `COMPLETED` |
 
 ---
 
@@ -961,7 +963,342 @@ Building_BlockA/
 
 ---
 
-## 15. Signed URL Pattern — How it Works
+## 15. Module: Survey Versioning
+
+Each building has numbered survey cycles (v1, v2, v3 …). A survey represents one complete inspection cycle: inspector uploads photos → admin uploads door certificates → admin uploads building certificate → admin confirms completion. Once confirmed, the survey is **frozen and read-only**. A new survey can be started at any time by cloning the building's floor/door structure (without images or certificates).
+
+### Survey lifecycle
+
+```
+Building created          →  Survey v1 ACTIVE (auto-created on first floor add)
+Inspector photos + submit →  Doors: DRAFT → SUBMITTED
+Admin door certs          →  Doors: SUBMITTED → CERTIFIED
+Admin building cert       →  Building: APPROVED → CERTIFIED
+Admin confirm-complete    →  Survey v1: ACTIVE → COMPLETED  (frozen, read-only)
+Admin start-next          →  Survey v2: ACTIVE  (floors/doors cloned, no images)
+```
+
+---
+
+### 15.1 List survey history for a building
+
+```
+GET /v1/buildings/:id/surveys
+```
+
+Returns all surveys for a building in version order (oldest first). Use this to display the **history tab** in the building detail view.
+
+**Response**
+
+```json
+{
+  "data": [
+    {
+      "id": "survey_v1_id",
+      "version": 1,
+      "status": "COMPLETED",
+      "startedAt": "2026-01-10T09:00:00Z",
+      "completedAt": "2026-01-20T14:30:00Z",
+      "createdAt": "2026-01-10T09:00:00Z",
+      "createdBy": { "id": "...", "firstName": "Admin", "lastName": "User" },
+      "confirmedBy": { "id": "...", "firstName": "Admin", "lastName": "User" },
+      "buildingCertificatePresent": true,
+      "buildingCertificateUploadedAt": "2026-01-19T11:00:00Z",
+      "floorCount": 3,
+      "nextScheduledAt": "2026-04-01T09:00:00Z",
+      "nextScheduledNote": "Q2 annual inspection",
+      "nextAssignedInspector": { "id": "...", "firstName": "John", "lastName": "Doe" }
+    },
+    {
+      "id": "survey_v2_id",
+      "version": 2,
+      "status": "ACTIVE",
+      "startedAt": "2026-04-01T09:00:00Z",
+      "completedAt": null,
+      ...
+    }
+  ]
+}
+```
+
+---
+
+### 15.2 Get the current active survey
+
+```
+GET /v1/buildings/:id/surveys/current
+```
+
+Returns a summary of the currently `ACTIVE` survey. Use this to show the **current survey status badge** on the building card/detail header.
+
+**Response**
+
+```json
+{
+  "data": {
+    "id": "survey_v2_id",
+    "version": 2,
+    "status": "ACTIVE",
+    "startedAt": "2026-04-01T09:00:00Z",
+    "createdAt": "2026-04-01T09:00:00Z",
+    "createdBy": { "id": "...", "firstName": "Admin", "lastName": "User" },
+    "buildingCertificatePresent": false,
+    "buildingCertificateUploadedAt": null,
+    "floorCount": 3
+  }
+}
+```
+
+Returns `404` if there is no active survey (all surveys are completed and no new one has been started yet).
+
+---
+
+### 15.3 Get a specific survey (history detail)
+
+```
+GET /v1/buildings/:id/surveys/:surveyId
+```
+
+Returns full read-only detail of any survey (active or completed), including all floors and doors with their statuses and counts. Use this for the **history detail view**.
+
+**Response**
+
+```json
+{
+  "data": {
+    "id": "survey_v1_id",
+    "version": 1,
+    "status": "COMPLETED",
+    "startedAt": "2026-01-10T09:00:00Z",
+    "completedAt": "2026-01-20T14:30:00Z",
+    "createdAt": "2026-01-10T09:00:00Z",
+    "createdBy": { "id": "...", "firstName": "Admin", "lastName": "User" },
+    "confirmedBy": { "id": "...", "firstName": "Admin", "lastName": "User" },
+    "buildingCertificatePresent": true,
+    "buildingCertificateUploadedAt": "2026-01-19T11:00:00Z",
+    "nextScheduledAt": null,
+    "nextScheduledNote": null,
+    "nextAssignedInspector": null,
+    "floors": [
+      {
+        "id": "floor_1_id",
+        "label": "Ground Floor",
+        "notes": null,
+        "createdAt": "...",
+        "doors": [
+          {
+            "id": "door_1_id",
+            "code": "D01",
+            "locationNotes": "Main entrance",
+            "status": "CERTIFIED",
+            "submittedAt": "2026-01-15T10:00:00Z",
+            "certifiedAt": "2026-01-18T14:00:00Z",
+            "imageCount": 5,
+            "certificatePresent": true,
+            "createdAt": "..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+> **Note for frontend**: Since completed surveys are frozen, do not show Edit/Delete buttons when `survey.status === "COMPLETED"`. The backend will also reject any mutation attempts with `403 Forbidden`.
+
+---
+
+### 15.4 Get building certificate download URL for a historical survey
+
+```
+GET /v1/buildings/:id/surveys/:surveyId/certificate/signed-download
+```
+
+Returns a signed download URL for the building certificate of a **specific survey**. Use this in the history detail view when the user wants to view/download the certificate from a past survey.
+
+**Response**
+
+```json
+{
+  "data": {
+    "signedUrl": "https://storage.googleapis.com/...",
+    "expiresAt": "2026-03-11T10:30:00Z"
+  }
+}
+```
+
+---
+
+### 15.5 Confirm survey complete *(admin only)*
+
+```
+POST /v1/buildings/:id/surveys/confirm-complete
+```
+
+Marks the current `ACTIVE` survey as `COMPLETED`. This is the **"Confirm Survey Complete"** button shown after the building certificate has been uploaded.
+
+**Pre-conditions (validated server-side):**
+- Building status must be `CERTIFIED` (building certificate has been registered)
+- All doors in the current survey must have status `CERTIFIED`
+- There must be an active survey for the building
+
+**Request body** (all fields optional — for scheduling the next survey)
+
+```json
+{
+  "nextScheduledAt": "2026-06-01T09:00:00Z",
+  "nextScheduledNote": "Q2 annual inspection",
+  "nextAssignedInspectorId": "user_abc123"
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "data": {
+    "id": "survey_v1_id",
+    "version": 1,
+    "status": "COMPLETED",
+    "completedAt": "2026-01-20T14:30:00Z",
+    "confirmedById": "admin_user_id",
+    "nextScheduledAt": "2026-06-01T09:00:00Z",
+    "nextScheduledNote": "Q2 annual inspection",
+    "nextAssignedInspectorId": "user_abc123"
+  }
+}
+```
+
+**Push notifications sent on success:**
+- All assigned inspectors receive: *"Survey v1 for Building Name has been confirmed complete."*
+- If `nextAssignedInspectorId` + `nextScheduledAt` provided: that inspector receives: *"You have been scheduled for the next survey of Building Name on 2026-06-01."*
+
+**Error responses:**
+
+| Status | Message |
+|---|---|
+| `400` | `"The building certificate must be uploaded before a survey can be confirmed complete"` |
+| `400` | `"All doors must be CERTIFIED before confirming survey completion. Doors not yet certified: D01, D03"` |
+| `400` | `"A building certificate must be uploaded and registered before confirming completion"` |
+| `404` | `"No active survey found for this building"` |
+
+> **UI recommendation**: Show this button only when `Building.status === "CERTIFIED"`. After calling this endpoint successfully, show a toast — *"Survey v{N} confirmed complete!"* — and refresh the survey list.
+
+---
+
+### 15.6 Start the next survey *(admin only)*
+
+```
+POST /v1/buildings/:id/surveys/start-next
+```
+
+Starts a new survey cycle by cloning the floor/door structure from the last completed survey. No images or certificates are copied — inspectors must re-photograph everything.
+
+**Pre-conditions:**
+- No `ACTIVE` survey exists for the building (previous survey must be completed first)
+
+**Request body** (optional)
+
+```json
+{
+  "assignedInspectorId": "user_abc123"
+}
+```
+
+**Response `201 Created`**
+
+```json
+{
+  "data": {
+    "id": "survey_v2_id",
+    "version": 2,
+    "status": "ACTIVE",
+    "startedAt": "2026-04-01T09:00:00Z",
+    "clonedFromVersion": 1,
+    "floorsCloned": 3,
+    "doorsCloned": 12
+  }
+}
+```
+
+**What this does server-side:**
+- Creates `Survey { version: last+1, status: ACTIVE }`
+- Clones all floors from the last completed survey (new IDs, same labels/notes)
+- Clones all doors under those floors (new IDs, same codes/locationNotes, `status=DRAFT`, timestamps cleared)
+- Does **not** copy: images, door certificates, building certificate
+- Resets `Building.status → DRAFT`, clears `approvedAt` / `certifiedAt`
+
+**Error responses:**
+
+| Status | Message |
+|---|---|
+| `400` | `"A survey (v1) is already active for this building. Complete it before starting a new one."` |
+| `400` | `"No completed survey found to clone from. Complete the current survey first."` |
+
+---
+
+### 15.7 Schedule the next survey *(admin only, optional)*
+
+```
+PATCH /v1/buildings/:id/surveys/current/schedule
+```
+
+Updates scheduling metadata on the current active survey. Can be called at any time — before or after completion. If `nextAssignedInspectorId` is provided, a push notification is sent to that inspector.
+
+**Request body** (all fields optional — send only fields to update)
+
+```json
+{
+  "nextScheduledAt": "2026-06-01T09:00:00Z",
+  "nextScheduledNote": "Focus on upper floors this time",
+  "nextAssignedInspectorId": "user_abc123"
+}
+```
+
+**Response `200 OK`** — returns the updated survey record.
+
+> Pass `null` for any field to clear it: `{ "nextScheduledAt": null, "nextAssignedInspectorId": null }`.
+
+---
+
+### 15.8 Frontend integration guide
+
+#### Building detail page
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Block A  ·  v2 ACTIVE                         [Surveys ▼] │
+├────────────────────────────────────────────────────────────┤
+│  Floors / Doors  |  Survey History                         │
+└────────────────────────────────────────────────────────────┘
+```
+
+1. On load: call `GET /v1/buildings/:id/surveys/current` to display the current survey badge (`v2 ACTIVE`).
+2. The **Floors** tab should show floors from the current active survey only (returned by `GET /v1/buildings/:id/floors`).
+3. The **Survey History** tab: call `GET /v1/buildings/:id/surveys` to list all versions. Clicking a completed version opens its read-only detail via `GET /v1/buildings/:id/surveys/:surveyId`.
+
+#### Confirm-complete button visibility
+
+Show the **"Confirm Survey Complete"** button when all of the following are true:
+- `building.status === "CERTIFIED"` (building cert uploaded)
+- Current survey `status === "ACTIVE"`
+- All doors in the current survey have `status === "CERTIFIED"` (check from the floors/doors list)
+
+#### Start-next button visibility
+
+Show the **"Start Next Survey"** button when:
+- No active survey exists (all surveys are `COMPLETED`) — `GET /v1/buildings/:id/surveys/current` returns `404`
+
+#### History view — read-only enforcement
+
+When rendering a completed survey's detail:
+- Hide all Edit / Delete / Upload buttons
+- Show a locked banner: *"This survey (v1) is completed and read-only."*
+- Certificate download is still available via `GET /v1/buildings/:id/surveys/:surveyId/certificate/signed-download`
+
+---
+
+## 16. Signed URL Pattern — How it Works
 
 All file access (images, certificates, exports) uses **GCS signed URLs**. Files are never served through the backend — they are accessed directly from Google Cloud Storage.
 
@@ -991,7 +1328,7 @@ Admin Panel                    Backend API                     GCS
 
 ---
 
-## 16. Signed URL Refresh Strategy
+## 17. Signed URL Refresh Strategy
 
 Download URLs returned by the API include an `expiresAt` ISO timestamp. Use this to decide when to refresh without making unnecessary API calls.
 
@@ -1028,7 +1365,7 @@ Certificate signed download URLs follow the same pattern. Call the `signed-downl
 
 ---
 
-## 17. Admin-only vs Shared Endpoints
+## 18. Admin-only vs Shared Endpoints
 
 | Endpoint | Admin | Inspector |
 |---|---|---|
@@ -1045,6 +1382,9 @@ Certificate signed download URLs follow the same pattern. Call the `signed-downl
 | `PATCH /v1/inspections/:id/archive` | ✅ | ❌ |
 | `POST /v1/inspections/:id/assignments` | ✅ | ❌ |
 | `POST /v1/exports` | ✅ | ❌ |
+| `POST /v1/buildings/:id/surveys/confirm-complete` | ✅ | ❌ |
+| `POST /v1/buildings/:id/surveys/start-next` | ✅ | ❌ |
+| `PATCH /v1/buildings/:id/surveys/current/schedule` | ✅ | ❌ |
 | `GET /v1/exports/:id/signed-download` | ✅ | ❌ |
 | `DELETE /v1/doors/:id/images/bulk` | ✅ | own images only |
 | `GET /v1/buildings`, `GET /v1/sites` | ✅ all | assigned only |
@@ -1054,7 +1394,7 @@ Certificate signed download URLs follow the same pattern. Call the `signed-downl
 
 ---
 
-## 18. Postman Collection
+## 19. Postman Collection
 
 A ready-to-import Postman collection and environment are available at runtime:
 
@@ -1103,3 +1443,10 @@ See [`postman/README.md`](../postman/README.md) for full Newman CI usage.
 | Inspection management | `GET /inspections`, `POST /inspections`, `GET /inspections/:id`, `PATCH /inspections/:id/archive` |
 | Inspector assignment | `POST /inspections/:id/assignments` |
 | Bulk export / ZIP download | `POST /exports`, `GET /exports/:id` (poll), `GET /exports/:id/signed-download` |
+| Survey history list | `GET /buildings/:id/surveys` |
+| Current survey status | `GET /buildings/:id/surveys/current` |
+| Historical survey detail (read-only) | `GET /buildings/:id/surveys/:surveyId` |
+| Historical building cert download | `GET /buildings/:id/surveys/:surveyId/certificate/signed-download` |
+| Confirm survey complete | `POST /buildings/:id/surveys/confirm-complete` |
+| Start next survey | `POST /buildings/:id/surveys/start-next` |
+| Schedule next survey (optional) | `PATCH /buildings/:id/surveys/current/schedule` |

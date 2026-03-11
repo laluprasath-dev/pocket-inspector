@@ -10,6 +10,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SurveysService } from '../surveys/surveys.service';
 import { BatchRegisterImageDto } from './dto/batch-register-image.dto';
 import { BatchRequestImageUploadDto } from './dto/batch-request-image-upload.dto';
 import { BulkDeleteImagesDto } from './dto/bulk-delete-images.dto';
@@ -29,6 +30,7 @@ export class DoorsService {
     private readonly prisma: PrismaService,
     private readonly gcs: GcsService,
     private readonly notifications: NotificationsService,
+    private readonly surveys: SurveysService,
   ) {}
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -132,6 +134,9 @@ export class DoorsService {
     });
     if (!floor) throw new NotFoundException(`Floor ${dto.floorId} not found`);
 
+    // Guard: cannot add doors to a floor in a completed survey
+    await this.surveys.assertFloorEditable(dto.floorId);
+
     return this.prisma.door.create({
       data: {
         floorId: dto.floorId,
@@ -147,10 +152,17 @@ export class DoorsService {
       where: { id, floor: { building: { orgId } } },
     });
     if (!door) throw new NotFoundException(`Door ${id} not found`);
+
+    // Guard: cannot update doors in a completed survey
+    await this.surveys.assertDoorEditable(id);
+
     return this.prisma.door.update({ where: { id }, data: dto });
   }
 
   async submit(id: string, userId: string, orgId: string) {
+    // Guard: cannot submit a door in a completed survey
+    await this.surveys.assertDoorEditable(id);
+
     const { door } = await this.getDoorContext(
       id,
       orgId,
@@ -192,6 +204,9 @@ export class DoorsService {
     userId: string,
     role: Role,
   ) {
+    // Guard: cannot upload images to a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { door, pathCtx } = await this.getDoorContext(
       doorId,
       orgId,
@@ -225,6 +240,9 @@ export class DoorsService {
     orgId: string,
     role: Role,
   ) {
+    // Guard: cannot register images for a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
 
     const thumbPath =
@@ -254,6 +272,9 @@ export class DoorsService {
     userId: string,
     role: Role,
   ) {
+    // Guard: cannot batch-upload images to a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { door, pathCtx } = await this.getDoorContext(
       doorId,
       orgId,
@@ -290,6 +311,9 @@ export class DoorsService {
     orgId: string,
     role: Role,
   ) {
+    // Guard: cannot batch-register images for a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
 
     // Generate all thumbnails in parallel before the transaction
@@ -394,6 +418,9 @@ export class DoorsService {
     orgId: string,
     role: Role,
   ) {
+    // Guard: cannot delete images from a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     await this.getDoorContext(doorId, orgId, userId, role);
 
     // Load all requested images — must belong to this door and org
@@ -468,6 +495,9 @@ export class DoorsService {
   // ── Door certificate ───────────────────────────────────────────────────────
 
   async requestCertificateUpload(doorId: string, orgId: string) {
+    // Guard: cannot upload a certificate to a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { door, pathCtx } = await this.getDoorContext(
       doorId,
       orgId,
@@ -500,6 +530,9 @@ export class DoorsService {
     adminId: string,
     orgId: string,
   ) {
+    // Guard: cannot register a certificate for a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
 
     if (door.status === DoorStatus.DRAFT) {
@@ -563,6 +596,9 @@ export class DoorsService {
   }
 
   async deleteCertificate(doorId: string, orgId: string): Promise<void> {
+    // Guard: cannot delete a certificate from a door in a completed survey
+    await this.surveys.assertDoorEditable(doorId);
+
     const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
 
     if (door.status !== DoorStatus.CERTIFIED) {

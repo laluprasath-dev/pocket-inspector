@@ -122,10 +122,28 @@ export class BuildingsController {
 
   @Get(':id/certificate/signed-download')
   @ApiOperation({
-    summary: 'Get a signed download URL for the building certificate',
+    summary:
+      'Get a signed download URL for the current active survey building certificate',
   })
   getCertDownloadUrl(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.getCertificateDownloadUrl(id, user.orgId);
+  }
+
+  @Get(':id/surveys/:surveyId/certificate/signed-download')
+  @ApiOperation({
+    summary:
+      'Get a signed download URL for the building certificate of a specific (historical) survey',
+  })
+  getCertDownloadUrlBySurvey(
+    @Param('id') id: string,
+    @Param('surveyId') surveyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.buildingsService.getCertificateDownloadUrlBySurvey(
+      id,
+      surveyId,
+      user.orgId,
+    );
   }
 
   @Delete(':id/certificate')
