@@ -138,7 +138,7 @@ export class BuildingsService {
       building.status !== BuildingStatus.CERTIFIED
     ) {
       throw new BadRequestException(
-        'Building must be approved by an inspector before a certificate can be uploaded',
+        'Building must be approved by a photographer before a certificate can be uploaded',
       );
     }
 
@@ -174,7 +174,7 @@ export class BuildingsService {
       building.status !== BuildingStatus.CERTIFIED
     ) {
       throw new BadRequestException(
-        'Building must be approved by an inspector before a certificate can be registered',
+        'Building must be approved by a photographer before a certificate can be registered',
       );
     }
 

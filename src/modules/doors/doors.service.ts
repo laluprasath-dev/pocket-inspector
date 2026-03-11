@@ -477,7 +477,7 @@ export class DoorsService {
 
     if (door.status === DoorStatus.DRAFT) {
       throw new BadRequestException(
-        'Door must be submitted by an inspector before a certificate can be uploaded',
+        'Door must be submitted by a photographer before a certificate can be uploaded',
       );
     }
 
@@ -504,7 +504,7 @@ export class DoorsService {
 
     if (door.status === DoorStatus.DRAFT) {
       throw new BadRequestException(
-        'Door must be submitted by an inspector before a certificate can be registered',
+        'Door must be submitted by a photographer before a certificate can be registered',
       );
     }
 

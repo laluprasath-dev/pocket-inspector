@@ -69,17 +69,17 @@ export class InspectionsService {
         createdBy: { select: { id: true, email: true } },
       },
     });
-    if (!inspection) throw new NotFoundException(`Inspection ${id} not found`);
+    if (!inspection) throw new NotFoundException(`Survey ${id} not found`);
     return inspection;
   }
 
   async create(dto: CreateInspectionDto, orgId: string, createdById: string) {
     if (dto.type === InspectionType.SITE && !dto.siteId) {
-      throw new BadRequestException('siteId is required for SITE inspections');
+      throw new BadRequestException('siteId is required for SITE surveys');
     }
     if (dto.type === InspectionType.BUILDING && !dto.buildingId) {
       throw new BadRequestException(
-        'buildingId is required for BUILDING inspections',
+        'buildingId is required for BUILDING surveys',
       );
     }
 
@@ -106,7 +106,7 @@ export class InspectionsService {
     const inspection = await this.prisma.inspection.findFirst({
       where: { id, orgId },
     });
-    if (!inspection) throw new NotFoundException(`Inspection ${id} not found`);
+    if (!inspection) throw new NotFoundException(`Survey ${id} not found`);
 
     return this.prisma.inspection.update({
       where: { id },
@@ -125,13 +125,13 @@ export class InspectionsService {
       where: { id: inspectionId, orgId },
     });
     if (!inspection)
-      throw new NotFoundException(`Inspection ${inspectionId} not found`);
+      throw new NotFoundException(`Survey ${inspectionId} not found`);
 
     const inspector = await this.prisma.user.findFirst({
       where: { id: dto.inspectorId, orgId, role: Role.INSPECTOR },
     });
     if (!inspector)
-      throw new NotFoundException(`Inspector ${dto.inspectorId} not found`);
+      throw new NotFoundException(`Photographer ${dto.inspectorId} not found`);
 
     const existing = await this.prisma.inspectionAssignment.findUnique({
       where: {
@@ -141,7 +141,7 @@ export class InspectionsService {
         },
       },
     });
-    if (existing) throw new BadRequestException('Inspector already assigned');
+    if (existing) throw new BadRequestException('Photographer already assigned');
 
     return this.prisma.inspectionAssignment.create({
       data: {
