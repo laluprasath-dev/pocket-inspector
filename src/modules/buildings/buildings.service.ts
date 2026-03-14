@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Building, Floor } from '../../../generated/prisma/client';
-import { BuildingStatus, Role, SurveyStatus } from '../../../generated/prisma/enums';
+import {
+  BuildingStatus,
+  Role,
+  SurveyStatus,
+} from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -22,18 +26,38 @@ export class BuildingsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  findAll(
+  async findAll(
     orgId: string,
     userId: string,
     role: Role,
     siteId?: string,
   ): Promise<Building[]> {
-    return this.prisma.building.findMany({
+    const buildings = await this.prisma.building.findMany({
       where: {
         ...(siteId ? { siteId } : {}),
         ...this.accessFilter(orgId, userId, role),
       },
       orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: { floors: true },
+        },
+        floors: {
+          include: {
+            _count: { select: { doors: true } },
+          },
+        },
+      },
+    });
+    return buildings.map((b) => {
+      const noOfFloors = b._count.floors;
+      const noOfDoors = b.floors.reduce((sum, f) => sum + f._count.doors, 0);
+      const { _count, floors, ...rest } = b;
+      return {
+        ...rest,
+        noOfFloors,
+        noOfDoors,
+      };
     });
   }
 
@@ -41,9 +65,15 @@ export class BuildingsService {
     const building = await this.prisma.building.findFirst({
       where: { id, ...this.accessFilter(orgId, userId, role) },
       include: {
+        _count: { select: { floors: true } },
+        floors: {
+          include: { _count: { select: { doors: true } } },
+        },
         surveys: {
           where: { status: SurveyStatus.ACTIVE },
-          include: { buildingCertificate: { select: { id: true, uploadedAt: true } } },
+          include: {
+            buildingCertificate: { select: { id: true, uploadedAt: true } },
+          },
           take: 1,
         },
       },
@@ -51,6 +81,11 @@ export class BuildingsService {
     if (!building) throw new NotFoundException(`Building ${id} not found`);
 
     const activeSurvey = building.surveys[0] ?? null;
+    const noOfFloors = building._count.floors;
+    const noOfDoors = building.floors.reduce(
+      (sum, f) => sum + f._count.doors,
+      0,
+    );
 
     return {
       id: building.id,
@@ -66,10 +101,14 @@ export class BuildingsService {
       approvedById: building.approvedById,
       certifiedAt: building.certifiedAt,
       certifiedById: building.certifiedById,
+      noOfFloors,
+      noOfDoors,
       currentSurveyId: activeSurvey?.id ?? null,
       currentSurveyVersion: activeSurvey?.version ?? null,
-      certificatePresent: activeSurvey?.buildingCertificate !== null && activeSurvey !== null,
-      certificateUploadedAt: activeSurvey?.buildingCertificate?.uploadedAt ?? null,
+      certificatePresent:
+        activeSurvey?.buildingCertificate !== null && activeSurvey !== null,
+      certificateUploadedAt:
+        activeSurvey?.buildingCertificate?.uploadedAt ?? null,
     };
   }
 
