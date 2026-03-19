@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrgsModule } from './modules/orgs/orgs.module';
+import { ClientsModule } from './modules/clients/clients.module';
 import { SitesModule } from './modules/sites/sites.module';
 import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FloorsModule } from './modules/floors/floors.module';
@@ -31,6 +32,7 @@ import { HealthModule } from './modules/health/health.module';
     AuthModule,
     UsersModule,
     OrgsModule,
+    ClientsModule,
     SitesModule,
     BuildingsModule,
     FloorsModule,

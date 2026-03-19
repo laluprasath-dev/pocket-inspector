@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BuildingStatus, DoorStatus, Role, SurveyStatus } from '../../../generated/prisma/enums';
+import {
+  BuildingStatus,
+  DoorStatus,
+  Role,
+  SurveyStatus,
+} from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfirmCompleteDto } from './dto/confirm-complete.dto';
@@ -20,7 +25,12 @@ export class SurveysService {
 
   // ── List survey history for a building ────────────────────────────────────
 
-  async listByBuilding(buildingId: string, orgId: string, userId: string, role: Role) {
+  async listByBuilding(
+    buildingId: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ) {
     await this.assertBuildingAccess(buildingId, orgId, userId, role);
 
     const surveys = await this.prisma.survey.findMany({
@@ -57,7 +67,13 @@ export class SurveysService {
 
   // ── Get a single survey (for detail / history view) ───────────────────────
 
-  async findById(surveyId: string, buildingId: string, orgId: string, userId: string, role: Role) {
+  async findById(
+    surveyId: string,
+    buildingId: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ) {
     await this.assertBuildingAccess(buildingId, orgId, userId, role);
     const survey = await this.prisma.survey.findFirst({
       where: { id: surveyId, buildingId, orgId },
@@ -83,7 +99,9 @@ export class SurveysService {
       },
     });
     if (!survey)
-      throw new NotFoundException(`Survey ${surveyId} not found for this building`);
+      throw new NotFoundException(
+        `Survey ${surveyId} not found for this building`,
+      );
 
     return {
       id: survey.id,
@@ -122,7 +140,12 @@ export class SurveysService {
 
   // ── Get the current active survey ─────────────────────────────────────────
 
-  async findActive(buildingId: string, orgId: string, userId: string, role: Role) {
+  async findActive(
+    buildingId: string,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ) {
     await this.assertBuildingAccess(buildingId, orgId, userId, role);
 
     const survey = await this.prisma.survey.findFirst({
@@ -161,7 +184,8 @@ export class SurveysService {
     const building = await this.prisma.building.findFirst({
       where: { id: buildingId, orgId },
     });
-    if (!building) throw new NotFoundException(`Building ${buildingId} not found`);
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
 
     if (building.status !== BuildingStatus.CERTIFIED) {
       throw new BadRequestException(
@@ -266,7 +290,8 @@ export class SurveysService {
     const building = await this.prisma.building.findFirst({
       where: { id: buildingId, orgId },
     });
-    if (!building) throw new NotFoundException(`Building ${buildingId} not found`);
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
 
     // Ensure there is no already-active survey
     const activeSurvey = await this.prisma.survey.findFirst({
@@ -449,10 +474,7 @@ export class SurveysService {
     });
     if (!floor) return; // not found — let the caller handle
 
-    if (
-      floor.survey &&
-      floor.survey.status === SurveyStatus.COMPLETED
-    ) {
+    if (floor.survey && floor.survey.status === SurveyStatus.COMPLETED) {
       throw new ForbiddenException(
         `Survey v${floor.survey.version} is completed and locked. No changes are allowed.`,
       );
@@ -509,7 +531,8 @@ export class SurveysService {
           };
 
     const building = await this.prisma.building.findFirst({ where });
-    if (!building) throw new NotFoundException(`Building ${buildingId} not found`);
+    if (!building)
+      throw new NotFoundException(`Building ${buildingId} not found`);
   }
 
   private async getInspectorIdsForBuilding(

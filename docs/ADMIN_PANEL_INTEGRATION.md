@@ -2,7 +2,8 @@
 
 > **Audience**: Front-end engineers building the Admin Portal.  
 > **Phase**: One (Internal MVP)  
-> **Base docs**: See [`PocketInspector_FullRequirement_Phase1_v3.md`](./PocketInspector_FullRequirement_Phase1_v3.md) and [`PocketInspector_Schema_Storage_API_Phase1_v4.md`](./PocketInspector_Schema_Storage_API_Phase1_v4.md) for full product context.
+> **Base docs**: See [`PocketInspector_FullRequirement_Phase1_v3.md`](./PocketInspector_FullRequirement_Phase1_v3.md) and [`PocketInspector_Schema_Storage_API_Phase1_v4.md`](./PocketInspector_Schema_Storage_API_Phase1_v4.md) for full product context.  
+> **Mobile reference**: [`MOBILE_CLIENT_DETAILS_INTEGRATION.md`](./MOBILE_CLIENT_DETAILS_INTEGRATION.md)
 
 ---
 
@@ -14,19 +15,21 @@
 4. [Enums Reference](#4-enums-reference)
 5. [Module: Organisation](#5-module-organisation)
 6. [Module: Users](#6-module-users)
-7. [Module: Sites](#7-module-sites)
-8. [Module: Buildings](#8-module-buildings)
-9. [Module: Floors](#9-module-floors)
-10. [Module: Doors](#10-module-doors)
-11. [Module: Door Images](#11-module-door-images)
-12. [Module: Certificates (Door & Building)](#12-module-certificates-door--building)
-13. [Module: Inspections & Assignments](#13-module-inspections--assignments)
-14. [Module: Exports (Bulk ZIP)](#14-module-exports-bulk-zip)
-15. [Module: Survey Versioning](#15-module-survey-versioning)
-16. [Signed URL Pattern — How it Works](#16-signed-url-pattern--how-it-works)
-17. [Signed URL Refresh Strategy](#17-signed-url-refresh-strategy)
-18. [Admin-only vs Shared Endpoints](#18-admin-only-vs-shared-endpoints)
-19. [Postman Collection](#19-postman-collection)
+7. [Module: Clients](#7-module-clients)
+8. [Module: Sites](#8-module-sites)
+9. [Module: Buildings](#9-module-buildings)
+10. [Module: Floors](#10-module-floors)
+11. [Module: Doors](#11-module-doors)
+12. [Module: Door Images](#12-module-door-images)
+13. [Module: Certificates (Door & Building)](#13-module-certificates-door--building)
+14. [Module: Inspections & Assignments](#14-module-inspections--assignments)
+15. [Module: Exports (Bulk ZIP)](#15-module-exports-bulk-zip)
+16. [Module: Survey Versioning](#16-module-survey-versioning)
+17. [Signed URL Pattern — How it Works](#17-signed-url-pattern--how-it-works)
+18. [Signed URL Refresh Strategy](#18-signed-url-refresh-strategy)
+19. [Mobile App: Show Client Details](#19-mobile-app-show-client-details)
+20. [Admin-only vs Shared Endpoints](#20-admin-only-vs-shared-endpoints)
+21. [Postman Collection](#21-postman-collection)
 
 ---
 
@@ -268,7 +271,67 @@ Admin can update any user. An inspector can only update themselves.
 
 ---
 
-## 7. Module: Sites
+## 7. Module: Clients
+
+Clients are managed at org level and can be reused across multiple sites and standalone buildings.
+
+### Business rules
+
+- Only `ADMIN` can create/update/delete clients.
+- `name` is required and must be unique within an org.
+- One client can be linked to many sites and many standalone buildings.
+- If a building has a `siteId`, do not assign client directly to that building; assign client to the site.
+
+### List clients *(admin only)*
+
+```
+GET /v1/clients
+```
+
+### Create client *(admin only)*
+
+```
+POST /v1/clients
+```
+
+```json
+{
+  "name": "Acme Fire Safety Ltd",
+  "contactName": "John Smith",
+  "contactEmail": "john@acme.com",
+  "contactPhone": "+44 20 7946 0958",
+  "address": "123 King Street, London EC2V 8AA",
+  "notes": "Monthly billing"
+}
+```
+
+Only `name` is mandatory.
+
+### Get client by ID *(admin only)*
+
+```
+GET /v1/clients/:id
+```
+
+Returns client profile plus linked `sites[]` and `buildings[]` references.
+
+### Update client *(admin only)*
+
+```
+PATCH /v1/clients/:id
+```
+
+### Delete client *(admin only)*
+
+```
+DELETE /v1/clients/:id
+```
+
+Returns `204 No Content`.
+
+---
+
+## 8. Module: Sites
 
 Sites are optional top-level containers for buildings (used when inspection type is `SITE`).
 
@@ -290,16 +353,28 @@ POST /v1/sites
 {
   "name": "London Portfolio 2025",
   "referenceCode": "SITE-001",
-  "locationNotes": "Near Tower Bridge, SE1"
+  "locationNotes": "Near Tower Bridge, SE1",
+  "clientId": "client_123"
 }
 ```
 
-Only `name` is required.
+Only `name` is required. `clientId` is optional.
 
 ### Get a site
 
 ```
 GET /v1/sites/:id
+```
+
+Site responses include optional client info:
+
+```json
+{
+  "id": "site_123",
+  "name": "London Portfolio 2025",
+  "clientId": "client_123",
+  "client": { "id": "client_123", "name": "Acme Fire Safety Ltd" }
+}
 ```
 
 ### Update a site *(admin only)*
@@ -309,8 +384,10 @@ PATCH /v1/sites/:id
 ```
 
 ```json
-{ "name": "Updated Name" }
+{ "name": "Updated Name", "clientId": "client_123" }
 ```
+
+Pass `{ "clientId": null }` to unlink a client from the site.
 
 ### Delete a site *(admin only)*
 
@@ -322,7 +399,7 @@ Returns `204 No Content`.
 
 ---
 
-## 8. Module: Buildings
+## 9. Module: Buildings
 
 ### List buildings
 
@@ -332,6 +409,11 @@ GET /v1/buildings?siteId=<siteId>    — filter by site
 ```
 
 Admin sees all. Inspector sees own + assigned.
+
+Client mapping rules for buildings:
+- Standalone building (`siteId = null`): may set `clientId`.
+- Building linked to a site (`siteId != null`): must not set `clientId` directly.
+- If linked to a site, assign the client on the site (`PATCH /v1/sites/:id`) instead.
 
 ### Create a building
 
@@ -344,11 +426,14 @@ POST /v1/buildings
   "name": "Block A",
   "buildingCode": "BLD-001",
   "locationNotes": "Corner of King St",
-  "siteId": "<optional-site-id>"
+  "siteId": "<optional-site-id>",
+  "clientId": "<optional-client-id>"
 }
 ```
 
 Only `name` is required.
+
+> If `siteId` is provided, do **not** send `clientId`. The API returns `400` for that combination.
 
 ### Get a building
 
@@ -363,8 +448,10 @@ PATCH /v1/buildings/:id
 ```
 
 ```json
-{ "name": "Block B", "locationNotes": "Updated notes" }
+{ "name": "Block B", "locationNotes": "Updated notes", "clientId": "client_123" }
 ```
+
+Pass `{ "clientId": null }` to unlink a client from a standalone building.
 
 ### List floors of a building
 
@@ -380,6 +467,9 @@ GET /v1/buildings/:id/floors
 {
   "id": "...",
   "name": "Block A",
+  "siteId": null,
+  "clientId": "client_123",
+  "client": { "id": "client_123", "name": "Acme Fire Safety Ltd" },
   "buildingCode": "BLD-001",
   "status": "APPROVED",
   "approvedAt": "2026-03-10T10:00:00.000Z",
@@ -406,7 +496,7 @@ Sets building status from `DRAFT` → `APPROVED`. This is an **inspector** actio
 
 ---
 
-## 9. Module: Floors
+## 10. Module: Floors
 
 ### Create a floor
 
@@ -456,7 +546,7 @@ Returns each door with `status`, `imageCount`, `certificatePresent`.
 
 ---
 
-## 10. Module: Doors
+## 11. Module: Doors
 
 ### Create a door
 
@@ -520,7 +610,7 @@ Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is a
 
 ---
 
-## 11. Module: Door Images
+## 12. Module: Door Images
 
 ### List images on a door
 
@@ -549,7 +639,7 @@ GET /v1/doors/:id/images
 }
 ```
 
-> Signed URLs expire after **15 minutes** (configurable). See [Section 16](#16-signed-url-refresh-strategy) for how to handle expiry on the client.
+> Signed URLs expire after **15 minutes** (configurable). See [Section 18](#18-signed-url-refresh-strategy) for how to handle expiry on the client.
 
 ### Get a fresh signed download URL for a single image
 
@@ -601,7 +691,7 @@ DELETE /v1/doors/:id/images/bulk
 
 ### Upload images (signed URL flow)
 
-The admin portal does not send images directly to the backend. Instead it uses a **3-step signed URL flow** (see [Section 15](#15-signed-url-pattern--how-it-works)).
+The admin portal does not send images directly to the backend. Instead it uses a **3-step signed URL flow** (see [Section 17](#17-signed-url-pattern--how-it-works)).
 
 **Step 1 — Request signed upload URL (single)**
 
@@ -691,7 +781,7 @@ POST /v1/doors/:id/images/register/batch
 
 ---
 
-## 12. Module: Certificates (Door & Building)
+## 13. Module: Certificates (Door & Building)
 
 Certificates are PDFs uploaded by the admin. Both door and building certificates require an inspector action first:
 
@@ -808,7 +898,7 @@ Returns `204 No Content`. Removes the PDF from GCS and resets the building statu
 
 ---
 
-## 13. Module: Inspections & Assignments
+## 14. Module: Inspections & Assignments
 
 ### List inspections
 
@@ -886,7 +976,7 @@ This is called by the mobile app. The admin panel can display the current `statu
 
 ---
 
-## 14. Module: Exports (Bulk ZIP)
+## 15. Module: Exports (Bulk ZIP)
 
 Exports are async jobs. The server queues a ZIP generation job and you poll for completion.
 
@@ -963,7 +1053,7 @@ Building_BlockA/
 
 ---
 
-## 15. Module: Survey Versioning
+## 16. Module: Survey Versioning
 
 Each building has numbered survey cycles (v1, v2, v3 …). A survey represents one complete inspection cycle: inspector uploads photos → admin uploads door certificates → admin uploads building certificate → admin confirms completion. Once confirmed, the survey is **frozen and read-only**. A new survey can be started at any time by cloning the building's floor/door structure (without images or certificates).
 
@@ -1298,7 +1388,7 @@ When rendering a completed survey's detail:
 
 ---
 
-## 16. Signed URL Pattern — How it Works
+## 17. Signed URL Pattern — How it Works
 
 All file access (images, certificates, exports) uses **GCS signed URLs**. Files are never served through the backend — they are accessed directly from Google Cloud Storage.
 
@@ -1328,7 +1418,7 @@ Admin Panel                    Backend API                     GCS
 
 ---
 
-## 17. Signed URL Refresh Strategy
+## 18. Signed URL Refresh Strategy
 
 Download URLs returned by the API include an `expiresAt` ISO timestamp. Use this to decide when to refresh without making unnecessary API calls.
 
@@ -1365,10 +1455,53 @@ Certificate signed download URLs follow the same pattern. Call the `signed-downl
 
 ---
 
-## 18. Admin-only vs Shared Endpoints
+## 19. Mobile App: Show Client Details
+
+Use existing site/building read endpoints. Mobile app does not need `/v1/clients` endpoints.
+
+### Endpoints to use
+
+```
+GET /v1/sites
+GET /v1/sites/:id
+GET /v1/buildings
+GET /v1/buildings/:id
+```
+
+### Data shape to expect
+
+```json
+{
+  "id": "building_123",
+  "name": "Block A",
+  "siteId": null,
+  "clientId": "client_123",
+  "client": {
+    "id": "client_123",
+    "name": "Acme Fire Safety Ltd"
+  }
+}
+```
+
+### Rendering rules
+
+- If `client` exists: show `client.name` in the header/details card.
+- If `client` is `null`: hide the client row (or show `Not assigned`).
+- For buildings linked to a site (`siteId` present), prefer showing the site-level client (from site payload) when building has no direct client.
+- Do not assume contact fields are present on mobile payloads from site/building endpoints; show name only unless a dedicated client detail endpoint is added to mobile scope.
+
+### Suggested UI labels
+
+- `Client: Acme Fire Safety Ltd`
+- `Client: Not assigned`
+
+---
+
+## 20. Admin-only vs Shared Endpoints
 
 | Endpoint | Admin | Inspector |
 |---|---|---|
+| `GET/POST/PATCH/DELETE /v1/clients*` | ✅ | ❌ |
 | `POST /v1/users` | ✅ | ❌ |
 | `PATCH /v1/orgs/me` | ✅ | ❌ |
 | `DELETE /v1/sites/:id` | ✅ | ❌ |
@@ -1394,7 +1527,7 @@ Certificate signed download URLs follow the same pattern. Call the `signed-downl
 
 ---
 
-## 19. Postman Collection
+## 21. Postman Collection
 
 A ready-to-import Postman collection and environment are available at runtime:
 
@@ -1430,8 +1563,9 @@ See [`postman/README.md`](../postman/README.md) for full Newman CI usage.
 | Login / logout / session management | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `GET /auth/sessions`, `DELETE /auth/sessions/*` |
 | User management | `GET /users`, `POST /users`, `GET /users/:id`, `PATCH /users/:id` |
 | Organisation settings | `GET /orgs/me`, `PATCH /orgs/me` |
-| Site management | `GET /sites`, `POST /sites`, `GET /sites/:id`, `PATCH /sites/:id`, `DELETE /sites/:id` |
-| Building management | `GET /buildings`, `POST /buildings`, `GET /buildings/:id`, `PATCH /buildings/:id`, `GET /buildings/:id/floors` |
+| Client management | `GET /clients`, `POST /clients`, `GET /clients/:id`, `PATCH /clients/:id`, `DELETE /clients/:id` |
+| Site management (with client mapping) | `GET /sites`, `POST /sites`, `GET /sites/:id`, `PATCH /sites/:id`, `DELETE /sites/:id` |
+| Building management (standalone client mapping) | `GET /buildings`, `POST /buildings`, `GET /buildings/:id`, `PATCH /buildings/:id`, `GET /buildings/:id/floors` |
 | Floor management | `POST /floors`, `GET /floors/:id`, `PATCH /floors/:id`, `DELETE /floors/:id`, `GET /floors/:id/doors` |
 | Door management | `POST /doors`, `GET /doors/:id`, `PATCH /doors/:id` |
 | Image viewer | `GET /doors/:id/images`, `GET /doors/:id/images/:imageId/signed-download` |

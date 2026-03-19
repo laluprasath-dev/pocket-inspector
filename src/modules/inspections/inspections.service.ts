@@ -141,7 +141,8 @@ export class InspectionsService {
         },
       },
     });
-    if (existing) throw new BadRequestException('Photographer already assigned');
+    if (existing)
+      throw new BadRequestException('Photographer already assigned');
 
     return this.prisma.inspectionAssignment.create({
       data: {

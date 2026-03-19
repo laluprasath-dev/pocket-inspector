@@ -47,6 +47,7 @@ export class BuildingsService {
             _count: { select: { doors: true } },
           },
         },
+        client: { select: { id: true, name: true } },
       },
     });
     return buildings.map((b) => {
@@ -69,6 +70,7 @@ export class BuildingsService {
         floors: {
           include: { _count: { select: { doors: true } } },
         },
+        client: { select: { id: true, name: true } },
         surveys: {
           where: { status: SurveyStatus.ACTIVE },
           include: {
@@ -91,6 +93,8 @@ export class BuildingsService {
       id: building.id,
       orgId: building.orgId,
       siteId: building.siteId,
+      clientId: building.clientId,
+      client: building.client,
       name: building.name,
       buildingCode: building.buildingCode,
       locationNotes: building.locationNotes,
@@ -112,11 +116,19 @@ export class BuildingsService {
     };
   }
 
-  create(
+  async create(
     dto: CreateBuildingDto,
     orgId: string,
     userId: string,
   ): Promise<Building> {
+    if (dto.clientId && dto.siteId) {
+      throw new BadRequestException(
+        'A building linked to a site cannot have a direct client assignment. Assign the client to the site instead.',
+      );
+    }
+    if (dto.clientId) {
+      await this.assertClientExists(dto.clientId, orgId);
+    }
     return this.prisma.building.create({
       data: { ...dto, orgId, createdById: userId },
     });
@@ -131,6 +143,20 @@ export class BuildingsService {
       where: { id, orgId },
     });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
+
+    if (
+      dto.clientId !== undefined &&
+      dto.clientId !== null &&
+      building.siteId
+    ) {
+      throw new BadRequestException(
+        'A building linked to a site cannot have a direct client assignment. Assign the client to the site instead.',
+      );
+    }
+    if (dto.clientId && dto.clientId !== null) {
+      await this.assertClientExists(dto.clientId, orgId);
+    }
+
     return this.prisma.building.update({ where: { id }, data: dto });
   }
 
@@ -415,6 +441,18 @@ export class BuildingsService {
         },
       ],
     };
+  }
+
+  private async assertClientExists(
+    clientId: string,
+    orgId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, orgId },
+    });
+    if (!client) {
+      throw new BadRequestException(`Client ${clientId} not found`);
+    }
   }
 
   private async getInspectorIdsForBuilding(

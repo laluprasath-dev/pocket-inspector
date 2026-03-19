@@ -21,4 +21,12 @@ export class CreateBuildingDto {
   @IsOptional()
   @IsString()
   siteId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Associate with a client (only for standalone buildings not linked to a site)',
+  })
+  @IsOptional()
+  @IsString()
+  clientId?: string;
 }

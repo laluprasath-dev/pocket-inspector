@@ -16,4 +16,9 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   locationNotes?: string;
+
+  @ApiPropertyOptional({ description: 'Associate with a client (optional)' })
+  @IsOptional()
+  @IsString()
+  clientId?: string;
 }

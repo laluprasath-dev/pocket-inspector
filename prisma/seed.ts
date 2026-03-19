@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { PrismaClient } from '../generated/prisma/client';
 
 const SEED_ORG_ID = 'seed-org-00000000000000000000000';
+const SEED_CLIENT_ID = 'seed-client-000000000000000000000';
 
 async function main(): Promise<void> {
   const connectionString = process.env['DATABASE_URL'];
@@ -56,6 +57,23 @@ async function main(): Promise<void> {
     update: {},
   });
   console.log(`  ✓ Inspector: ${inspector.email}`);
+
+  const client = await prisma.client.upsert({
+    where: { orgId_name: { orgId: org.id, name: 'Acme Fire Safety Ltd' } },
+    create: {
+      id: SEED_CLIENT_ID,
+      orgId: org.id,
+      name: 'Acme Fire Safety Ltd',
+      contactName: 'John Smith',
+      contactEmail: 'john@acmefiresafety.com',
+      contactPhone: '+44 20 7946 0958',
+      address: '123 King Street, London EC2V 8AA',
+      notes: 'Primary client — monthly billing cycle',
+      createdById: admin.id,
+    },
+    update: {},
+  });
+  console.log(`  ✓ Client: ${client.name} (${client.id})`);
 
   console.log('\n✅ Seed complete.\n');
   console.log(`  Admin login:     ${adminEmail} / ${adminPassword}`);

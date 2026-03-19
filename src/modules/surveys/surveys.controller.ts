@@ -36,11 +36,13 @@ export class SurveysController {
   @ApiOperation({
     summary: 'List all survey versions for a building (history)',
   })
-  list(
-    @Param('buildingId') buildingId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.surveysService.listByBuilding(buildingId, user.orgId, user.id, user.role);
+  list(@Param('buildingId') buildingId: string, @CurrentUser() user: User) {
+    return this.surveysService.listByBuilding(
+      buildingId,
+      user.orgId,
+      user.id,
+      user.role,
+    );
   }
 
   @Get('current')
@@ -50,7 +52,12 @@ export class SurveysController {
     @Param('buildingId') buildingId: string,
     @CurrentUser() user: User,
   ) {
-    return this.surveysService.findActive(buildingId, user.orgId, user.id, user.role);
+    return this.surveysService.findActive(
+      buildingId,
+      user.orgId,
+      user.id,
+      user.role,
+    );
   }
 
   @Get(':surveyId')
@@ -65,7 +72,13 @@ export class SurveysController {
     @Param('surveyId') surveyId: string,
     @CurrentUser() user: User,
   ) {
-    return this.surveysService.findById(surveyId, buildingId, user.orgId, user.id, user.role);
+    return this.surveysService.findById(
+      surveyId,
+      buildingId,
+      user.orgId,
+      user.id,
+      user.role,
+    );
   }
 
   // ── Survey lifecycle ───────────────────────────────────────────────────────
@@ -103,12 +116,7 @@ export class SurveysController {
     @Body() dto: StartNextSurveyDto,
     @CurrentUser() user: User,
   ) {
-    return this.surveysService.startNext(
-      buildingId,
-      dto,
-      user.id,
-      user.orgId,
-    );
+    return this.surveysService.startNext(buildingId, dto, user.id, user.orgId);
   }
 
   @Patch('current/schedule')

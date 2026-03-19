@@ -70,6 +70,11 @@
       "key": "exportJobId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -621,6 +626,109 @@
       ]
     },
     {
+      "name": "\ud83d\udc65 Clients",
+      "item": [
+        {
+          "name": "List Clients (Admin only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "clients"]
+            },
+            "description": "List all clients in the org. Admin only. Returns clients sorted by name."
+          }
+        },
+        {
+          "name": "Create Client (Admin only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.environment.set('clientId', json.data.id);",
+                  "    pm.test('Client created — clientId saved', () => pm.response.to.have.status(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account — monthly billing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "clients"]
+            },
+            "description": "Create a new client. Only `name` is required — all other fields are optional. Name must be unique within the org. Saves clientId."
+          }
+        },
+        {
+          "name": "Get Client by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "clients", "{{clientId}}"]
+            },
+            "description": "Get a specific client with its linked sites and standalone buildings."
+          }
+        },
+        {
+          "name": "Update Client (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactName\": \"Jane Doe\",\n  \"contactEmail\": \"jane@acme.com\",\n  \"notes\": \"Updated contact person\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "clients", "{{clientId}}"]
+            },
+            "description": "Update client details. Name must remain unique if changed."
+          }
+        },
+        {
+          "name": "Delete Client (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "clients", "{{clientId}}"]
+            },
+            "description": "Delete a client. This is permanent. Linked sites and buildings will have their clientId set to null."
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Automatically use admin token for this folder",
+              "const t = pm.environment.get('adminToken');",
+              "if (t) pm.environment.set('accessToken', t);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
       "name": "\ud83d\udccd Sites",
       "item": [
         {
@@ -667,7 +775,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Main Campus\",\n  \"referenceCode\": \"MC-001\",\n  \"locationNotes\": \"City centre, near the main entrance\"\n}"
+              "raw": "{\n  \"name\": \"Main Campus\",\n  \"referenceCode\": \"MC-001\",\n  \"locationNotes\": \"City centre, near the main entrance\",\n  \"clientId\": \"{{clientId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/sites",
@@ -679,7 +787,7 @@
                 "sites"
               ]
             },
-            "description": "Create a new site. Both ADMIN and INSPECTOR can create sites. The site is automatically linked to the creator (createdById). Saves siteId."
+            "description": "Create a new site. Both ADMIN and INSPECTOR can create sites. The site is automatically linked to the creator (createdById). Optional: pass clientId to associate with a client. Saves siteId."
           }
         },
         {
@@ -880,7 +988,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\"\n}"
+              "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\",\n  \"clientId\": \"{{clientId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/buildings",
@@ -892,7 +1000,7 @@
                 "buildings"
               ]
             },
-            "description": "Create a building. Both ADMIN and INSPECTOR can create buildings. The building is linked to the creator (createdById). Saves buildingId."
+            "description": "Create a standalone building. Both ADMIN and INSPECTOR can create buildings. Optional: pass clientId to associate with a client (only allowed for standalone buildings not linked to a site). Saves buildingId."
           }
         },
         {

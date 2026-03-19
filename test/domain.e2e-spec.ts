@@ -5,7 +5,11 @@ import { cleanDatabase, createTestApp } from './helpers/app.helper';
 import { seedTestData, TestSeeds } from './helpers/seed.helper';
 
 /** Login and return bearer token */
-async function login(app: INestApplication, email: string, password: string): Promise<string> {
+async function login(
+  app: INestApplication,
+  email: string,
+  password: string,
+): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/v1/auth/login')
     .send({ email, password });
@@ -33,7 +37,11 @@ describe('Domain Endpoints (e2e)', () => {
     await cleanDatabase(prisma);
     seeds = await seedTestData(prisma);
     adminToken = await login(app, seeds.admin.email, seeds.admin.password);
-    inspectorToken = await login(app, seeds.inspector.email, seeds.inspector.password);
+    inspectorToken = await login(
+      app,
+      seeds.inspector.email,
+      seeds.inspector.password,
+    );
   });
 
   // ── Orgs ──────────────────────────────────────────────────────────────────
@@ -45,7 +53,10 @@ describe('Domain Endpoints (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(res.body.data).toMatchObject({ id: seeds.org.id, name: seeds.org.name });
+      expect(res.body.data).toMatchObject({
+        id: seeds.org.id,
+        name: seeds.org.name,
+      });
     });
 
     it('PATCH /v1/orgs/me updates org name (admin only)', async () => {
@@ -78,7 +89,9 @@ describe('Domain Endpoints (e2e)', () => {
 
       expect(Array.isArray(res.body.data)).toBe(true);
       expect(res.body.data.length).toBe(2);
-      expect(res.body.data.every((u: any) => u.passwordHash === undefined)).toBe(true);
+      expect(
+        res.body.data.every((u: any) => u.passwordHash === undefined),
+      ).toBe(true);
     });
 
     it('GET /v1/users returns 403 for inspector', async () => {
@@ -100,7 +113,10 @@ describe('Domain Endpoints (e2e)', () => {
         })
         .expect(201);
 
-      expect(res.body.data).toMatchObject({ email: 'new.user@test.com', role: 'INSPECTOR' });
+      expect(res.body.data).toMatchObject({
+        email: 'new.user@test.com',
+        role: 'INSPECTOR',
+      });
       expect(res.body.data.passwordHash).toBeUndefined();
     });
 
@@ -108,7 +124,11 @@ describe('Domain Endpoints (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ email: seeds.inspector.email, password: 'Test1234!', role: 'INSPECTOR' })
+        .send({
+          email: seeds.inspector.email,
+          password: 'Test1234!',
+          role: 'INSPECTOR',
+        })
         .expect(409);
     });
 
@@ -116,7 +136,11 @@ describe('Domain Endpoints (e2e)', () => {
       await request(app.getHttpServer())
         .post('/v1/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ email: 'new@test.com', password: 'Test1234!', role: 'SUPERADMIN' })
+        .send({
+          email: 'new@test.com',
+          password: 'Test1234!',
+          role: 'SUPERADMIN',
+        })
         .expect(400);
     });
 
@@ -154,11 +178,18 @@ describe('Domain Endpoints (e2e)', () => {
       const create = await request(app.getHttpServer())
         .post('/v1/sites')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Test Site', referenceCode: 'S-001', locationNotes: 'City centre' })
+        .send({
+          name: 'Test Site',
+          referenceCode: 'S-001',
+          locationNotes: 'City centre',
+        })
         .expect(201);
 
       const siteId = create.body.data.id;
-      expect(create.body.data).toMatchObject({ name: 'Test Site', referenceCode: 'S-001' });
+      expect(create.body.data).toMatchObject({
+        name: 'Test Site',
+        referenceCode: 'S-001',
+      });
 
       // GET all
       const list = await request(app.getHttpServer())
@@ -393,7 +424,8 @@ describe('Domain Endpoints (e2e)', () => {
         data: {
           doorId,
           role: 'FRONT_FACE',
-          objectPathOriginal: 'orgs/test/buildings/b/floors/f/doors/d/images/original/front/img.jpg',
+          objectPathOriginal:
+            'orgs/test/buildings/b/floors/f/doors/d/images/original/front/img.jpg',
           uploadedById: seeds.inspector.id,
         },
       });
@@ -511,7 +543,10 @@ describe('Domain Endpoints (e2e)', () => {
       const aRes = await request(app.getHttpServer())
         .post(`/v1/inspections/${inspectionId}/assignments`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ inspectorId: seeds.inspector.id, adminNote: 'Please do this urgently' })
+        .send({
+          inspectorId: seeds.inspector.id,
+          adminNote: 'Please do this urgently',
+        })
         .expect(201);
 
       expect(aRes.body.data).toMatchObject({ status: 'PENDING' });
@@ -591,7 +626,9 @@ describe('Domain Endpoints (e2e)', () => {
         status: 'ok',
         services: { database: { status: 'ok' } },
       });
-      expect(res.body.data.services.database.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(res.body.data.services.database.latencyMs).toBeGreaterThanOrEqual(
+        0,
+      );
     });
   });
 

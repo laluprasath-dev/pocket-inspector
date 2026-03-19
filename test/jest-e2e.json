@@ -1,10 +1,10 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": ["js", "json", "ts", "mjs"],
   "rootDir": "..",
   "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
   "extensionsToTreatAsEsm": [".ts"],
   "transform": {
-    "^.+\\.ts$": [
+    "^.+\\.(ts|mjs)$": [
       "@swc/jest",
       {
         "jsc": {
@@ -26,6 +26,9 @@
       }
     ]
   },
+  "transformIgnorePatterns": [
+    "node_modules/(?!@prisma/client/runtime/)"
+  ],
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },

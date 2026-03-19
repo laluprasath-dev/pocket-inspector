@@ -51,7 +51,19 @@ export async function seedTestData(prisma: PrismaService): Promise<TestSeeds> {
 
   return {
     org: { id: org.id, name: org.name },
-    admin: { id: admin.id, email: admin.email, password: adminPassword, orgId: org.id, role: 'ADMIN' },
-    inspector: { id: inspector.id, email: inspector.email, password: inspectorPassword, orgId: org.id, role: 'INSPECTOR' },
+    admin: {
+      id: admin.id,
+      email: admin.email,
+      password: adminPassword,
+      orgId: org.id,
+      role: 'ADMIN',
+    },
+    inspector: {
+      id: inspector.id,
+      email: inspector.email,
+      password: inspectorPassword,
+      orgId: org.id,
+      role: 'INSPECTOR',
+    },
   };
 }

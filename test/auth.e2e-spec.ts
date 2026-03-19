@@ -81,7 +81,11 @@ describe('Auth (e2e)', () => {
       // Valid credentials succeed even with extra fields in the body.
       const res = await request(app.getHttpServer())
         .post('/v1/auth/login')
-        .send({ email: seeds.admin.email, password: seeds.admin.password, hack: 'payload' })
+        .send({
+          email: seeds.admin.email,
+          password: seeds.admin.password,
+          hack: 'payload',
+        })
         .expect(200);
 
       expect(res.body.data.accessToken).toBeTruthy();

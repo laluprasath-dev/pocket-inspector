@@ -91,6 +91,7 @@ model Org {
   createdAt DateTime @default(now())
 
   users                User[]
+  clients              Client[]
   sites                Site[]
   buildings            Building[]
   surveys              Survey[]
@@ -132,6 +133,7 @@ model User {
   createdSurveys        Survey[]               @relation("SurveyCreatedBy")
   confirmedSurveys      Survey[]               @relation("SurveyConfirmedBy")
   nextAssigneeSurveys   Survey[]               @relation("SurveyNextAssignee")
+  createdClients        Client[]               @relation("ClientCreatedBy")
 
   @@map("users")
 }
@@ -160,6 +162,31 @@ model Session {
 }
 
 // ---------------------------------------------------------------------------
+// Clients
+// ---------------------------------------------------------------------------
+
+model Client {
+  id            String   @id @default(cuid())
+  orgId         String
+  name          String
+  contactName   String?
+  contactEmail  String?
+  contactPhone  String?
+  address       String?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  org       Org       @relation(fields: [orgId], references: [id])
+  createdBy User?     @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  sites     Site[]
+  buildings Building[]
+
+  @@unique([orgId, name])
+  @@map("clients")
+}
+
+// ---------------------------------------------------------------------------
 // Location hierarchy
 // ---------------------------------------------------------------------------
 
@@ -169,10 +196,12 @@ model Site {
   name           String
   referenceCode  String?
   locationNotes  String?
+  clientId       String?
   createdById    String?
   createdAt      DateTime @default(now())
 
   org         Org          @relation(fields: [orgId], references: [id])
+  client      Client?      @relation(fields: [clientId], references: [id])
   createdBy   User?        @relation("SiteCreatedBy", fields: [createdById], references: [id])
   buildings   Building[]
   inspections Inspection[]
@@ -187,6 +216,7 @@ model Building {
   name          String
   buildingCode  String?
   locationNotes String?
+  clientId      String?
   status        BuildingStatus @default(DRAFT)
   approvedAt    DateTime?
   approvedById  String?
@@ -197,6 +227,7 @@ model Building {
 
   org         Org                  @relation(fields: [orgId], references: [id])
   site        Site?                @relation(fields: [siteId], references: [id])
+  client      Client?              @relation(fields: [clientId], references: [id])
   createdBy   User?                @relation("BuildingCreatedBy", fields: [createdById], references: [id])
   approvedBy  User?                @relation("BuildingApprovedBy", fields: [approvedById], references: [id])
   certifiedBy User?                @relation("BuildingCertifiedBy", fields: [certifiedById], references: [id])
