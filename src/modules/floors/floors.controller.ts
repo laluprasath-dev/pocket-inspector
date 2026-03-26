@@ -29,7 +29,7 @@ export class FloorsController {
     summary: 'Create a floor in a building (admin or inspector)',
   })
   create(@Body() dto: CreateFloorDto, @CurrentUser() user: User) {
-    return this.floorsService.create(dto, user.orgId, user.id);
+    return this.floorsService.create(dto, user.orgId, user.id, user.role);
   }
 
   @Get(':id')

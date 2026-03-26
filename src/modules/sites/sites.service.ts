@@ -3,7 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '../../../generated/prisma/enums';
+import {
+  BuildingAssignmentStatus,
+  Role,
+} from '../../../generated/prisma/enums';
 import { Site } from '../../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSiteDto } from './dto/create-site.dto';
@@ -66,7 +69,7 @@ export class SitesService {
 
   // ── Access filter ─────────────────────────────────────────────────────────
   // ADMIN: all sites in the org
-  // INSPECTOR: sites they created OR are assigned to (directly or via building)
+  // INSPECTOR: only sites that currently contain an accepted active building assignment
 
   private async assertClientExists(
     clientId: string,
@@ -85,25 +88,17 @@ export class SitesService {
 
     return {
       orgId,
-      OR: [
-        { createdById: userId },
-        {
-          // Assigned via a direct site-level inspection
-          inspections: {
-            some: { assignments: { some: { inspectorId: userId } } },
-          },
-        },
-        {
-          // Assigned via a building-level inspection in this site
-          buildings: {
+      buildings: {
+        some: {
+          assignments: {
             some: {
-              inspections: {
-                some: { assignments: { some: { inspectorId: userId } } },
-              },
+              inspectorId: userId,
+              status: BuildingAssignmentStatus.ACCEPTED,
+              accessEndedAt: null,
             },
           },
         },
-      ],
+      },
     };
   }
 }

@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { Building, Floor } from '../../../generated/prisma/client';
 import {
+  BuildingAssignmentStatus,
   BuildingStatus,
+  BuildingWorkflowStatus,
   Role,
+  SurveyExecutionStatus,
   SurveyStatus,
 } from '../../../generated/prisma/enums';
+import { BuildingAssignmentsService } from '../building-assignments/building-assignments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -24,6 +28,7 @@ export class BuildingsService {
     private readonly prisma: PrismaService,
     private readonly gcs: GcsService,
     private readonly notifications: NotificationsService,
+    private readonly buildingAssignments: BuildingAssignmentsService,
   ) {}
 
   async findAll(
@@ -48,16 +53,91 @@ export class BuildingsService {
           },
         },
         client: { select: { id: true, name: true } },
+        assignments: {
+          where: { accessEndedAt: null },
+          orderBy: { assignedAt: 'desc' },
+          take: 1,
+          include: {
+            inspector: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        surveys: {
+          where: { status: SurveyStatus.ACTIVE },
+          take: 1,
+          include: {
+            inspectorCompletedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            reopenedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        workflowState: {
+          include: {
+            completedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            reopenedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
       },
     });
     return buildings.map((b) => {
       const noOfFloors = b._count.floors;
       const noOfDoors = b.floors.reduce((sum, f) => sum + f._count.doors, 0);
-      const { _count, floors, ...rest } = b;
+      const currentAssignment = b.assignments[0] ?? null;
+      const activeSurvey = b.surveys[0] ?? null;
+      const { _count, floors, assignments, surveys, workflowState, ...rest } = b;
+      void surveys;
       return {
         ...rest,
         noOfFloors,
         noOfDoors,
+        currentAssignment: currentAssignment
+          ? {
+              id: currentAssignment.id,
+              status: currentAssignment.status,
+              assignedAt: currentAssignment.assignedAt,
+              respondedAt: currentAssignment.respondedAt,
+              inspector: {
+                id: currentAssignment.inspector.id,
+                email: currentAssignment.inspector.email,
+                firstName: currentAssignment.inspector.firstName,
+                lastName: currentAssignment.inspector.lastName,
+              },
+            }
+          : null,
+        workflowExecution: this.serializeWorkflow(activeSurvey, workflowState),
       };
     });
   }
@@ -75,14 +155,66 @@ export class BuildingsService {
           where: { status: SurveyStatus.ACTIVE },
           include: {
             buildingCertificate: { select: { id: true, uploadedAt: true } },
+            inspectorCompletedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            reopenedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
           take: 1,
+        },
+        assignments: {
+          where: { accessEndedAt: null },
+          orderBy: { assignedAt: 'desc' },
+          take: 1,
+          include: {
+            inspector: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        workflowState: {
+          include: {
+            completedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            reopenedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
         },
       },
     });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
 
     const activeSurvey = building.surveys[0] ?? null;
+    const currentAssignment = building.assignments[0] ?? null;
     const noOfFloors = building._count.floors;
     const noOfDoors = building.floors.reduce(
       (sum, f) => sum + f._count.doors,
@@ -113,6 +245,24 @@ export class BuildingsService {
         activeSurvey?.buildingCertificate !== null && activeSurvey !== null,
       certificateUploadedAt:
         activeSurvey?.buildingCertificate?.uploadedAt ?? null,
+      currentAssignment: currentAssignment
+        ? {
+            id: currentAssignment.id,
+            status: currentAssignment.status,
+            assignedAt: currentAssignment.assignedAt,
+            respondedAt: currentAssignment.respondedAt,
+            inspector: {
+              id: currentAssignment.inspector.id,
+              email: currentAssignment.inspector.email,
+              firstName: currentAssignment.inspector.firstName,
+              lastName: currentAssignment.inspector.lastName,
+            },
+          }
+        : null,
+      workflowExecution: this.serializeWorkflow(
+        activeSurvey,
+        building.workflowState,
+      ),
     };
   }
 
@@ -120,7 +270,7 @@ export class BuildingsService {
     dto: CreateBuildingDto,
     orgId: string,
     userId: string,
-  ): Promise<Building> {
+  ): Promise<Building | Record<string, unknown>> {
     if (dto.clientId && dto.siteId) {
       throw new BadRequestException(
         'A building linked to a site cannot have a direct client assignment. Assign the client to the site instead.',
@@ -129,9 +279,24 @@ export class BuildingsService {
     if (dto.clientId) {
       await this.assertClientExists(dto.clientId, orgId);
     }
-    return this.prisma.building.create({
-      data: { ...dto, orgId, createdById: userId },
+    const building = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.building.create({
+        data: { ...dto, orgId, createdById: userId },
+      });
+      await tx.buildingWorkflowState.create({
+        data: {
+          orgId,
+          buildingId: created.id,
+        },
+      });
+      return created;
     });
+
+    const assignmentAdvisory = dto.siteId
+      ? await this.buildingAssignments.getSiteAssignmentAdvisory(dto.siteId, orgId)
+      : null;
+
+    return assignmentAdvisory ? { ...building, assignmentAdvisory } : building;
   }
 
   async update(
@@ -189,9 +354,13 @@ export class BuildingsService {
   // ── Inspector approval ─────────────────────────────────────────────────────
 
   async approve(id: string, userId: string, orgId: string) {
-    const building = await this.prisma.building.findFirst({
-      where: { id, ...this.accessFilter(orgId, userId, Role.INSPECTOR) },
-    });
+    await this.buildingAssignments.assertInspectorCanWorkOnBuilding(
+      id,
+      userId,
+      orgId,
+    );
+
+    const building = await this.prisma.building.findFirst({ where: { id, orgId } });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
 
     if (building.status === BuildingStatus.APPROVED) {
@@ -234,10 +403,18 @@ export class BuildingsService {
     // Ensure there is an active survey to attach the certificate to
     const activeSurvey = await this.prisma.survey.findFirst({
       where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+      select: { id: true, executionStatus: true },
     });
     if (!activeSurvey) {
       throw new BadRequestException(
         'No active survey found for this building. Start a survey before uploading a certificate.',
+      );
+    }
+    if (
+      activeSurvey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Inspector fieldwork must be completed before requesting a building certificate upload',
       );
     }
 
@@ -287,6 +464,13 @@ export class BuildingsService {
         'No active survey found for this building. Start a survey before registering a certificate.',
       );
     }
+    if (
+      activeSurvey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED
+    ) {
+      throw new BadRequestException(
+        'Inspector fieldwork must be completed before registering a building certificate',
+      );
+    }
 
     const now = new Date();
     const [cert] = await this.prisma.$transaction([
@@ -322,7 +506,11 @@ export class BuildingsService {
       }),
     ]);
 
-    const inspectorIds = await this.getInspectorIdsForBuilding(buildingId);
+    const inspectorIds = await this.getInspectorIdsForBuilding(
+      buildingId,
+      orgId,
+      activeSurvey.id,
+    );
     await this.notifications.notifyUsers(inspectorIds, {
       title: 'Building certificate available',
       body: 'The building certificate has been uploaded.',
@@ -335,7 +523,11 @@ export class BuildingsService {
   async getCertificateDownloadUrl(
     buildingId: string,
     orgId: string,
+    userId: string,
+    role: Role,
   ): Promise<{ signedUrl: string; expiresAt: string }> {
+    await this.findById(buildingId, orgId, userId, role);
+
     // Find the active survey's certificate by default
     const activeSurvey = await this.prisma.survey.findFirst({
       where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
@@ -404,7 +596,11 @@ export class BuildingsService {
     buildingId: string,
     surveyId: string,
     orgId: string,
+    userId: string,
+    role: Role,
   ): Promise<{ signedUrl: string; expiresAt: string }> {
+    await this.findById(buildingId, orgId, userId, role);
+
     const survey = await this.prisma.survey.findFirst({
       where: { id: surveyId, buildingId, orgId },
     });
@@ -425,21 +621,20 @@ export class BuildingsService {
 
   // ── Access filter ─────────────────────────────────────────────────────────
   // ADMIN: all buildings in the org
-  // INSPECTOR: buildings they created OR are assigned to via an inspection
+  // INSPECTOR: only buildings with an accepted active building assignment
 
   private accessFilter(orgId: string, userId: string, role: Role) {
     if (role === Role.ADMIN) return { orgId };
 
     return {
       orgId,
-      OR: [
-        { createdById: userId },
-        {
-          inspections: {
-            some: { assignments: { some: { inspectorId: userId } } },
-          },
+      assignments: {
+        some: {
+          inspectorId: userId,
+          status: BuildingAssignmentStatus.ACCEPTED,
+          accessEndedAt: null,
         },
-      ],
+      },
     };
   }
 
@@ -457,19 +652,40 @@ export class BuildingsService {
 
   private async getInspectorIdsForBuilding(
     buildingId: string,
+    orgId: string,
+    activeSurveyId: string,
   ): Promise<string[]> {
-    const inspections = await this.prisma.inspection.findMany({
-      where: { buildingId },
-      include: { assignments: { select: { inspectorId: true } } },
+    const scopedRecipients = await this.prisma.buildingAssignment.findMany({
+      where: {
+        orgId,
+        buildingId,
+        surveyId: activeSurveyId,
+        status: BuildingAssignmentStatus.ACCEPTED,
+        accessEndedAt: null,
+      },
+      select: { inspectorId: true },
     });
 
-    const ids = new Set<string>();
-    for (const inspection of inspections) {
-      for (const assignment of inspection.assignments) {
-        ids.add(assignment.inspectorId);
-      }
+    if (scopedRecipients.length > 0) {
+      return Array.from(
+        new Set(scopedRecipients.map((assignment) => assignment.inspectorId)),
+      );
     }
-    return Array.from(ids);
+
+    const legacyRecipients = await this.prisma.buildingAssignment.findMany({
+      where: {
+        orgId,
+        buildingId,
+        surveyId: null,
+        status: BuildingAssignmentStatus.ACCEPTED,
+        accessEndedAt: null,
+      },
+      select: { inspectorId: true },
+    });
+
+    return Array.from(
+      new Set(legacyRecipients.map((assignment) => assignment.inspectorId)),
+    );
   }
 
   // ── Guard: check if certificate operations are allowed on this building ───
@@ -487,5 +703,78 @@ export class BuildingsService {
         'No active survey — all changes are locked. Start a new survey to continue.',
       );
     }
+  }
+
+  private serializeWorkflow(
+    activeSurvey:
+      | {
+          executionStatus: SurveyExecutionStatus;
+          inspectorCompletedAt: Date | null;
+          reopenedAt: Date | null;
+          inspectorCompletedBy?:
+            | {
+                id: string;
+                email: string;
+                firstName: string | null;
+                lastName: string | null;
+              }
+            | null;
+          reopenedBy?:
+            | {
+                id: string;
+                email: string;
+                firstName: string | null;
+                lastName: string | null;
+              }
+            | null;
+        }
+      | null
+      | undefined,
+    workflow:
+      | {
+          status: string;
+          completedAt: Date | null;
+          reopenedAt: Date | null;
+          completedBy?:
+            | {
+                id: string;
+                email: string;
+                firstName: string | null;
+                lastName: string | null;
+              }
+            | null;
+          reopenedBy?:
+            | {
+                id: string;
+                email: string;
+                firstName: string | null;
+                lastName: string | null;
+              }
+            | null;
+        }
+      | null
+      | undefined,
+  ) {
+    if (activeSurvey) {
+      return {
+        status:
+          activeSurvey.executionStatus ===
+          SurveyExecutionStatus.INSPECTOR_COMPLETED
+            ? BuildingWorkflowStatus.COMPLETED
+            : BuildingWorkflowStatus.ACTIVE,
+        completedAt: activeSurvey.inspectorCompletedAt ?? null,
+        completedBy: activeSurvey.inspectorCompletedBy ?? null,
+        reopenedAt: activeSurvey.reopenedAt ?? null,
+        reopenedBy: activeSurvey.reopenedBy ?? null,
+      };
+    }
+
+    return {
+      status: workflow?.status ?? BuildingWorkflowStatus.ACTIVE,
+      completedAt: workflow?.completedAt ?? null,
+      completedBy: workflow?.completedBy ?? null,
+      reopenedAt: workflow?.reopenedAt ?? null,
+      reopenedBy: workflow?.reopenedBy ?? null,
+    };
   }
 }

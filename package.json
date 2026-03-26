@@ -18,7 +18,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "DATABASE_URL=postgresql://admin@localhost:5432/pocket_inspector_test JWT_SECRET=test-jwt-secret-at-least-32-chars-long-for-tests!! JWT_REFRESH_SECRET=test-refresh-secret-at-least-32-chars-long-for-tests GCS_PROJECT_ID=test-project GCS_BUCKET_NAME=test-bucket FCM_PROJECT_ID=test-fcm-project NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand --forceExit",
+    "test:e2e": "DATABASE_URL=postgresql://admin@localhost:5432/pocket_inspector_test JWT_SECRET=test-jwt-secret-at-least-32-chars-long-for-tests!! JWT_REFRESH_SECRET=test-refresh-secret-at-least-32-chars-long-for-tests GCS_PROJECT_ID=test-project GCS_BUCKET_NAME=test-bucket FCM_PROJECT_ID=test-fcm-project NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand",
     "test:prod": "newman run postman/Pocket-Inspector.postman_collection.json --environment postman/Pocket-Inspector.postman_environment.json --env-var baseUrl=https://pocket-inspector-api-34292529156.europe-west2.run.app --env-var adminEmail=admin@example.com --env-var adminPassword=Admin1234! --env-var inspectorEmail=inspector@example.com --env-var inspectorPassword=Inspector1234! --timeout-request 30000",
     "user:create": "tsx scripts/create-user.ts",
     "test:image-upload": "tsx scripts/test-image-upload.ts",

@@ -26,14 +26,16 @@ export class SitesController {
 
   @Get()
   @ApiOperation({
-    summary: 'List sites — admin sees all, inspector sees own + assigned',
+    summary:
+      'List sites — admin sees all, inspector sees sites with accepted current building assignments',
   })
   findAll(@CurrentUser() user: User) {
     return this.sitesService.findAll(user.orgId, user.id, user.role);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a new site (admin or inspector)' })
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Create a new site (admin only)' })
   create(@Body() dto: CreateSiteDto, @CurrentUser() user: User) {
     return this.sitesService.create(dto, user.orgId, user.id);
   }

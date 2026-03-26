@@ -1,237 +1,110 @@
-# Pocket Inspector — API Reference
+# Pocket Inspector Postman Guide
 
-## Import into Postman
+## Import
 
-**Option A — by URL** (recommended, always up to date):
-1. Start the local server: `npm run start:dev`
-2. In Postman → **Import → Link**
-3. Import collection: `http://localhost:3001/dev/postman/collection`
-4. Import environment: `http://localhost:3001/dev/postman/environment`
+1. Start backend: `npm run start:dev`
+2. Import collection:
+- [Pocket-Inspector.postman_collection.json](/Users/admin/Documents/Applikation-New/Pocket-Inspector/pocket-inspector-backend/postman/Pocket-Inspector.postman_collection.json)
+3. Import environment:
+- [Pocket-Inspector.postman_environment.json](/Users/admin/Documents/Applikation-New/Pocket-Inspector/pocket-inspector-backend/postman/Pocket-Inspector.postman_environment.json)
+4. Select `Pocket Inspector — Local` environment.
 
-**Option B — by file:**
-1. Postman → **Import** → select `Pocket-Inspector.postman_collection.json`
-2. Import → select `Pocket-Inspector.postman_environment.json`
+## Key Variables Used In Phase 6 Flow
 
-**After importing:**
-- Select **Pocket Inspector — Local** from the environment dropdown (top-right)
-- Set `baseUrl` Current Value to `http://localhost:3001`
+- `buildingId`
+- `surveyId`
+- `currentSurveyId`
+- `plannedSurveyId`
+- `assignmentId`
+- `assignmentGroupId`
+- `inspectorId`
 
----
+## Final QA Smoke Run (10-15 min)
 
-## Environments
+This checklist validates the corrected repeat-cycle lifecycle end to end.
 
-| Environment | baseUrl |
-|-------------|---------|
-| Local | `http://localhost:3001` |
-| Production | `https://pocket-inspector-api-34292529156.europe-west2.run.app` |
+1. Admin login and seed building
+- `Auth -> Login as Admin`
+- Create site/building requests in `Building Assignment Workflow -> Admin Portal Flow`
 
-To switch to production, change `baseUrl` Current Value in the environment editor.
+2. Create active survey prerequisites
+- Assign and accept one inspector assignment (single assignment + inspector accept)
+- Create floor/door and satisfy door submission/certification prerequisites
+- Ensure building certificate prerequisite requests are available
 
----
+3. Inspector marks active survey fieldwork complete
+- `📋 Surveys -> Complete Survey Fieldwork (Inspector)`
 
-## How Tokens Work
+4. Confirm-complete with scheduling (creates planned next)
+- `📋 Surveys -> Confirm Survey Complete + Schedule Planned Next (Admin only)`
+- Verify `plannedNextSurvey.status = PLANNED` and `plannedSurveyId` saved
 
-- **Login** → you get an `accessToken` (valid 7 days) and a `refreshToken` (valid 90 days)
-- **Every request** sends the `accessToken` in the `Authorization: Bearer ...` header automatically
-- **Token expired?** Call `POST /v1/auth/refresh` to get a new one without logging in again
-- The collection handles this automatically — just login first and everything else works
+5. Survey-linked assignment for planned next
+- `🧭 Building Assignment Workflow -> Admin Portal Flow -> Assign Single Building To Planned Survey (with surveyId)`
+- Verify assignment payload includes survey metadata fields
 
----
+6. Inspector accepts planned assignment
+- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> Accept Single Assignment`
 
-## All Endpoints
+7. Activate planned survey
+- `📋 Surveys -> Activate Planned Survey (Admin only)`
+- Verify response is `ACTIVE` and `currentSurveyId` updated
 
-### 🔑 Auth — Who you are
+8. Inspector marks newly active survey fieldwork complete
+- `📋 Surveys -> Complete Survey Fieldwork (Inspector)`
 
-| Request | What it does |
-|---------|-------------|
-| **Login as Admin** | Login with admin credentials → saves token automatically |
-| **Login as Inspector** | Login with inspector credentials → switches token automatically |
-| **Refresh Token** | Get a new access token using your refresh token |
-| **Get Current User (me)** | See your own profile |
-| **List Active Sessions** | See all devices currently logged in as you |
-| **Revoke Session by ID** | Kick a specific device (logout that device remotely) |
-| **Revoke ALL Sessions** | Logout from all devices at once |
-| **Logout (current device)** | Logout from this device only |
+9. Certificate upload/register after fieldwork completion
+- `🏢 Buildings -> Request Building Certificate Upload URL`
+- `🏢 Buildings -> Register Building Certificate`
+- Confirm gated behavior by running before/after fieldwork completion where needed
 
-> **Login sends:** `email`, `password`, `deviceId` (stable UUID per device), `deviceName`, `deviceType`
-> Each device gets its own session. Revoke a session = that device gets 401 on next request.
+10. Admin confirm complete without scheduling (skip path)
+- `📋 Surveys -> Confirm Survey Complete (Skip Next Scheduling)`
+- Verify `plannedNextSurvey = null`
 
----
+11. Start-next manual path (when no planned exists)
+- `📋 Surveys -> Start Next Survey (Admin only)`
+- Verify new survey is `PLANNED` and `plannedSurveyId` is set
 
-### 🏢 Orgs — Your organisation
+12. History and assignment verification
+- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> My Building Assignments`
+- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> My Assignment History`
+- `🧭 Building Assignment Workflow -> Admin Portal Flow -> Admin Assignment History`
+- Confirm survey metadata is present in assignment/history rows where available
 
-Every user belongs to one org. Admins can update org details.
+## Survey Lifecycle Requests In Collection
 
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **Get My Org** | Admin + Inspector | See org name and details |
-| **Update My Org** | Admin only | Change org name |
+Under `📋 Surveys`:
 
----
+- `List Survey History`
+- `Get Current Active Survey`
+- `Get Survey Detail (by ID)`
+- `Confirm Survey Complete + Schedule Planned Next (Admin only)`
+- `Confirm Survey Complete (Skip Next Scheduling)`
+- `Start Next Survey (Admin only)` (creates `PLANNED`)
+- `Activate Planned Survey (Admin only)`
+- `Complete Survey Fieldwork (Inspector)`
+- `Reopen Survey Fieldwork (Admin)`
 
-### 👤 Users — People in your org
+## Notification Notes
 
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **List All Users** | Admin only | See everyone in the org |
-| **Create User** | Admin only | Add a new Admin or Inspector |
-| **Get User by ID** | Admin only | See one user's details |
-| **Update User** | Admin only | Change name, role etc. |
+Notification payloads tied to survey-version flows include:
 
-> Roles: `ADMIN` (manages everything) or `INSPECTOR` (does inspections)
+- `buildingId`
+- `surveyId`
+- `surveyVersion`
+- `type`
 
----
+Relevant event types reflected by backend behavior:
 
-### 📍 Sites — Physical locations
-
-A **Site** is a location (e.g. "London Office", "Manchester Warehouse").
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **List Sites** | Admin + Inspector | See all sites |
-| **Create Site** | Admin only | Add a new site → saves `siteId` |
-| **Get Site by ID** | Admin + Inspector | See one site |
-| **Update Site** | Admin only | Change site details |
-| **Delete Site** | Admin only | Remove a site |
-
----
-
-### 🏗️ Buildings — Buildings within a site
-
-A **Building** belongs to a **Site**. A site can have many buildings.
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **List Buildings** | Admin + Inspector | See all buildings (filter by `?siteId=`) |
-| **Create Building** | Admin only | Add a building → saves `buildingId` |
-| **Get Building by ID** | Admin + Inspector | See one building |
-| **Update Building** | Admin only | Change building details |
-| **List Floors in Building** | Admin + Inspector | See all floors in a building |
-| **Request Building Certificate Upload** | Admin only | Get a signed URL to upload a PDF certificate to cloud storage |
-| **Register Building Certificate** | Admin only | Tell the API the certificate has been uploaded |
-| **Get Building Certificate Download URL** | Admin + Inspector | Get a signed URL to download the certificate |
-
-> Certificate flow: Request upload URL → upload PDF directly to that URL → Register it → Download anytime
-
----
-
-### 🏠 Floors — Floors within a building
-
-A **Floor** belongs to a **Building**. A building can have many floors.
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **Create Floor** | Admin only | Add a floor (e.g. "Ground", "Level 1") → saves `floorId` |
-| **Get Floor by ID** | Admin + Inspector | See floor details |
-| **Update Floor** | Admin only | Change floor label/notes |
-| **Delete Floor** | Admin only | Remove a floor |
-| **List Doors in Floor** | Admin + Inspector | See all doors on this floor |
-
----
-
-### 🚪 Doors — Doors on a floor
-
-A **Door** belongs to a **Floor**. Inspectors inspect doors and upload photos.
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **Create Door** | Admin only | Add a door with a code → saves `doorId` |
-| **Get Door by ID** | Admin + Inspector | See door details + status |
-| **Update Door** | Admin + Inspector | Change door code/notes |
-| **Request Image Upload URL** | Inspector | Get a signed URL to upload a door photo |
-| **Register Door Image** | Inspector | Tell the API the photo has been uploaded |
-| **List Door Images** | Admin + Inspector | See all photos for this door |
-| **Submit Door** | Inspector | Mark door inspection as complete (needs ≥1 image) |
-| **Request Door Certificate Upload** | Admin only | Get a signed URL to upload a door certificate |
-| **Register Door Certificate** | Admin only | Tell the API the certificate has been uploaded |
-| **Get Door Certificate Download URL** | Admin + Inspector | Get a signed URL to download the certificate |
-
-> **Door status flow:** `DRAFT` → (inspector submits) → `SUBMITTED` → (admin certifies) → `CERTIFIED`
-
-> **Image upload flow:** Request URL → upload photo directly to that URL → Register it
-
----
-
-### 🔍 Inspections — Inspection jobs
-
-An **Inspection** is an assignment of work. Admin creates it, assigns an Inspector, Inspector responds.
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **List Inspections** | Admin + Inspector | See all inspections |
-| **Create Inspection** | Admin only | Start a new inspection job → saves `inspectionId` |
-| **Get Inspection by ID** | Admin + Inspector | See full inspection details |
-| **Assign Inspector** | Admin only | Assign an inspector to the job |
-| **Respond to Assignment** | Inspector | Accept or decline the assignment |
-| **Archive Inspection** | Admin only | Close/archive a completed inspection |
-
-> **Inspection flow:** Create → Assign Inspector → Inspector Accepts → Work done → Archive
-
----
-
-### 📦 Exports — Download inspection data as ZIP
-
-Create a ZIP export of all data (doors, images, certificates) for a building, site, or inspection.
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **Create Export Job** | Admin only | Start building a ZIP → saves `exportJobId` |
-| **Get Export Job Status** | Admin only | Check if ZIP is ready (`QUEUED` → `RUNNING` → `DONE`) |
-| **Get Export Download URL** | Admin only | Get a signed URL to download the ZIP (only when `DONE`) |
-
-> Export runs in the background. Poll status every few seconds until `DONE`, then download.
-
----
-
-### 📱 Notifications — Push notifications
-
-| Request | Who can use | What it does |
-|---------|-------------|-------------|
-| **Register Device Token (FCM)** | Admin + Inspector | Register a device for push notifications (Firebase) |
-
-> Mobile apps call this after login to enable push notifications for that device.
-
----
-
-### ❤️ Health — Server status
-
-| Request | What it does |
-|---------|-------------|
-| **Health Check** | Check if the server and database are running. Returns `{ "status": "ok" }` |
-
-> Use this to verify the server is up before making other requests.
-
----
-
-## Response Format
-
-Every response is wrapped the same way:
-
-```json
-// Success
-{ "data": { ... } }
-
-// Error
-{
-  "statusCode": 400,
-  "message": "Validation failed",
-  "error": "Bad Request",
-  "path": "/v1/doors",
-  "timestamp": "2026-03-06T12:00:00Z"
-}
-```
-
-## Role Permissions Summary
-
-| Feature | ADMIN | INSPECTOR |
-|---------|-------|-----------|
-| Manage users | ✅ | ❌ |
-| Manage sites/buildings/floors | ✅ | ❌ |
-| Create/manage doors | ✅ | ❌ |
-| Upload door images | ✅ | ✅ |
-| Submit door inspection | ❌ | ✅ |
-| Upload certificates | ✅ | ❌ |
-| Create inspections | ✅ | ❌ |
-| Respond to assignments | ❌ | ✅ |
-| Create exports | ✅ | ❌ |
-| View everything | ✅ | ✅ (own org) |
+- `BUILDING_ASSIGNMENT_INVITED`
+- `SURVEY_ACTIVATED`
+- `SURVEY_FIELDWORK_REOPENED`
+- `SURVEY_COMPLETED`
+
+## Troubleshooting
+
+- `400` on certificate upload/register usually means fieldwork completion missing.
+- `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
+- `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
+- `403/404` on inspector write endpoints usually means assignment is pending/rejected/removed or survey is non-active.

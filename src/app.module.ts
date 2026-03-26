@@ -19,6 +19,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { HealthModule } from './modules/health/health.module';
+import { BuildingAssignmentsModule } from './modules/building-assignments/building-assignments.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { HealthModule } from './modules/health/health.module';
     NotificationsModule,
     ExportsModule,
     HealthModule,
+    BuildingAssignmentsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

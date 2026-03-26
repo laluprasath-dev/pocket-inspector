@@ -35,7 +35,7 @@ export class DoorsController {
   @Post()
   @ApiOperation({ summary: 'Create a door on a floor (admin or inspector)' })
   create(@Body() dto: CreateDoorDto, @CurrentUser() user: User) {
-    return this.doorsService.create(dto, user.orgId, user.id);
+    return this.doorsService.create(dto, user.orgId, user.id, user.role);
   }
 
   @Get(':id')
@@ -63,7 +63,7 @@ export class DoorsController {
     summary: 'Inspector submits a door (requires ≥1 image, sets SUBMITTED)',
   })
   submit(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.doorsService.submit(id, user.id, user.orgId);
+    return this.doorsService.submit(id, user.id, user.orgId, user.role);
   }
 
   // ── Images ─────────────────────────────────────────────────────────────────

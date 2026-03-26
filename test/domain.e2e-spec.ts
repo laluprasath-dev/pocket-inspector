@@ -377,16 +377,18 @@ describe('Domain Endpoints (e2e)', () => {
   describe('Doors', () => {
     let floorId: string;
     let doorId: string;
+    let buildingId: string;
 
     beforeEach(async () => {
       const bRes = await request(app.getHttpServer())
         .post('/v1/buildings')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ name: 'Door Test Building' });
+      buildingId = bRes.body.data.id;
       const fRes = await request(app.getHttpServer())
         .post('/v1/floors')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ buildingId: bRes.body.data.id, label: 'G' });
+        .send({ buildingId, label: 'G' });
       floorId = fRes.body.data.id;
 
       const dRes = await request(app.getHttpServer())
@@ -394,6 +396,20 @@ describe('Domain Endpoints (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ floorId, code: 'D-101', locationNotes: 'End of corridor' });
       doorId = dRes.body.data.id;
+
+      const assignmentRes = await request(app.getHttpServer())
+        .post('/v1/building-assignments')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ buildingId, inspectorId: seeds.inspector.id })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(
+          `/v1/building-assignments/${assignmentRes.body.data.id}/respond`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ status: 'ACCEPTED' })
+        .expect(201);
     });
 
     it('GET /v1/doors/:id returns door with status=DRAFT and imagesCount=0', async () => {

@@ -3,9 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role, SurveyStatus } from '../../../generated/prisma/enums';
+import {
+  BuildingAssignmentStatus,
+  Role,
+  SurveyStatus,
+} from '../../../generated/prisma/enums';
 import { DoorStatus } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BuildingAssignmentsService } from '../building-assignments/building-assignments.service';
 import { SurveysService } from '../surveys/surveys.service';
 import { CreateFloorDto } from './dto/create-floor.dto';
 import { UpdateFloorDto } from './dto/update-floor.dto';
@@ -25,6 +30,7 @@ export class FloorsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly surveys: SurveysService,
+    private readonly buildingAssignments: BuildingAssignmentsService,
   ) {}
 
   async findById(id: string, orgId: string, userId: string, role: Role) {
@@ -36,12 +42,25 @@ export class FloorsService {
     return floor;
   }
 
-  async create(dto: CreateFloorDto, orgId: string, userId: string) {
+  async create(
+    dto: CreateFloorDto,
+    orgId: string,
+    userId: string,
+    role: Role,
+  ) {
     const building = await this.prisma.building.findFirst({
       where: { id: dto.buildingId, orgId },
     });
     if (!building)
       throw new NotFoundException(`Building ${dto.buildingId} not found`);
+
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnBuilding(
+        dto.buildingId,
+        userId,
+        orgId,
+      );
+    }
 
     // Find or auto-create a survey for this building
     let activeSurvey = await this.prisma.survey.findFirst({
@@ -142,20 +161,16 @@ export class FloorsService {
     if (role === Role.ADMIN) return { building: { orgId } };
 
     return {
-      building: { orgId },
-      OR: [
-        { createdById: userId },
-        {
-          building: { createdById: userId },
-        },
-        {
-          building: {
-            inspections: {
-              some: { assignments: { some: { inspectorId: userId } } },
-            },
+      building: {
+        orgId,
+        assignments: {
+          some: {
+            inspectorId: userId,
+            status: BuildingAssignmentStatus.ACCEPTED,
+            accessEndedAt: null,
           },
         },
-      ],
+      },
     };
   }
 }

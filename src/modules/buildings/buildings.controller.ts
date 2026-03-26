@@ -35,7 +35,8 @@ export class BuildingsController {
 
   @Get()
   @ApiOperation({
-    summary: 'List buildings — admin sees all, inspector sees own + assigned',
+    summary:
+      'List buildings — admin sees all, inspector sees buildings with accepted current assignments',
   })
   @ApiQuery({ name: 'siteId', required: false })
   findAll(@CurrentUser() user: User, @Query('siteId') siteId?: string) {
@@ -48,7 +49,8 @@ export class BuildingsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a building (admin or inspector)' })
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Create a building (admin only)' })
   create(@Body() dto: CreateBuildingDto, @CurrentUser() user: User) {
     return this.buildingsService.create(dto, user.orgId, user.id);
   }
@@ -126,7 +128,12 @@ export class BuildingsController {
       'Get a signed download URL for the current active survey building certificate',
   })
   getCertDownloadUrl(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.buildingsService.getCertificateDownloadUrl(id, user.orgId);
+    return this.buildingsService.getCertificateDownloadUrl(
+      id,
+      user.orgId,
+      user.id,
+      user.role,
+    );
   }
 
   @Get(':id/surveys/:surveyId/certificate/signed-download')
@@ -143,6 +150,8 @@ export class BuildingsController {
       id,
       surveyId,
       user.orgId,
+      user.id,
+      user.role,
     );
   }
 

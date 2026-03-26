@@ -81,6 +81,71 @@ export class SurveysController {
     );
   }
 
+  @Post(':surveyId/complete-fieldwork')
+  @Roles(Role.INSPECTOR)
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'buildingId', description: 'Building ID' })
+  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
+  @ApiOperation({
+    summary:
+      'Mark the active survey fieldwork as completed for the accepted inspector',
+  })
+  completeFieldwork(
+    @Param('buildingId') buildingId: string,
+    @Param('surveyId') surveyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.surveysService.completeFieldwork(
+      buildingId,
+      surveyId,
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Post(':surveyId/reopen-fieldwork')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'buildingId', description: 'Building ID' })
+  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
+  @ApiOperation({
+    summary: 'Reopen completed fieldwork for the current active survey',
+  })
+  reopenFieldwork(
+    @Param('buildingId') buildingId: string,
+    @Param('surveyId') surveyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.surveysService.reopenFieldwork(
+      buildingId,
+      surveyId,
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Post(':surveyId/activate')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'buildingId', description: 'Building ID' })
+  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
+  @ApiOperation({
+    summary:
+      'Activate a planned survey (admin only). Requires an accepted assignment linked to that survey version.',
+  })
+  activateSurvey(
+    @Param('buildingId') buildingId: string,
+    @Param('surveyId') surveyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.surveysService.activateSurvey(
+      buildingId,
+      surveyId,
+      user.id,
+      user.orgId,
+    );
+  }
+
   // ── Survey lifecycle ───────────────────────────────────────────────────────
 
   @Post('confirm-complete')
@@ -109,7 +174,7 @@ export class SurveysController {
   @ApiParam({ name: 'buildingId', description: 'Building ID' })
   @ApiOperation({
     summary:
-      'Start the next survey cycle (admin only). Clones all floors and doors from the last completed survey, without images or certificates. Resets building status to DRAFT.',
+      'Create the next planned survey cycle (admin only). Clones floors and doors only from the last completed survey.',
   })
   startNext(
     @Param('buildingId') buildingId: string,

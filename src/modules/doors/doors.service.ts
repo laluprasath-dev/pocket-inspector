@@ -1,11 +1,18 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import sharp from 'sharp';
-import { Role, DoorStatus } from '../../../generated/prisma/enums';
+import {
+  BuildingAssignmentStatus,
+  DoorStatus,
+  Role,
+  SurveyStatus,
+} from '../../../generated/prisma/enums';
+import { BuildingAssignmentsService } from '../building-assignments/building-assignments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GcsService } from '../storage/gcs.service';
 import { StoragePathBuilder } from '../storage/storage-path.builder';
@@ -31,6 +38,7 @@ export class DoorsService {
     private readonly gcs: GcsService,
     private readonly notifications: NotificationsService,
     private readonly surveys: SurveysService,
+    private readonly buildingAssignments: BuildingAssignmentsService,
   ) {}
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -65,19 +73,17 @@ export class DoorsService {
     };
   }
 
-  private async getInspectorIdsForDoor(doorId: string): Promise<string[]> {
+  private async getInspectorIdsForDoor(
+    doorId: string,
+    orgId: string,
+  ): Promise<string[]> {
     const door = await this.prisma.door.findUnique({
       where: { id: doorId },
-      include: {
+      select: {
         floor: {
-          include: {
-            building: {
-              include: {
-                inspections: {
-                  include: { assignments: { select: { inspectorId: true } } },
-                },
-              },
-            },
+          select: {
+            buildingId: true,
+            surveyId: true,
           },
         },
       },
@@ -85,13 +91,51 @@ export class DoorsService {
 
     if (!door) return [];
 
-    const ids = new Set<string>();
-    for (const inspection of door.floor.building.inspections) {
-      for (const assignment of inspection.assignments) {
-        ids.add(assignment.inspectorId);
+    let preferredSurveyId = door.floor.surveyId;
+    if (!preferredSurveyId) {
+      const activeSurvey = await this.prisma.survey.findFirst({
+        where: {
+          orgId,
+          buildingId: door.floor.buildingId,
+          status: SurveyStatus.ACTIVE,
+        },
+        select: { id: true },
+      });
+      preferredSurveyId = activeSurvey?.id ?? null;
+    }
+
+    if (preferredSurveyId) {
+      const scopedRecipients = await this.prisma.buildingAssignment.findMany({
+        where: {
+          orgId,
+          buildingId: door.floor.buildingId,
+          surveyId: preferredSurveyId,
+          status: BuildingAssignmentStatus.ACCEPTED,
+          accessEndedAt: null,
+        },
+        select: { inspectorId: true },
+      });
+      if (scopedRecipients.length > 0) {
+        return Array.from(
+          new Set(scopedRecipients.map((assignment) => assignment.inspectorId)),
+        );
       }
     }
-    return Array.from(ids);
+
+    const legacyRecipients = await this.prisma.buildingAssignment.findMany({
+      where: {
+        orgId,
+        buildingId: door.floor.buildingId,
+        surveyId: null,
+        status: BuildingAssignmentStatus.ACCEPTED,
+        accessEndedAt: null,
+      },
+      select: { inspectorId: true },
+    });
+
+    return Array.from(
+      new Set(legacyRecipients.map((assignment) => assignment.inspectorId)),
+    );
   }
 
   // ── Door CRUD ──────────────────────────────────────────────────────────────
@@ -128,11 +172,19 @@ export class DoorsService {
     };
   }
 
-  async create(dto: CreateDoorDto, orgId: string, userId: string) {
-    const floor = await this.prisma.floor.findFirst({
-      where: { id: dto.floorId, building: { orgId } },
-    });
-    if (!floor) throw new NotFoundException(`Floor ${dto.floorId} not found`);
+  async create(dto: CreateDoorDto, orgId: string, userId: string, role: Role) {
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnFloor(
+        dto.floorId,
+        userId,
+        orgId,
+      );
+    } else {
+      const floor = await this.prisma.floor.findFirst({
+        where: { id: dto.floorId, building: { orgId } },
+      });
+      if (!floor) throw new NotFoundException(`Floor ${dto.floorId} not found`);
+    }
 
     // Guard: cannot add doors to a floor in a completed survey
     await this.surveys.assertFloorEditable(dto.floorId);
@@ -159,16 +211,19 @@ export class DoorsService {
     return this.prisma.door.update({ where: { id }, data: dto });
   }
 
-  async submit(id: string, userId: string, orgId: string) {
+  async submit(id: string, userId: string, orgId: string, role: Role) {
     // Guard: cannot submit a door in a completed survey
     await this.surveys.assertDoorEditable(id);
 
-    const { door } = await this.getDoorContext(
-      id,
-      orgId,
-      userId,
-      Role.INSPECTOR,
-    );
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        id,
+        userId,
+        orgId,
+      );
+    }
+
+    const { door } = await this.getDoorContext(id, orgId, userId, role);
 
     if (door.status !== DoorStatus.DRAFT) {
       throw new BadRequestException(
@@ -207,6 +262,14 @@ export class DoorsService {
     // Guard: cannot upload images to a door in a completed survey
     await this.surveys.assertDoorEditable(doorId);
 
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        doorId,
+        userId,
+        orgId,
+      );
+    }
+
     const { door, pathCtx } = await this.getDoorContext(
       doorId,
       orgId,
@@ -243,6 +306,14 @@ export class DoorsService {
     // Guard: cannot register images for a door in a completed survey
     await this.surveys.assertDoorEditable(doorId);
 
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        doorId,
+        userId,
+        orgId,
+      );
+    }
+
     const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
 
     const thumbPath =
@@ -274,6 +345,14 @@ export class DoorsService {
   ) {
     // Guard: cannot batch-upload images to a door in a completed survey
     await this.surveys.assertDoorEditable(doorId);
+
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        doorId,
+        userId,
+        orgId,
+      );
+    }
 
     const { door, pathCtx } = await this.getDoorContext(
       doorId,
@@ -313,6 +392,14 @@ export class DoorsService {
   ) {
     // Guard: cannot batch-register images for a door in a completed survey
     await this.surveys.assertDoorEditable(doorId);
+
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        doorId,
+        userId,
+        orgId,
+      );
+    }
 
     const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
 
@@ -421,6 +508,14 @@ export class DoorsService {
     // Guard: cannot delete images from a door in a completed survey
     await this.surveys.assertDoorEditable(doorId);
 
+    if (role === Role.INSPECTOR) {
+      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+        doorId,
+        userId,
+        orgId,
+      );
+    }
+
     await this.getDoorContext(doorId, orgId, userId, role);
 
     // Load all requested images — must belong to this door and org
@@ -434,6 +529,15 @@ export class DoorsService {
 
     if (images.length === 0) {
       throw new NotFoundException('No matching images found for this door');
+    }
+
+    if (role === Role.INSPECTOR) {
+      const foreignImages = images.filter((img) => img.uploadedById !== userId);
+      if (foreignImages.length > 0) {
+        throw new ForbiddenException(
+          'Inspectors can only delete images that they uploaded themselves',
+        );
+      }
     }
 
     const notFound = dto.imageIds.filter(
@@ -565,7 +669,7 @@ export class DoorsService {
       }),
     ]);
 
-    const inspectorIds = await this.getInspectorIdsForDoor(doorId);
+    const inspectorIds = await this.getInspectorIdsForDoor(doorId, orgId);
     await this.notifications.notifyUsers(inspectorIds, {
       title: 'Door certified',
       body: `Door ${door.code} has been certified.`,
@@ -681,25 +785,18 @@ export class DoorsService {
     if (role === Role.ADMIN) return { floor: { building: { orgId } } };
 
     return {
-      floor: { building: { orgId } },
-      OR: [
-        { createdById: userId },
-        {
-          floor: {
-            OR: [
-              { createdById: userId },
-              { building: { createdById: userId } },
-              {
-                building: {
-                  inspections: {
-                    some: { assignments: { some: { inspectorId: userId } } },
-                  },
-                },
-              },
-            ],
+      floor: {
+        building: {
+          orgId,
+          assignments: {
+            some: {
+              inspectorId: userId,
+              status: BuildingAssignmentStatus.ACCEPTED,
+              accessEndedAt: null,
+            },
           },
         },
-      ],
+      },
     };
   }
 }

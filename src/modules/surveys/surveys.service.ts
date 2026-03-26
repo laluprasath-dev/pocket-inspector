@@ -5,9 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BuildingAssignmentEventType,
+  BuildingAssignmentStatus,
   BuildingStatus,
   DoorStatus,
   Role,
+  SurveyExecutionStatus,
   SurveyStatus,
 } from '../../../generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -173,6 +176,279 @@ export class SurveysService {
     };
   }
 
+  async completeFieldwork(
+    buildingId: string,
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    const survey = await this.requireSurveyForFieldwork(surveyId, buildingId, orgId);
+    if (survey.status !== SurveyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active survey can have fieldwork completed',
+      );
+    }
+    if (survey.executionStatus === SurveyExecutionStatus.INSPECTOR_COMPLETED) {
+      throw new BadRequestException(
+        'This survey fieldwork has already been marked completed',
+      );
+    }
+
+    const assignment = await this.findAcceptedRuntimeAssignment(
+      buildingId,
+      survey.id,
+      orgId,
+      inspectorId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have an accepted assignment for this active survey',
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const nextSurvey = await tx.survey.update({
+        where: { id: survey.id },
+        data: {
+          executionStatus: SurveyExecutionStatus.INSPECTOR_COMPLETED,
+          inspectorCompletedAt: now,
+          inspectorCompletedById: inspectorId,
+        },
+        include: {
+          inspectorCompletedBy: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
+          reopenedBy: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      await tx.buildingAssignmentEvent.create({
+        data: {
+          orgId,
+          buildingId,
+          surveyId: survey.id,
+          assignmentId: assignment.id,
+          groupId: assignment.groupId ?? undefined,
+          inspectorId,
+          actorId: inspectorId,
+          type: BuildingAssignmentEventType.BUILDING_COMPLETED,
+        },
+      });
+
+      return nextSurvey;
+    });
+
+    return this.serializeFieldwork(updated);
+  }
+
+  async reopenFieldwork(
+    buildingId: string,
+    surveyId: string,
+    adminId: string,
+    orgId: string,
+  ) {
+    const survey = await this.requireSurveyForFieldwork(surveyId, buildingId, orgId);
+    if (survey.status !== SurveyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active survey can have fieldwork reopened',
+      );
+    }
+    if (survey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED) {
+      throw new BadRequestException(
+        'Only survey fieldwork marked completed can be reopened',
+      );
+    }
+
+    const assignment = await this.findAcceptedRuntimeAssignment(
+      buildingId,
+      survey.id,
+      orgId,
+    );
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const nextSurvey = await tx.survey.update({
+        where: { id: survey.id },
+        data: {
+          executionStatus: SurveyExecutionStatus.IN_PROGRESS,
+          reopenedAt: now,
+          reopenedById: adminId,
+        },
+        include: {
+          inspectorCompletedBy: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
+          reopenedBy: {
+            select: { id: true, email: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      await tx.buildingAssignmentEvent.create({
+        data: {
+          orgId,
+          buildingId,
+          surveyId: survey.id,
+          assignmentId: assignment?.id,
+          groupId: assignment?.groupId ?? undefined,
+          inspectorId: assignment?.inspectorId,
+          actorId: adminId,
+          type: BuildingAssignmentEventType.BUILDING_REOPENED,
+        },
+      });
+
+      return nextSurvey;
+    });
+
+    const inspectorIds = assignment?.inspectorId
+      ? [assignment.inspectorId]
+      : await this.getAcceptedInspectorIdsForSurveyNotification(
+          buildingId,
+          orgId,
+          survey.id,
+        );
+
+    await this.notifications.notifyUsers(inspectorIds, {
+      title: 'Survey fieldwork reopened',
+      body: `Survey v${survey.version} has been reopened for continued fieldwork.`,
+      data: {
+        buildingId,
+        surveyId: survey.id,
+        surveyVersion: String(survey.version),
+        type: 'SURVEY_FIELDWORK_REOPENED',
+      },
+    });
+
+    return this.serializeFieldwork(updated);
+  }
+
+  async completeActiveFieldwork(
+    buildingId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    const survey = await this.requireActiveSurvey(buildingId, orgId);
+    return this.completeFieldwork(buildingId, survey.id, inspectorId, orgId);
+  }
+
+  async reopenActiveFieldwork(buildingId: string, adminId: string, orgId: string) {
+    const survey = await this.requireActiveSurvey(buildingId, orgId);
+    return this.reopenFieldwork(buildingId, survey.id, adminId, orgId);
+  }
+
+  async activateSurvey(
+    buildingId: string,
+    surveyId: string,
+    adminId: string,
+    orgId: string,
+  ) {
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, buildingId, orgId },
+      select: {
+        id: true,
+        version: true,
+        status: true,
+        scheduledStartAt: true,
+      },
+    });
+    if (!survey) {
+      throw new NotFoundException(
+        `Survey ${surveyId} not found for this building`,
+      );
+    }
+
+    if (survey.status !== SurveyStatus.PLANNED) {
+      throw new BadRequestException('Only planned surveys can be activated');
+    }
+
+    const activeSurvey = await this.prisma.survey.findFirst({
+      where: {
+        buildingId,
+        orgId,
+        status: SurveyStatus.ACTIVE,
+        NOT: { id: survey.id },
+      },
+      select: { id: true, version: true },
+    });
+    if (activeSurvey) {
+      throw new BadRequestException(
+        `A survey (v${activeSurvey.version}) is already active for this building`,
+      );
+    }
+
+    const acceptedAssignment = await this.prisma.buildingAssignment.findFirst({
+      where: {
+        orgId,
+        buildingId,
+        surveyId: survey.id,
+        status: BuildingAssignmentStatus.ACCEPTED,
+        accessEndedAt: null,
+      },
+      select: { id: true, inspectorId: true },
+    });
+    if (!acceptedAssignment) {
+      throw new BadRequestException(
+        'An accepted assignment linked to this planned survey is required before activation',
+      );
+    }
+
+    const now = new Date();
+    const activatedSurvey = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.survey.update({
+        where: { id: survey.id },
+        data: {
+          status: SurveyStatus.ACTIVE,
+          activatedAt: now,
+          activatedById: adminId,
+          startedAt: now,
+          executionStatus: SurveyExecutionStatus.IN_PROGRESS,
+          inspectorCompletedAt: null,
+          inspectorCompletedById: null,
+          reopenedAt: null,
+          reopenedById: null,
+        },
+      });
+
+      await tx.building.update({
+        where: { id: buildingId },
+        data: {
+          status: BuildingStatus.DRAFT,
+          approvedAt: null,
+          approvedById: null,
+          certifiedAt: null,
+          certifiedById: null,
+        },
+      });
+
+      return updated;
+    });
+
+    await this.notifications.notifyUsers([acceptedAssignment.inspectorId], {
+      title: 'Survey activated',
+      body: `Survey v${survey.version} is now active and ready for fieldwork.`,
+      data: {
+        buildingId,
+        surveyId: survey.id,
+        surveyVersion: String(survey.version),
+        type: 'SURVEY_ACTIVATED',
+      },
+    });
+
+    return {
+      id: activatedSurvey.id,
+      version: activatedSurvey.version,
+      status: activatedSurvey.status,
+      scheduledStartAt: activatedSurvey.scheduledStartAt,
+      activatedAt: activatedSurvey.activatedAt,
+      activatedById: activatedSurvey.activatedById,
+      executionStatus: activatedSurvey.executionStatus,
+      startedAt: activatedSurvey.startedAt,
+    };
+  }
+
   // ── Confirm survey complete ────────────────────────────────────────────────
 
   async confirmComplete(
@@ -202,10 +478,17 @@ export class SurveysService {
           },
         },
         buildingCertificate: { select: { id: true } },
+        building: { select: { name: true } },
       },
     });
     if (!survey)
       throw new NotFoundException('No active survey found for this building');
+
+    if (survey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED) {
+      throw new BadRequestException(
+        'Inspector fieldwork must be completed before confirming survey completion',
+      );
+    }
 
     if (!survey.buildingCertificate) {
       throw new BadRequestException(
@@ -224,58 +507,195 @@ export class SurveysService {
       );
     }
 
+    const hasSchedulingInput =
+      dto.nextScheduledAt !== undefined ||
+      dto.nextScheduledNote !== undefined ||
+      dto.nextAssignedInspectorId !== undefined;
+
     const now = new Date();
-    const completedSurvey = await this.prisma.survey.update({
-      where: { id: survey.id },
-      data: {
-        status: SurveyStatus.COMPLETED,
-        completedAt: now,
-        confirmedById: adminId,
-        nextScheduledAt: dto.nextScheduledAt ?? null,
-        nextScheduledNote: dto.nextScheduledNote ?? null,
-        nextAssignedInspectorId: dto.nextAssignedInspectorId ?? null,
-      },
-      include: {
-        building: { select: { name: true } },
-      },
+    const nextAssignedInspectorId = dto.nextAssignedInspectorId ?? null;
+
+    const completionResult = await this.prisma.$transaction(async (tx) => {
+      if (hasSchedulingInput) {
+        const existingPlanned = await tx.survey.findFirst({
+          where: { buildingId, orgId, status: SurveyStatus.PLANNED },
+          select: { id: true },
+        });
+        if (existingPlanned) {
+          throw new BadRequestException(
+            'A planned survey already exists for this building. Activate or remove it before scheduling another one.',
+          );
+        }
+      }
+
+      const completedSurvey = await tx.survey.update({
+        where: { id: survey.id },
+        data: {
+          status: SurveyStatus.COMPLETED,
+          completedAt: now,
+          confirmedById: adminId,
+          nextScheduledAt: hasSchedulingInput ? dto.nextScheduledAt ?? null : null,
+          nextScheduledNote: hasSchedulingInput
+            ? dto.nextScheduledNote ?? null
+            : null,
+          nextAssignedInspectorId: hasSchedulingInput
+            ? nextAssignedInspectorId
+            : null,
+        },
+      });
+
+      const assignmentsToClose = await tx.buildingAssignment.findMany({
+        where: {
+          orgId,
+          buildingId,
+          accessEndedAt: null,
+          OR: [
+            { surveyId: survey.id },
+            {
+              surveyId: null,
+              status: {
+                in: [
+                  BuildingAssignmentStatus.PENDING,
+                  BuildingAssignmentStatus.ACCEPTED,
+                ],
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          surveyId: true,
+          groupId: true,
+          inspectorId: true,
+        },
+      });
+
+      if (assignmentsToClose.length > 0) {
+        await tx.buildingAssignment.updateMany({
+          where: { id: { in: assignmentsToClose.map((assignment) => assignment.id) } },
+          data: {
+            status: BuildingAssignmentStatus.REMOVED,
+            accessEndedAt: now,
+            endedById: adminId,
+          },
+        });
+
+        for (const assignment of assignmentsToClose) {
+          await tx.buildingAssignmentEvent.create({
+            data: {
+              orgId,
+              buildingId,
+              surveyId: assignment.surveyId ?? survey.id,
+              assignmentId: assignment.id,
+              groupId: assignment.groupId ?? undefined,
+              inspectorId: assignment.inspectorId ?? undefined,
+              actorId: adminId,
+              type: BuildingAssignmentEventType.ACCESS_REMOVED,
+              metadata: {
+                reason: 'SURVEY_COMPLETED',
+                completedSurveyId: survey.id,
+              },
+            },
+          });
+        }
+      }
+
+      let plannedSurvey: {
+        id: string;
+        version: number;
+        status: SurveyStatus;
+        scheduledStartAt: Date | null;
+        nextScheduledAt: Date | null;
+        nextScheduledNote: string | null;
+        nextAssignedInspectorId: string | null;
+      } | null = null;
+
+      if (hasSchedulingInput) {
+        const latestSurvey = await tx.survey.findFirst({
+          where: { buildingId, orgId },
+          orderBy: { version: 'desc' },
+          select: { version: true },
+        });
+        const nextVersion = (latestSurvey?.version ?? survey.version) + 1;
+
+        plannedSurvey = await tx.survey.create({
+          data: {
+            orgId,
+            buildingId,
+            version: nextVersion,
+            status: SurveyStatus.PLANNED,
+            executionStatus: SurveyExecutionStatus.IN_PROGRESS,
+            createdById: adminId,
+            scheduledStartAt: dto.nextScheduledAt ?? null,
+            nextScheduledAt: dto.nextScheduledAt ?? null,
+            nextScheduledNote: dto.nextScheduledNote ?? null,
+            nextAssignedInspectorId,
+          },
+          select: {
+            id: true,
+            version: true,
+            status: true,
+            scheduledStartAt: true,
+            nextScheduledAt: true,
+            nextScheduledNote: true,
+            nextAssignedInspectorId: true,
+          },
+        });
+      }
+
+      return {
+        completedSurvey,
+        plannedSurvey,
+        completedInspectorIds: Array.from(
+          new Set(
+            assignmentsToClose
+              .map((assignment) => assignment.inspectorId)
+              .filter((inspectorId): inspectorId is string => Boolean(inspectorId)),
+          ),
+        ),
+      };
     });
 
-    // Notify all assigned inspectors that the survey is complete
-    const inspectorIds = await this.getInspectorIdsForBuilding(buildingId);
-    await this.notifications.notifyUsers(inspectorIds, {
+    await this.notifications.notifyUsers(completionResult.completedInspectorIds, {
       title: 'Survey completed',
-      body: `Survey v${completedSurvey.version} for "${completedSurvey.building.name}" has been confirmed complete.`,
+      body: `Survey v${completionResult.completedSurvey.version} for "${survey.building.name}" has been confirmed complete.`,
       data: {
         buildingId,
         surveyId: survey.id,
-        surveyVersion: String(completedSurvey.version),
+        surveyVersion: String(completionResult.completedSurvey.version),
         type: 'SURVEY_COMPLETED',
       },
     });
 
-    // Notify the scheduled next inspector if provided
-    if (dto.nextAssignedInspectorId && dto.nextScheduledAt) {
+    // Keep this notification conservative: planned survey exists but no assignment is created here.
+    if (
+      completionResult.plannedSurvey &&
+      nextAssignedInspectorId &&
+      dto.nextScheduledAt
+    ) {
       const scheduledDate = dto.nextScheduledAt.toISOString().split('T')[0];
-      await this.notifications.notifyUsers([dto.nextAssignedInspectorId], {
+      await this.notifications.notifyUsers([nextAssignedInspectorId], {
         title: 'Next survey scheduled',
-        body: `You have been scheduled for the next survey of "${completedSurvey.building.name}" on ${scheduledDate}.`,
+        body: `You have been scheduled for the next survey of "${survey.building.name}" on ${scheduledDate}.`,
         data: {
           buildingId,
-          surveyId: survey.id,
+          surveyId: completionResult.plannedSurvey.id,
+          surveyVersion: String(completionResult.plannedSurvey.version),
           type: 'NEXT_SURVEY_SCHEDULED',
         },
       });
     }
 
     return {
-      id: completedSurvey.id,
-      version: completedSurvey.version,
-      status: completedSurvey.status,
-      completedAt: completedSurvey.completedAt,
-      confirmedById: completedSurvey.confirmedById,
-      nextScheduledAt: completedSurvey.nextScheduledAt,
-      nextScheduledNote: completedSurvey.nextScheduledNote,
-      nextAssignedInspectorId: completedSurvey.nextAssignedInspectorId,
+      id: completionResult.completedSurvey.id,
+      version: completionResult.completedSurvey.version,
+      status: completionResult.completedSurvey.status,
+      completedAt: completionResult.completedSurvey.completedAt,
+      confirmedById: completionResult.completedSurvey.confirmedById,
+      nextScheduledAt: completionResult.completedSurvey.nextScheduledAt,
+      nextScheduledNote: completionResult.completedSurvey.nextScheduledNote,
+      nextAssignedInspectorId: completionResult.completedSurvey.nextAssignedInspectorId,
+      plannedNextSurvey: completionResult.plannedSurvey,
     };
   }
 
@@ -300,6 +720,16 @@ export class SurveysService {
     if (activeSurvey) {
       throw new BadRequestException(
         `A survey (v${activeSurvey.version}) is already active for this building. Complete it before starting a new one.`,
+      );
+    }
+
+    const existingPlanned = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.PLANNED },
+      select: { id: true, version: true },
+    });
+    if (existingPlanned) {
+      throw new BadRequestException(
+        `A planned survey (v${existingPlanned.version}) already exists for this building.`,
       );
     }
 
@@ -328,7 +758,14 @@ export class SurveysService {
       );
     }
 
-    const nextVersion = lastSurvey.version + 1;
+    const latestSurvey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    const nextVersion = (latestSurvey?.version ?? lastSurvey.version) + 1;
+    const nextAssignedInspectorId =
+      dto.nextAssignedInspectorId ?? dto.assignedInspectorId ?? null;
 
     // Create new survey + clone floors/doors in a single transaction
     const newSurvey = await this.prisma.$transaction(async (tx) => {
@@ -338,9 +775,13 @@ export class SurveysService {
           orgId,
           buildingId,
           version: nextVersion,
-          status: SurveyStatus.ACTIVE,
-          startedAt: new Date(),
+          status: SurveyStatus.PLANNED,
+          executionStatus: SurveyExecutionStatus.IN_PROGRESS,
           createdById: adminId,
+          scheduledStartAt: dto.nextScheduledAt ?? null,
+          nextScheduledAt: dto.nextScheduledAt ?? null,
+          nextScheduledNote: dto.nextScheduledNote ?? null,
+          nextAssignedInspectorId,
         },
       });
 
@@ -370,18 +811,6 @@ export class SurveysService {
         }
       }
 
-      // 3. Reset building status to DRAFT for the new survey cycle
-      await tx.building.update({
-        where: { id: buildingId },
-        data: {
-          status: BuildingStatus.DRAFT,
-          approvedAt: null,
-          approvedById: null,
-          certifiedAt: null,
-          certifiedById: null,
-        },
-      });
-
       return survey;
     });
 
@@ -392,24 +821,14 @@ export class SurveysService {
       0,
     );
 
-    // Notify assigned inspector if provided
-    if (dto.assignedInspectorId) {
-      await this.notifications.notifyUsers([dto.assignedInspectorId], {
-        title: 'New survey started',
-        body: `Survey v${nextVersion} has been started for "${building.name}". You have been assigned.`,
-        data: {
-          buildingId,
-          surveyId: newSurvey.id,
-          surveyVersion: String(nextVersion),
-          type: 'NEW_SURVEY_STARTED',
-        },
-      });
-    }
-
     return {
       id: newSurvey.id,
       version: newSurvey.version,
       status: newSurvey.status,
+      scheduledStartAt: newSurvey.scheduledStartAt,
+      nextScheduledAt: newSurvey.nextScheduledAt,
+      nextScheduledNote: newSurvey.nextScheduledNote,
+      nextAssignedInspectorId: newSurvey.nextAssignedInspectorId,
       startedAt: newSurvey.startedAt,
       clonedFromVersion: lastSurvey.version,
       floorsCloned: floorCount,
@@ -474,9 +893,9 @@ export class SurveysService {
     });
     if (!floor) return; // not found — let the caller handle
 
-    if (floor.survey && floor.survey.status === SurveyStatus.COMPLETED) {
+    if (floor.survey && floor.survey.status !== SurveyStatus.ACTIVE) {
       throw new ForbiddenException(
-        `Survey v${floor.survey.version} is completed and locked. No changes are allowed.`,
+        `Survey v${floor.survey.version} is ${floor.survey.status.toLowerCase()} and locked. No changes are allowed.`,
       );
     }
   }
@@ -496,12 +915,9 @@ export class SurveysService {
     });
     if (!door) return;
 
-    if (
-      door.floor.survey &&
-      door.floor.survey.status === SurveyStatus.COMPLETED
-    ) {
+    if (door.floor.survey && door.floor.survey.status !== SurveyStatus.ACTIVE) {
       throw new ForbiddenException(
-        `Survey v${door.floor.survey.version} is completed and locked. No changes are allowed.`,
+        `Survey v${door.floor.survey.version} is ${door.floor.survey.status.toLowerCase()} and locked. No changes are allowed.`,
       );
     }
   }
@@ -520,14 +936,13 @@ export class SurveysService {
         : {
             id: buildingId,
             orgId,
-            OR: [
-              { createdById: userId },
-              {
-                inspections: {
-                  some: { assignments: { some: { inspectorId: userId } } },
-                },
+            assignments: {
+              some: {
+                inspectorId: userId,
+                status: BuildingAssignmentStatus.ACCEPTED,
+                accessEndedAt: null,
               },
-            ],
+            },
           };
 
     const building = await this.prisma.building.findFirst({ where });
@@ -535,20 +950,158 @@ export class SurveysService {
       throw new NotFoundException(`Building ${buildingId} not found`);
   }
 
-  private async getInspectorIdsForBuilding(
+  private async requireActiveSurvey(buildingId: string, orgId: string) {
+    const survey = await this.prisma.survey.findFirst({
+      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+      select: { id: true },
+    });
+    if (!survey) {
+      throw new NotFoundException('No active survey found for this building');
+    }
+    return survey;
+  }
+
+  private async requireSurveyForFieldwork(
+    surveyId: string,
     buildingId: string,
+    orgId: string,
+  ) {
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, buildingId, orgId },
+      select: {
+        id: true,
+        buildingId: true,
+        version: true,
+        status: true,
+        executionStatus: true,
+      },
+    });
+    if (!survey) {
+      throw new NotFoundException(
+        `Survey ${surveyId} not found for this building`,
+      );
+    }
+    return survey;
+  }
+
+  private async findAcceptedRuntimeAssignment(
+    buildingId: string,
+    surveyId: string,
+    orgId: string,
+    inspectorId?: string,
+  ) {
+    const baseWhere = {
+      buildingId,
+      orgId,
+      accessEndedAt: null,
+      status: BuildingAssignmentStatus.ACCEPTED,
+      ...(inspectorId ? { inspectorId } : {}),
+    };
+
+    const linkedAssignment = await this.prisma.buildingAssignment.findFirst({
+      where: { ...baseWhere, surveyId },
+      select: { id: true, groupId: true, inspectorId: true },
+      orderBy: { assignedAt: 'desc' },
+    });
+    if (linkedAssignment) {
+      return linkedAssignment;
+    }
+
+    return this.prisma.buildingAssignment.findFirst({
+      where: { ...baseWhere, surveyId: null },
+      select: { id: true, groupId: true, inspectorId: true },
+      orderBy: { assignedAt: 'desc' },
+    });
+  }
+
+  private async getAcceptedInspectorIdsForSurveyNotification(
+    buildingId: string,
+    orgId: string,
+    surveyId: string,
   ): Promise<string[]> {
-    const inspections = await this.prisma.inspection.findMany({
-      where: { buildingId },
-      include: { assignments: { select: { inspectorId: true } } },
+    const assignments = await this.prisma.buildingAssignment.findMany({
+      where: {
+        orgId,
+        buildingId,
+        status: BuildingAssignmentStatus.ACCEPTED,
+        accessEndedAt: null,
+        OR: [{ surveyId }, { surveyId: null }],
+      },
+      select: { inspectorId: true },
     });
 
-    const ids = new Set<string>();
-    for (const inspection of inspections) {
-      for (const assignment of inspection.assignments) {
-        ids.add(assignment.inspectorId);
-      }
+    return Array.from(new Set(assignments.map((assignment) => assignment.inspectorId)));
+  }
+
+  private serializeFieldwork(survey: {
+    id: string;
+    buildingId: string;
+    version: number;
+    status: SurveyStatus;
+    executionStatus: SurveyExecutionStatus;
+    inspectorCompletedAt: Date | null;
+    reopenedAt: Date | null;
+    inspectorCompletedBy?: {
+      id: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
+    reopenedBy?: {
+      id: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
+  }) {
+    const completedBy = this.serializeWorkflowUser(survey.inspectorCompletedBy);
+    const reopenedBy = this.serializeWorkflowUser(survey.reopenedBy);
+
+    return {
+      id: survey.id,
+      buildingId: survey.buildingId,
+      version: survey.version,
+      status: survey.status,
+      executionStatus: survey.executionStatus,
+      inspectorCompletedAt: survey.inspectorCompletedAt,
+      inspectorCompletedBy: completedBy,
+      reopenedAt: survey.reopenedAt,
+      reopenedBy,
+      workflow: {
+        status:
+          survey.executionStatus === SurveyExecutionStatus.INSPECTOR_COMPLETED
+            ? 'COMPLETED'
+            : 'ACTIVE',
+        completedAt: survey.inspectorCompletedAt,
+        completedBy,
+        reopenedAt: survey.reopenedAt,
+        reopenedBy,
+      },
+    };
+  }
+
+  private serializeWorkflowUser(
+    user:
+      | {
+          id: string;
+          email: string;
+          firstName: string | null;
+          lastName: string | null;
+        }
+      | null
+      | undefined,
+  ) {
+    if (!user) {
+      return null;
     }
-    return Array.from(ids);
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+        user.email,
+    };
   }
 }

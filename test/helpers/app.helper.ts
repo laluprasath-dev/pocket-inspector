@@ -9,10 +9,63 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import helmet from '@fastify/helmet';
+import { PassThrough, Readable } from 'stream';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../../src/common/interceptors/transform.interceptor';
+import { FcmService } from '../../src/modules/notifications/fcm.service';
+import { GcsService } from '../../src/modules/storage/gcs.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+
+function createMockGcsService() {
+  return {
+    async getSignedUploadUrl(opts: { objectPath: string }) {
+      return `https://mock-gcs.local/upload/${encodeURIComponent(opts.objectPath)}`;
+    },
+    async getSignedDownloadUrl(opts: { objectPath: string }) {
+      return `https://mock-gcs.local/download/${encodeURIComponent(opts.objectPath)}`;
+    },
+    async getSignedDownloadUrlWithExpiry(opts: {
+      objectPath: string;
+      expirySeconds?: number;
+    }) {
+      const expirySeconds = opts.expirySeconds ?? 900;
+      return {
+        url: `https://mock-gcs.local/download/${encodeURIComponent(opts.objectPath)}`,
+        expiresAt: new Date(Date.now() + expirySeconds * 1000).toISOString(),
+      };
+    },
+    async deleteObject() {
+      return;
+    },
+    async objectExists() {
+      return true;
+    },
+    createReadStream() {
+      return Readable.from(Buffer.from('mock-file'));
+    },
+    createWriteStream() {
+      return new PassThrough();
+    },
+    async streamToGcs() {
+      return;
+    },
+  };
+}
+
+function createMockFcmService() {
+  return {
+    onModuleInit() {
+      return;
+    },
+    async sendToToken() {
+      return;
+    },
+    async sendToTokens() {
+      return;
+    },
+  };
+}
 
 export async function createTestApp(): Promise<INestApplication> {
   process.env['DATABASE_URL'] =
@@ -27,7 +80,12 @@ export async function createTestApp(): Promise<INestApplication> {
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  })
+    .overrideProvider(GcsService)
+    .useValue(createMockGcsService())
+    .overrideProvider(FcmService)
+    .useValue(createMockFcmService())
+    .compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
@@ -57,6 +115,10 @@ export async function cleanDatabase(prisma: PrismaService): Promise<void> {
   await prisma.auditLog.deleteMany();
   await prisma.bulkExportJob.deleteMany();
   await prisma.userDeviceToken.deleteMany();
+  await prisma.buildingAssignmentEvent.deleteMany();
+  await prisma.buildingAssignment.deleteMany();
+  await prisma.buildingAssignmentGroup.deleteMany();
+  await prisma.buildingWorkflowState.deleteMany();
   await prisma.buildingCertificate.deleteMany();
   await prisma.doorCertificate.deleteMany();
   await prisma.doorImage.deleteMany();

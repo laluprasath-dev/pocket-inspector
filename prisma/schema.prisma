@@ -77,8 +77,37 @@ enum ExportStatus {
 }
 
 enum SurveyStatus {
+  PLANNED
   ACTIVE
   COMPLETED
+}
+
+enum SurveyExecutionStatus {
+  IN_PROGRESS
+  INSPECTOR_COMPLETED
+}
+
+enum BuildingAssignmentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  REMOVED
+  REASSIGNED
+}
+
+enum BuildingWorkflowStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum BuildingAssignmentEventType {
+  ASSIGNED
+  ACCEPTED
+  REJECTED
+  ACCESS_REMOVED
+  REASSIGNED
+  BUILDING_COMPLETED
+  BUILDING_REOPENED
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +127,10 @@ model Org {
   inspections          Inspection[]
   bulkExportJobs       BulkExportJob[]
   auditLogs            AuditLog[]
+  buildingAssignments  BuildingAssignment[]
+  assignmentGroups     BuildingAssignmentGroup[]
+  assignmentEvents     BuildingAssignmentEvent[]
+  workflowStates       BuildingWorkflowState[]
 
   @@map("orgs")
 }
@@ -133,7 +166,18 @@ model User {
   createdSurveys        Survey[]               @relation("SurveyCreatedBy")
   confirmedSurveys      Survey[]               @relation("SurveyConfirmedBy")
   nextAssigneeSurveys   Survey[]               @relation("SurveyNextAssignee")
+  inspectorCompletedSurveys Survey[]           @relation("SurveyInspectorCompletedBy")
+  reopenedSurveys       Survey[]               @relation("SurveyReopenedBy")
+  activatedSurveys      Survey[]               @relation("SurveyActivatedBy")
   createdClients        Client[]               @relation("ClientCreatedBy")
+  buildingAssignments   BuildingAssignment[]   @relation("BuildingAssignmentInspector")
+  assignedBuildings     BuildingAssignment[]   @relation("BuildingAssignmentAssignedBy")
+  endedBuildingAccess   BuildingAssignment[]   @relation("BuildingAssignmentEndedBy")
+  createdAssignmentGroups BuildingAssignmentGroup[] @relation("BuildingAssignmentGroupCreatedBy")
+  assignmentEvents      BuildingAssignmentEvent[] @relation("BuildingAssignmentEventInspector")
+  performedAssignmentEvents BuildingAssignmentEvent[] @relation("BuildingAssignmentEventActor")
+  completedWorkflows    BuildingWorkflowState[] @relation("BuildingWorkflowCompletedBy")
+  reopenedWorkflows     BuildingWorkflowState[] @relation("BuildingWorkflowReopenedBy")
 
   @@map("users")
 }
@@ -205,6 +249,7 @@ model Site {
   createdBy   User?        @relation("SiteCreatedBy", fields: [createdById], references: [id])
   buildings   Building[]
   inspections Inspection[]
+  assignmentGroups BuildingAssignmentGroup[]
 
   @@map("sites")
 }
@@ -235,6 +280,9 @@ model Building {
   surveys     Survey[]
   inspections Inspection[]
   certificates BuildingCertificate[]
+  assignments BuildingAssignment[]
+  assignmentEvents BuildingAssignmentEvent[]
+  workflowState BuildingWorkflowState?
 
   @@map("buildings")
 }
@@ -372,13 +420,21 @@ model BuildingCertificate {
 // ---------------------------------------------------------------------------
 
 model Survey {
-  id          String       @id @default(cuid())
-  orgId       String
-  buildingId  String
-  version     Int
-  status      SurveyStatus @default(ACTIVE)
-  startedAt   DateTime     @default(now())
-  completedAt DateTime?
+  id                     String                @id @default(cuid())
+  orgId                  String
+  buildingId             String
+  version                Int
+  status                 SurveyStatus          @default(ACTIVE)
+  executionStatus        SurveyExecutionStatus @default(IN_PROGRESS)
+  startedAt              DateTime              @default(now())
+  scheduledStartAt       DateTime?
+  activatedAt            DateTime?
+  activatedById          String?
+  inspectorCompletedAt   DateTime?
+  inspectorCompletedById String?
+  reopenedAt             DateTime?
+  reopenedById           String?
+  completedAt            DateTime?
   confirmedById String?
 
   // Optional: schedule the next survey
@@ -393,6 +449,11 @@ model Survey {
   building              Building             @relation(fields: [buildingId], references: [id])
   floors                Floor[]
   buildingCertificate   BuildingCertificate?
+  assignments           BuildingAssignment[]
+  assignmentEvents      BuildingAssignmentEvent[]
+  activatedBy           User?                @relation("SurveyActivatedBy", fields: [activatedById], references: [id])
+  inspectorCompletedBy  User?                @relation("SurveyInspectorCompletedBy", fields: [inspectorCompletedById], references: [id])
+  reopenedBy            User?                @relation("SurveyReopenedBy", fields: [reopenedById], references: [id])
   confirmedBy           User?                @relation("SurveyConfirmedBy", fields: [confirmedById], references: [id])
   nextAssignedInspector User?                @relation("SurveyNextAssignee", fields: [nextAssignedInspectorId], references: [id])
   createdBy             User                 @relation("SurveyCreatedBy", fields: [createdById], references: [id])
@@ -460,4 +521,110 @@ model BulkExportJob {
   createdBy User @relation(fields: [createdById], references: [id])
 
   @@map("bulk_export_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Building-centric assignment, workflow access, and history
+// ---------------------------------------------------------------------------
+
+model BuildingAssignmentGroup {
+  id          String   @id @default(cuid())
+  orgId       String
+  siteId      String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  org         Org                     @relation(fields: [orgId], references: [id])
+  site        Site?                   @relation(fields: [siteId], references: [id])
+  createdBy   User                    @relation("BuildingAssignmentGroupCreatedBy", fields: [createdById], references: [id])
+  assignments BuildingAssignment[]
+  events      BuildingAssignmentEvent[]
+
+  @@index([orgId, createdAt])
+  @@index([siteId])
+  @@map("building_assignment_groups")
+}
+
+model BuildingAssignment {
+  id            String                   @id @default(cuid())
+  orgId         String
+  buildingId    String
+  surveyId      String?
+  inspectorId   String
+  groupId       String?
+  assignedById  String
+  status        BuildingAssignmentStatus @default(PENDING)
+  adminNote     String?
+  inspectorNote String?
+  assignedAt    DateTime                 @default(now())
+  respondedAt   DateTime?
+  accessEndedAt DateTime?
+  endedById     String?
+
+  org         Org                     @relation(fields: [orgId], references: [id])
+  building    Building                @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  survey      Survey?                 @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+  inspector   User                    @relation("BuildingAssignmentInspector", fields: [inspectorId], references: [id])
+  group       BuildingAssignmentGroup? @relation(fields: [groupId], references: [id])
+  assignedBy  User                    @relation("BuildingAssignmentAssignedBy", fields: [assignedById], references: [id])
+  endedBy     User?                   @relation("BuildingAssignmentEndedBy", fields: [endedById], references: [id])
+  events      BuildingAssignmentEvent[]
+
+  @@index([orgId, inspectorId, accessEndedAt])
+  @@index([buildingId, accessEndedAt])
+  @@index([surveyId, inspectorId, accessEndedAt])
+  @@index([buildingId, surveyId, accessEndedAt])
+  @@index([groupId])
+  @@index([status])
+  @@map("building_assignments")
+}
+
+model BuildingWorkflowState {
+  id            String                 @id @default(cuid())
+  orgId         String
+  buildingId    String                 @unique
+  status        BuildingWorkflowStatus @default(ACTIVE)
+  completedById String?
+  completedAt   DateTime?
+  reopenedById  String?
+  reopenedAt    DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  org         Org      @relation(fields: [orgId], references: [id])
+  building    Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  completedBy User?    @relation("BuildingWorkflowCompletedBy", fields: [completedById], references: [id])
+  reopenedBy  User?    @relation("BuildingWorkflowReopenedBy", fields: [reopenedById], references: [id])
+
+  @@index([orgId, status])
+  @@map("building_workflow_states")
+}
+
+model BuildingAssignmentEvent {
+  id           String                    @id @default(cuid())
+  orgId        String
+  buildingId   String
+  surveyId     String?
+  assignmentId String?
+  groupId      String?
+  inspectorId  String?
+  actorId      String
+  type         BuildingAssignmentEventType
+  metadata     Json?
+  createdAt    DateTime                  @default(now())
+
+  org        Org                     @relation(fields: [orgId], references: [id])
+  building   Building                @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  survey     Survey?                 @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+  assignment BuildingAssignment?     @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  group      BuildingAssignmentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  inspector  User?                   @relation("BuildingAssignmentEventInspector", fields: [inspectorId], references: [id])
+  actor      User                    @relation("BuildingAssignmentEventActor", fields: [actorId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([inspectorId, createdAt])
+  @@index([buildingId, createdAt])
+  @@index([surveyId, createdAt])
+  @@index([type, createdAt])
+  @@map("building_assignment_events")
 }

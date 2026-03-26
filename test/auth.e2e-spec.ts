@@ -76,19 +76,15 @@ describe('Auth (e2e)', () => {
         .expect(401);
     });
 
-    it('ignores unknown extra fields (passport-local strategy only reads email+password)', async () => {
-      // Passport-local extracts username/password and ignores other fields.
-      // Valid credentials succeed even with extra fields in the body.
-      const res = await request(app.getHttpServer())
+    it('rejects unknown extra fields via the global validation pipe', async () => {
+      await request(app.getHttpServer())
         .post('/v1/auth/login')
         .send({
           email: seeds.admin.email,
           password: seeds.admin.password,
           hack: 'payload',
         })
-        .expect(200);
-
-      expect(res.body.data.accessToken).toBeTruthy();
+        .expect(400);
     });
   });
 
