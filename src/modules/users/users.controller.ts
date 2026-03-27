@@ -42,7 +42,7 @@ export class UsersController {
     if (user.role !== Role.ADMIN && user.id !== id) {
       throw new ForbiddenException('Access denied');
     }
-    return this.usersService.findById(id);
+    return this.usersService.findById(id, user.orgId);
   }
 
   @Patch(':id')

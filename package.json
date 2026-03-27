@@ -22,6 +22,7 @@
     "test:prod": "newman run postman/Pocket-Inspector.postman_collection.json --environment postman/Pocket-Inspector.postman_environment.json --env-var baseUrl=https://pocket-inspector-api-34292529156.europe-west2.run.app --env-var adminEmail=admin@example.com --env-var adminPassword=Admin1234! --env-var inspectorEmail=inspector@example.com --env-var inspectorPassword=Inspector1234! --timeout-request 30000",
     "user:create": "tsx scripts/create-user.ts",
     "test:image-upload": "tsx scripts/test-image-upload.ts",
+    "qa:admin-inspector-flow": "tsx scripts/test-admin-inspector-flow.ts",
     "gcs:set-cors": "GOOGLE_APPLICATION_CREDENTIALS=secrets/pocket-inspector-production-firebase-adminsdk-fbsvc-dbda2bd3b2.json tsx scripts/set-gcs-cors.ts",
     "gcs:set-thumb-iam": "tsx scripts/set-thumb-iam.ts",
     "backfill:thumbnails": "tsx scripts/backfill-thumbnails.ts",

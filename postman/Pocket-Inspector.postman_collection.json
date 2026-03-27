@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to inspectors\n- INSPECTOR must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Inspector\n5. Use Building Assignment Workflow -> Inspector Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Use certificate and survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- INSPECTOR — works only on accepted assigned buildings\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to inspectors\n- INSPECTOR must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Inspector\n5. Use Building Assignment Workflow -> Inspector Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Use certificate and survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- INSPECTOR — works only on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/inspector workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -58,11 +58,6 @@
     },
     {
       "key": "doorId",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "inspectionId",
       "value": "",
       "type": "string"
     },
@@ -1791,26 +1786,6 @@
                 },
                 "description": "Portal history view. Change filters to inspect assignment, rejection, reassignment, completion, and reopen events. History rows now include survey metadata fields where available (surveyId, surveyVersion, surveyStatus, surveyExecutionStatus)."
               }
-            },
-            {
-              "name": "Reopen Building Workflow",
-              "request": {
-                "method": "POST",
-                "url": {
-                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/workflow/reopen",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "v1",
-                    "buildings",
-                    "{{buildingId}}",
-                    "workflow",
-                    "reopen"
-                  ]
-                },
-                "description": "Legacy compatibility wrapper. Reopens the active survey fieldwork state for this building so the inspector can continue corrections."
-              }
             }
           ]
         },
@@ -2010,26 +1985,6 @@
                   ]
                 },
                 "description": "Reject all pending buildings in the same grouped invitation."
-              }
-            },
-            {
-              "name": "Complete Building Workflow",
-              "request": {
-                "method": "POST",
-                "url": {
-                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/workflow/complete",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "v1",
-                    "buildings",
-                    "{{buildingId}}",
-                    "workflow",
-                    "complete"
-                  ]
-                },
-                "description": "Legacy compatibility wrapper. Marks active survey fieldwork complete for this building. Locks further workflow edits until reopen."
               }
             },
             {
@@ -3013,206 +2968,6 @@
       ]
     },
     {
-      "name": "🔍 Inspections",
-      "item": [
-        {
-          "name": "List Inspections",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections"
-              ]
-            },
-            "description": "List all inspection jobs in the org."
-          }
-        },
-        {
-          "name": "Create Inspection (Admin only)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const json = pm.response.json();",
-                  "if (json.data && json.data.id) {",
-                  "    pm.environment.set('inspectionId', json.data.id);",
-                  "    pm.test('Inspection created — inspectionId saved', () => pm.response.to.have.status(201));",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"type\": \"BUILDING\",\n  \"buildingId\": \"{{buildingId}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections"
-              ]
-            },
-            "description": "Create a new inspection job for a site or building. Saves inspectionId."
-          }
-        },
-        {
-          "name": "Get Inspection by ID",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections",
-                "{{inspectionId}}"
-              ]
-            },
-            "description": "Get full inspection details including assignments."
-          }
-        },
-        {
-          "name": "Assign Inspector (Admin only)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"adminNote\": \"Please complete this inspection by end of month\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/assignments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections",
-                "{{inspectionId}}",
-                "assignments"
-              ]
-            },
-            "description": "Assign an inspector to the inspection job. Inspector receives a notification."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    const json = pm.response.json();",
-                  "    pm.environment.set('assignmentId', json.data.id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Respond to Assignment (Inspector)",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"ACCEPTED\",\n  \"inspectorNote\": \"I will start tomorrow morning\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/assignments/respond",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections",
-                "{{inspectionId}}",
-                "assignments",
-                "respond"
-              ]
-            },
-            "description": "Inspector accepts or declines the assignment. Send status: ACCEPTED or DECLINED."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "// Switch to inspector token for this request",
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Archive Inspection (Admin only)",
-          "request": {
-            "method": "PATCH",
-            "url": {
-              "raw": "{{baseUrl}}/v1/inspections/{{inspectionId}}/archive",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "inspections",
-                "{{inspectionId}}",
-                "archive"
-              ]
-            },
-            "description": "Close and archive a completed inspection."
-          }
-        }
-      ],
-      "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "exec": [
-              "// Use admin token for inspection folder by default",
-              "const t = pm.environment.get('adminToken');",
-              "if (t) pm.environment.set('accessToken', t);"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ]
-    },
-    {
       "name": "📦 Exports",
       "item": [
         {
@@ -3254,7 +3009,7 @@
                 "exports"
               ]
             },
-            "description": "Start a background job to build a ZIP of all inspection data. Saves exportJobId."
+            "description": "Start a background job to build a ZIP of site, building, floor, or door survey data. Saves exportJobId."
           }
         },
         {

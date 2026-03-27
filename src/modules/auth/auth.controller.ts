@@ -90,7 +90,7 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user' })
   me(@CurrentUser() user: User) {
-    return this.usersService.findById(user.id);
+    return this.usersService.findById(user.id, user.orgId);
   }
 
   // ── Logout (revoke current session) ──────────────────────────────────────

@@ -613,30 +613,6 @@ describe('Building Assignments (e2e)', () => {
         .expect(400);
     });
 
-    it('keeps the legacy building workflow endpoints as wrappers over the active survey', async () => {
-      const { buildingId } = await createAcceptedBuilding('Legacy Wrapper Building');
-      const survey = await bootstrapActiveSurvey(buildingId);
-
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${buildingId}/workflow/complete`)
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(201);
-
-      let wrappedSurvey = await prisma.survey.findUniqueOrThrow({
-        where: { id: survey.id },
-      });
-      expect(wrappedSurvey.executionStatus).toBe('INSPECTOR_COMPLETED');
-
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${buildingId}/workflow/reopen`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(201);
-
-      wrappedSurvey = await prisma.survey.findUniqueOrThrow({
-        where: { id: survey.id },
-      });
-      expect(wrappedSurvey.executionStatus).toBe('IN_PROGRESS');
-    });
   });
 
   describe('Planned next survey lifecycle', () => {
@@ -1032,17 +1008,21 @@ describe('Building Assignments (e2e)', () => {
   describe('History APIs', () => {
     it('returns inspector and admin history with actor and state information', async () => {
       const { buildingId } = await createAcceptedBuilding('History Building');
-      await bootstrapActiveSurvey(buildingId);
+      const survey = await bootstrapActiveSurvey(buildingId);
 
       await request(app.getHttpServer())
-        .post(`/v1/buildings/${buildingId}/workflow/complete`)
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
         .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(201);
+        .expect(200);
 
       await request(app.getHttpServer())
-        .post(`/v1/buildings/${buildingId}/workflow/reopen`)
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/reopen-fieldwork`,
+        )
         .set('Authorization', `Bearer ${adminToken}`)
-        .expect(201);
+        .expect(200);
 
       const inspectorHistory = await request(app.getHttpServer())
         .get('/v1/me/building-assignments/history')

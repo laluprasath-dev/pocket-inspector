@@ -212,16 +212,17 @@ export class DoorsService {
   }
 
   async submit(id: string, userId: string, orgId: string, role: Role) {
+    if (role !== Role.INSPECTOR) {
+      throw new ForbiddenException('Only inspectors can submit doors');
+    }
+
     // Guard: cannot submit a door in a completed survey
     await this.surveys.assertDoorEditable(id);
-
-    if (role === Role.INSPECTOR) {
-      await this.buildingAssignments.assertInspectorCanWorkOnDoor(
-        id,
-        userId,
-        orgId,
-      );
-    }
+    await this.buildingAssignments.assertInspectorCanWorkOnDoor(
+      id,
+      userId,
+      orgId,
+    );
 
     const { door } = await this.getDoorContext(id, orgId, userId, role);
 

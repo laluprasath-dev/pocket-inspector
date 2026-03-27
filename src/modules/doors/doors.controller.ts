@@ -58,6 +58,7 @@ export class DoorsController {
   }
 
   @Post(':id/submit')
+  @Roles(Role.INSPECTOR)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Inspector submits a door (requires ≥1 image, sets SUBMITTED)',

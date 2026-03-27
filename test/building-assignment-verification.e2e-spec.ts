@@ -160,7 +160,7 @@ describe('Building Assignment Verification (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/v1/buildings/${buildingId}/workflow/reopen`)
       .set('Authorization', `Bearer ${inspectorToken}`)
-      .expect(403);
+      .expect(404);
 
     await request(app.getHttpServer())
       .post(`/v1/building-assignments/${singleAssignment.id}/respond`)
@@ -187,7 +187,7 @@ describe('Building Assignment Verification (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/v1/buildings/${buildingId}/workflow/complete`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .expect(403);
+      .expect(404);
   });
 
   it('covers bulk assignment creation and admin history filtering', async () => {
@@ -618,17 +618,17 @@ describe('Building Assignment Verification (e2e)', () => {
       .expect(200);
 
     await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/workflow/reopen`)
+      .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/reopen-fieldwork`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .expect(201);
+      .expect(200);
 
     await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/workflow/complete`)
+      .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`)
       .set('Authorization', `Bearer ${inspectorToken}`)
-      .expect(201);
+      .expect(200);
 
     await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/workflow/complete`)
+      .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`)
       .set('Authorization', `Bearer ${inspectorToken}`)
       .expect(400);
 
@@ -639,9 +639,9 @@ describe('Building Assignment Verification (e2e)', () => {
       .expect(403);
 
     await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/workflow/reopen`)
+      .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/reopen-fieldwork`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .expect(201);
+      .expect(200);
 
     await request(app.getHttpServer())
       .post('/v1/floors')

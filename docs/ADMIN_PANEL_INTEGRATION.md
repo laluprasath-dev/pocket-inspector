@@ -4,6 +4,7 @@
 > **Phase**: One (Internal MVP)  
 > **Base docs**: See [`PocketInspector_FullRequirement_Phase1_v3.md`](./PocketInspector_FullRequirement_Phase1_v3.md) and [`PocketInspector_Schema_Storage_API_Phase1_v4.md`](./PocketInspector_Schema_Storage_API_Phase1_v4.md) for full product context.  
 > **Mobile reference**: [`MOBILE_CLIENT_DETAILS_INTEGRATION.md`](./MOBILE_CLIENT_DETAILS_INTEGRATION.md)
+> **Quick role sheet**: [`CURRENT_ACTIVE_ENDPOINTS_BY_ROLE.md`](./CURRENT_ACTIVE_ENDPOINTS_BY_ROLE.md)
 
 ---
 
@@ -22,7 +23,7 @@
 11. [Module: Doors](#11-module-doors)
 12. [Module: Door Images](#12-module-door-images)
 13. [Module: Certificates (Door & Building)](#13-module-certificates-door--building)
-14. [Module: Inspections & Assignments](#14-module-inspections--assignments)
+14. [Legacy Inspections Module Removed](#14-legacy-inspections-module-removed)
 15. [Module: Exports (Bulk ZIP)](#15-module-exports-bulk-zip)
 16. [Module: Survey Versioning](#16-module-survey-versioning)
 17. [Signed URL Pattern — How it Works](#17-signed-url-pattern--how-it-works)
@@ -184,13 +185,11 @@ Use these exact string values in request bodies.
 | Enum | Values |
 |---|---|
 | `Role` | `ADMIN`, `INSPECTOR` |
-| `InspectionType` | `SITE`, `BUILDING` |
-| `InspectionStatus` | `ACTIVE`, `ARCHIVED` |
 | `AssignmentStatus` | `PENDING`, `ACCEPTED`, `DECLINED` |
 | `DoorStatus` | `DRAFT`, `SUBMITTED`, `CERTIFIED` |
 | `ImageRole` | `FRONT_FACE`, `REAR_FACE`, `FRAME_GAP`, `INTUMESCENT_STRIP`, `SELF_CLOSER`, `HINGES`, `SIGNAGE`, `OTHER` |
 | `DevicePlatform` | `IOS`, `ANDROID` |
-| `ExportTargetType` | `DOOR`, `FLOOR`, `BUILDING`, `SITE`, `INSPECTION` |
+| `ExportTargetType` | `DOOR`, `FLOOR`, `BUILDING`, `SITE` |
 | `ExportStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` |
 | `SurveyStatus` | `ACTIVE`, `COMPLETED` |
 
@@ -333,7 +332,7 @@ Returns `204 No Content`.
 
 ## 8. Module: Sites
 
-Sites are optional top-level containers for buildings (used when inspection type is `SITE`).
+Sites are optional top-level containers for groups of buildings. In the current system, survey planning and assignment happen through building workflows rather than a standalone `SITE` inspection endpoint.
 
 ### List sites
 
@@ -898,81 +897,24 @@ Returns `204 No Content`. Removes the PDF from GCS and resets the building statu
 
 ---
 
-## 14. Module: Inspections & Assignments
+## 14. Legacy Inspections Module Removed
 
-### List inspections
+The old `inspections` module has been removed from the active backend API surface.
 
-```
-GET /v1/inspections
-```
+Do not build new admin or mobile flows against:
 
-Admin sees all inspections in the org.
+- `GET /v1/inspections`
+- `POST /v1/inspections`
+- `GET /v1/inspections/:id`
+- `PATCH /v1/inspections/:id/archive`
+- `POST /v1/inspections/:id/assignments`
+- `PATCH /v1/inspections/:id/assignments/respond`
 
-### Create an inspection *(admin only)*
+Use the current flow instead:
 
-```
-POST /v1/inspections
-```
-
-```json
-{
-  "type": "BUILDING",
-  "buildingId": "<buildingId>"
-}
-```
-
-For a site inspection:
-
-```json
-{
-  "type": "SITE",
-  "siteId": "<siteId>"
-}
-```
-
-### Get an inspection (with assignments)
-
-```
-GET /v1/inspections/:id
-```
-
-Includes the list of inspector assignments and their status (`PENDING`, `ACCEPTED`, `DECLINED`).
-
-### Archive an inspection *(admin only)*
-
-```
-PATCH /v1/inspections/:id/archive
-```
-
-No body. Sets status to `ARCHIVED`.
-
-### Assign an inspector *(admin only)*
-
-```
-POST /v1/inspections/:id/assignments
-```
-
-```json
-{
-  "inspectorId": "<userId>",
-  "adminNote": "Please complete by end of month"
-}
-```
-
-### Respond to an assignment *(inspector action — shown for completeness)*
-
-```
-PATCH /v1/inspections/:id/assignments/respond
-```
-
-```json
-{
-  "status": "ACCEPTED",
-  "inspectorNote": "Will start on Monday"
-}
-```
-
-This is called by the mobile app. The admin panel can display the current `status` but does not need to call this endpoint.
+- `building-assignments/*` for invitation and acceptance
+- `buildings/:buildingId/surveys/*` for survey lifecycle and fieldwork state
+- Do not use `buildings/:buildingId/workflow/*`; those wrapper endpoints are no longer part of the active backend surface.
 
 ---
 
@@ -993,7 +935,7 @@ POST /v1/exports
 }
 ```
 
-Valid `targetType` values: `DOOR`, `FLOOR`, `BUILDING`, `SITE`, `INSPECTION`
+Valid `targetType` values: `DOOR`, `FLOOR`, `BUILDING`, `SITE`
 
 **Response**
 
@@ -1511,9 +1453,6 @@ GET /v1/buildings/:id
 | `PATCH /v1/doors/:id` | ✅ | ❌ |
 | `POST /v1/doors/:id/certificate/*` | ✅ | ❌ |
 | `POST /v1/buildings/:id/certificate/*` | ✅ | ❌ |
-| `POST /v1/inspections` | ✅ | ❌ |
-| `PATCH /v1/inspections/:id/archive` | ✅ | ❌ |
-| `POST /v1/inspections/:id/assignments` | ✅ | ❌ |
 | `POST /v1/exports` | ✅ | ❌ |
 | `POST /v1/buildings/:id/surveys/confirm-complete` | ✅ | ❌ |
 | `POST /v1/buildings/:id/surveys/start-next` | ✅ | ❌ |
@@ -1521,9 +1460,7 @@ GET /v1/buildings/:id
 | `GET /v1/exports/:id/signed-download` | ✅ | ❌ |
 | `DELETE /v1/doors/:id/images/bulk` | ✅ | own images only |
 | `GET /v1/buildings`, `GET /v1/sites` | ✅ all | assigned only |
-| `GET /v1/inspections` | ✅ all | assigned only |
 | `POST /v1/doors/:id/submit` | — | ✅ |
-| `PATCH /v1/inspections/:id/assignments/respond` | — | ✅ |
 
 ---
 
@@ -1574,8 +1511,6 @@ See [`postman/README.md`](../postman/README.md) for full Newman CI usage.
 | Door certificate download | `GET /doors/:id/certificate/signed-download` |
 | Building certificate upload | `POST /buildings/:id/certificate/signed-upload` → PUT → `POST /buildings/:id/certificate/register` |
 | Building certificate download | `GET /buildings/:id/certificate/signed-download` |
-| Inspection management | `GET /inspections`, `POST /inspections`, `GET /inspections/:id`, `PATCH /inspections/:id/archive` |
-| Inspector assignment | `POST /inspections/:id/assignments` |
 | Bulk export / ZIP download | `POST /exports`, `GET /exports/:id` (poll), `GET /exports/:id/signed-download` |
 | Survey history list | `GET /buildings/:id/surveys` |
 | Current survey status | `GET /buildings/:id/surveys/current` |

@@ -109,12 +109,9 @@ Backend requires:
 ### Survey execution/workflow
 
 - `POST /v1/buildings/:buildingId/surveys/:surveyId/reopen-fieldwork` (admin reopen)
+- `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork` (inspector complete)
 
-Legacy compatibility endpoints still exist:
-- `POST /v1/buildings/:buildingId/workflow/complete`
-- `POST /v1/buildings/:buildingId/workflow/reopen`
-
-Portal should prefer the survey-scoped endpoints.
+The old `buildings/:buildingId/workflow/*` wrapper endpoints have been removed.
 
 ### Assignment management
 
@@ -202,4 +199,3 @@ Show backend message text directly where possible for faster operator resolution
 ## Final Integration Note
 
 For new-cycle reliability, Admin Portal should always treat `surveyId` as the primary context for assignment, activation, progress, and completion actions.
-

@@ -9,6 +9,11 @@
 - [Pocket-Inspector.postman_environment.json](/Users/admin/Documents/Applikation-New/Pocket-Inspector/pocket-inspector-backend/postman/Pocket-Inspector.postman_environment.json)
 4. Select `Pocket Inspector — Local` environment.
 
+## Collection
+
+- `Pocket-Inspector.postman_collection.json` is the single active collection.
+- It uses `building-assignments` + `surveys` for the current admin/inspector workflow.
+
 ## Key Variables Used In Phase 6 Flow
 
 - `buildingId`

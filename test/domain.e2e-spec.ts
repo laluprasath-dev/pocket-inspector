@@ -160,6 +160,23 @@ describe('Domain Endpoints (e2e)', () => {
         .expect(403);
     });
 
+    it("GET /v1/users/:id - admin cannot access another org's user", async () => {
+      const otherOrg = await prisma.org.create({ data: { name: 'Other Org' } });
+      const otherUser = await prisma.user.create({
+        data: {
+          orgId: otherOrg.id,
+          email: `other+${Date.now()}@test.com`,
+          passwordHash: 'not-used-in-test',
+          role: 'INSPECTOR',
+        },
+      });
+
+      await request(app.getHttpServer())
+        .get(`/v1/users/${otherUser.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+    });
+
     it('PATCH /v1/users/:id - inspector can update own profile', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/v1/users/${seeds.inspector.id}`)
@@ -434,6 +451,13 @@ describe('Domain Endpoints (e2e)', () => {
         .expect(400);
     });
 
+    it('POST /v1/doors/:id/submit rejects admin callers', async () => {
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/submit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(403);
+    });
+
     it('POST /v1/doors/:id/submit succeeds after image registered', async () => {
       // Manually insert an image record
       await prisma.doorImage.create({
@@ -501,134 +525,6 @@ describe('Domain Endpoints (e2e)', () => {
         .get('/v1/doors/non-existent-id')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
-    });
-  });
-
-  // ── Inspections ────────────────────────────────────────────────────────────
-
-  describe('Inspections', () => {
-    let buildingId: string;
-
-    beforeEach(async () => {
-      const bRes = await request(app.getHttpServer())
-        .post('/v1/buildings')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Inspection Building' });
-      buildingId = bRes.body.data.id;
-    });
-
-    it('POST /v1/inspections creates a BUILDING inspection', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ type: 'BUILDING', buildingId })
-        .expect(201);
-
-      expect(res.body.data).toMatchObject({
-        type: 'BUILDING',
-        buildingId,
-        status: 'ACTIVE',
-        orgId: seeds.org.id,
-      });
-    });
-
-    it('POST /v1/inspections fails without buildingId for BUILDING type', async () => {
-      await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ type: 'BUILDING' })
-        .expect(400);
-    });
-
-    it('POST /v1/inspections fails for inspector', async () => {
-      await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .send({ type: 'BUILDING', buildingId })
-        .expect(403);
-    });
-
-    it('full assignment flow: create → assign inspector → inspector responds', async () => {
-      const iRes = await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ type: 'BUILDING', buildingId });
-      const inspectionId = iRes.body.data.id;
-
-      // Admin assigns inspector
-      const aRes = await request(app.getHttpServer())
-        .post(`/v1/inspections/${inspectionId}/assignments`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          inspectorId: seeds.inspector.id,
-          adminNote: 'Please do this urgently',
-        })
-        .expect(201);
-
-      expect(aRes.body.data).toMatchObject({ status: 'PENDING' });
-
-      // Duplicate assignment rejected
-      await request(app.getHttpServer())
-        .post(`/v1/inspections/${inspectionId}/assignments`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ inspectorId: seeds.inspector.id })
-        .expect(400);
-
-      // Inspector accepts
-      const rRes = await request(app.getHttpServer())
-        .patch(`/v1/inspections/${inspectionId}/assignments/respond`)
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .send({ status: 'ACCEPTED', inspectorNote: 'On it!' })
-        .expect(200);
-
-      expect(rRes.body.data.status).toBe('ACCEPTED');
-
-      // Cannot respond twice
-      await request(app.getHttpServer())
-        .patch(`/v1/inspections/${inspectionId}/assignments/respond`)
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .send({ status: 'DECLINED' })
-        .expect(403);
-    });
-
-    it('GET /v1/inspections - admin sees all, inspector sees only assigned', async () => {
-      const i1 = await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ type: 'BUILDING', buildingId });
-
-      // Inspector has no assignments yet
-      const inspectorList = await request(app.getHttpServer())
-        .get('/v1/inspections')
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(200);
-      expect(inspectorList.body.data).toHaveLength(0);
-
-      // Assign inspector
-      await request(app.getHttpServer())
-        .post(`/v1/inspections/${i1.body.data.id}/assignments`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ inspectorId: seeds.inspector.id });
-
-      const inspectorListAfter = await request(app.getHttpServer())
-        .get('/v1/inspections')
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(200);
-      expect(inspectorListAfter.body.data).toHaveLength(1);
-    });
-
-    it('PATCH /:id/archive archives an inspection', async () => {
-      const i = await request(app.getHttpServer())
-        .post('/v1/inspections')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ type: 'BUILDING', buildingId });
-
-      const res = await request(app.getHttpServer())
-        .patch(`/v1/inspections/${i.body.data.id}/archive`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(res.body.data.status).toBe('ARCHIVED');
     });
   });
 

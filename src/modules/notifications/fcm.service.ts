@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import admin from 'firebase-admin';
 
@@ -13,7 +18,7 @@ export class FcmService implements OnModuleInit {
   private readonly logger = new Logger(FcmService.name);
   private messaging: admin.messaging.Messaging;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Optional() private readonly configService?: ConfigService) {}
 
   onModuleInit(): void {
     if (admin.apps.length > 0) {
@@ -21,9 +26,7 @@ export class FcmService implements OnModuleInit {
       return;
     }
 
-    const serviceAccountKey = this.configService.get<string>(
-      'FIREBASE_SERVICE_ACCOUNT_KEY',
-    );
+    const serviceAccountKey = this.getConfig('FIREBASE_SERVICE_ACCOUNT_KEY');
 
     if (serviceAccountKey) {
       admin.initializeApp({
@@ -34,12 +37,24 @@ export class FcmService implements OnModuleInit {
     } else {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
-        projectId: this.configService.getOrThrow<string>('FCM_PROJECT_ID'),
+        projectId: this.getRequiredConfig('FCM_PROJECT_ID'),
       });
     }
 
     this.messaging = admin.messaging();
     this.logger.log('Firebase Admin SDK initialised');
+  }
+
+  private getConfig(key: string): string | undefined {
+    return this.configService?.get<string>(key) ?? process.env[key];
+  }
+
+  private getRequiredConfig(key: string): string {
+    const value = this.getConfig(key);
+    if (!value) {
+      throw new Error(`${key} is not configured`);
+    }
+    return value;
   }
 
   async sendToToken(token: string, message: PushMessage): Promise<void> {

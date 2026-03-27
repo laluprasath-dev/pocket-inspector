@@ -189,7 +189,6 @@ describe('Auth (e2e)', () => {
       { method: 'get', path: '/v1/orgs/me' },
       { method: 'get', path: '/v1/sites' },
       { method: 'get', path: '/v1/buildings' },
-      { method: 'get', path: '/v1/inspections' },
     ];
 
     it.each(protectedRoutes)(

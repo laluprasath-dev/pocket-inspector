@@ -2,12 +2,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
+import type { StringValue } from 'ms';
 import type { User } from '../../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -30,8 +32,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   // ── Validate credentials (called by LocalStrategy) ───────────────────────
@@ -100,7 +102,7 @@ export class AuthService {
     let payload: JwtPayload;
     try {
       payload = this.jwtService.verify<JwtPayload>(dto.refreshToken, {
-        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        secret: this.getRequiredConfig('JWT_REFRESH_SECRET'),
       });
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -230,16 +232,32 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN', '7d'),
+      secret: this.getRequiredConfig('JWT_SECRET'),
+      expiresIn: this.getJwtExpiresIn('JWT_EXPIRES_IN', '7d'),
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '90d'),
+      secret: this.getRequiredConfig('JWT_REFRESH_SECRET'),
+      expiresIn: this.getJwtExpiresIn('JWT_REFRESH_EXPIRES_IN', '90d'),
     });
 
     return { accessToken, refreshToken };
+  }
+
+  private getConfig(key: string, fallback?: string): string {
+    return this.configService?.get<string>(key) ?? process.env[key] ?? fallback ?? '';
+  }
+
+  private getRequiredConfig(key: string): string {
+    const value = this.getConfig(key);
+    if (!value) {
+      throw new Error(`${key} is not configured`);
+    }
+    return value;
+  }
+
+  private getJwtExpiresIn(key: string, fallback: StringValue): StringValue {
+    return this.getConfig(key, fallback) as StringValue;
   }
 }
 

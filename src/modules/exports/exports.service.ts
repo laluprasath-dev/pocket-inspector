@@ -5,10 +5,13 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BulkExportJob } from '../../../generated/prisma/client';
-import { ExportStatus } from '../../../generated/prisma/enums';
+import { ExportStatus, ExportTargetType } from '../../../generated/prisma/enums';
 import { GcsService } from '../storage/gcs.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateExportDto } from './dto/create-export.dto';
+import {
+  CreateExportDto,
+  SUPPORTED_EXPORT_TARGET_TYPES,
+} from './dto/create-export.dto';
 
 export const EXPORT_QUEUED_EVENT = 'export.queued';
 
@@ -25,6 +28,16 @@ export class ExportsService {
     orgId: string,
     userId: string,
   ): Promise<BulkExportJob> {
+    if (
+      !(SUPPORTED_EXPORT_TARGET_TYPES as readonly ExportTargetType[]).includes(
+        dto.targetType,
+      )
+    ) {
+      throw new BadRequestException(
+        `Unsupported export target type: ${dto.targetType}`,
+      );
+    }
+
     const job = await this.prisma.bulkExportJob.create({
       data: {
         orgId,

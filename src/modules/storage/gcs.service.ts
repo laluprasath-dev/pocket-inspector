@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import type { Readable, Writable } from 'stream';
@@ -29,25 +29,32 @@ export class GcsService {
   private readonly defaultExpirySeconds: number;
   private readonly serviceAccountEmail: string | undefined;
 
-  constructor(private readonly configService: ConfigService) {
-    const keyFilename = configService.get<string>(
-      'GOOGLE_APPLICATION_CREDENTIALS',
-    );
+  constructor(@Optional() private readonly configService?: ConfigService) {
+    const keyFilename = this.getConfig('GOOGLE_APPLICATION_CREDENTIALS');
     this.storage = new Storage({
-      projectId: configService.getOrThrow<string>('GCS_PROJECT_ID'),
+      projectId: this.getRequiredConfig('GCS_PROJECT_ID'),
       ...(keyFilename ? { keyFilename } : {}),
     });
-    this.bucketName = configService.getOrThrow<string>('GCS_BUCKET_NAME');
-    this.defaultExpirySeconds = configService.get<number>(
-      'GCS_SIGNED_URL_EXPIRY_SECONDS',
-      900,
+    this.bucketName = this.getRequiredConfig('GCS_BUCKET_NAME');
+    this.defaultExpirySeconds = Number(
+      this.getConfig('GCS_SIGNED_URL_EXPIRY_SECONDS', '900'),
     );
     // Required on Cloud Run (ADC) so the library calls IAM signBlob instead of
     // looking for a private key. Grant roles/iam.serviceAccountTokenCreator on
     // itself to pocket-inspector-storage@<project>.iam.gserviceaccount.com.
-    this.serviceAccountEmail = configService.get<string>(
-      'GCS_SERVICE_ACCOUNT_EMAIL',
-    );
+    this.serviceAccountEmail = this.getConfig('GCS_SERVICE_ACCOUNT_EMAIL');
+  }
+
+  private getConfig(key: string, fallback?: string): string | undefined {
+    return this.configService?.get<string>(key) ?? process.env[key] ?? fallback;
+  }
+
+  private getRequiredConfig(key: string): string {
+    const value = this.getConfig(key);
+    if (!value) {
+      throw new Error(`${key} is not configured`);
+    }
+    return value;
   }
 
   async getSignedUploadUrl(opts: SignedUploadUrlOptions): Promise<string> {

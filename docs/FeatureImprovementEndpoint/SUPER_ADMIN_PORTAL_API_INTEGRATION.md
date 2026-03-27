@@ -113,12 +113,12 @@ Completed versions are read-only and should never be treated as active work.
 
 ## Legacy Endpoint Compatibility
 
-Still available:
+The old workflow wrapper endpoints have been removed.
 
-- `POST /v1/buildings/:buildingId/workflow/complete`
-- `POST /v1/buildings/:buildingId/workflow/reopen`
+Use only the survey-scoped endpoints:
 
-Portal can keep these calls for compatibility, but must consider survey execution state as canonical.
+- `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
+- `POST /v1/buildings/:buildingId/surveys/:surveyId/reopen-fieldwork`
 
 ## Recommended Admin QA Checks
 

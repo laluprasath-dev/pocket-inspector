@@ -13,7 +13,6 @@ import { SitesModule } from './modules/sites/sites.module';
 import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FloorsModule } from './modules/floors/floors.module';
 import { DoorsModule } from './modules/doors/doors.module';
-import { InspectionsModule } from './modules/inspections/inspections.module';
 import { SurveysModule } from './modules/surveys/surveys.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -38,7 +37,6 @@ import { BuildingAssignmentsModule } from './modules/building-assignments/buildi
     BuildingsModule,
     FloorsModule,
     DoorsModule,
-    InspectionsModule,
     SurveysModule,
     StorageModule,
     NotificationsModule,
