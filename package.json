@@ -28,6 +28,7 @@
     "backfill:thumbnails": "tsx scripts/backfill-thumbnails.ts",
     "postprisma:generate": "tsx scripts/patch-prisma-client.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:clean-local-admin": "tsx scripts/clean-local-db-to-admin.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate && node scripts/patch-prisma-client.js",
     "db:studio": "prisma studio"
