@@ -120,12 +120,38 @@ describe('Domain Endpoints (e2e)', () => {
       expect(res.body.data.passwordHash).toBeUndefined();
     });
 
+    it('POST /v1/users lowercases the stored email', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          email: 'Mixed.Case@Test.COM',
+          password: 'NewPass1234!',
+          role: 'INSPECTOR',
+        })
+        .expect(201);
+
+      expect(res.body.data.email).toBe('mixed.case@test.com');
+    });
+
     it('POST /v1/users returns 409 for duplicate email', async () => {
       await request(app.getHttpServer())
         .post('/v1/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           email: seeds.inspector.email,
+          password: 'Test1234!',
+          role: 'INSPECTOR',
+        })
+        .expect(409);
+    });
+
+    it('POST /v1/users returns 409 for duplicate email with different casing', async () => {
+      await request(app.getHttpServer())
+        .post('/v1/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          email: seeds.inspector.email.toUpperCase(),
           password: 'Test1234!',
           role: 'INSPECTOR',
         })

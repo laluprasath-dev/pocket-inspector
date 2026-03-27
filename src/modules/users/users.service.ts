@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import { User } from '../../../generated/prisma/client';
+import { normalizeEmail } from '../../common/utils/email';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -40,15 +41,19 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({
+      where: { email: normalizeEmail(email) },
+    });
   }
 
   async create(
     dto: CreateUserDto,
     orgId: string,
   ): Promise<Omit<User, 'passwordHash'>> {
+    const normalizedEmail = normalizeEmail(dto.email);
+
     const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: normalizedEmail },
     });
     if (existing) throw new ConflictException('Email already in use');
 
@@ -57,7 +62,7 @@ export class UsersService {
     return this.prisma.user.create({
       data: {
         orgId,
-        email: dto.email,
+        email: normalizedEmail,
         passwordHash,
         role: dto.role,
         firstName: dto.firstName,

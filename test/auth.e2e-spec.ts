@@ -39,6 +39,21 @@ describe('Auth (e2e)', () => {
       });
     });
 
+    it('returns 200 when the login email casing differs', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({
+          email: seeds.admin.email.toUpperCase(),
+          password: seeds.admin.password,
+        })
+        .expect(200);
+
+      expect(res.body.data).toMatchObject({
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    });
+
     it('returns 401 on wrong password', async () => {
       await request(app.getHttpServer())
         .post('/v1/auth/login')

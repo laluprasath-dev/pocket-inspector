@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '../generated/prisma/client';
+import { normalizeEmail } from '../src/common/utils/email';
 
 const SEED_ORG_ID = 'seed-org-00000000000000000000000';
 const SEED_CLIENT_ID = 'seed-client-000000000000000000000';
@@ -22,7 +23,9 @@ async function main(): Promise<void> {
   });
   console.log(`  ✓ Org: ${org.name} (${org.id})`);
 
-  const adminEmail = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@example.com';
+  const adminEmail = normalizeEmail(
+    process.env['SEED_ADMIN_EMAIL'] ?? 'admin@example.com',
+  );
   const adminPassword = process.env['SEED_ADMIN_PASSWORD'] ?? 'Admin1234!';
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
@@ -40,7 +43,9 @@ async function main(): Promise<void> {
   });
   console.log(`  ✓ Admin: ${admin.email}`);
 
-  const inspectorEmail = process.env['SEED_INSPECTOR_EMAIL'] ?? 'inspector@example.com';
+  const inspectorEmail = normalizeEmail(
+    process.env['SEED_INSPECTOR_EMAIL'] ?? 'inspector@example.com',
+  );
   const inspectorPassword = process.env['SEED_INSPECTOR_PASSWORD'] ?? 'Inspector1234!';
   const inspectorHash = await bcrypt.hash(inspectorPassword, 12);
 

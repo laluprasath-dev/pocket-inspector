@@ -15,6 +15,7 @@ import * as readline from 'readline';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '../generated/prisma/client';
+import { normalizeEmail } from '../src/common/utils/email';
 
 // ── Arg helpers ──────────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ async function main(): Promise<void> {
     if (email) console.log('  ⚠  Invalid email address.');
     email = (await prompt(iface, '  Email: ')).trim();
   }
+  email = normalizeEmail(email);
 
   let password = arg('--password') ?? '';
   let pwError = validatePassword(password);

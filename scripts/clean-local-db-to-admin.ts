@@ -3,6 +3,7 @@ import { URL } from 'node:url';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '../generated/prisma/client';
+import { normalizeEmail } from '../src/common/utils/email';
 
 const DEFAULT_ORG_ID = 'seed-org-00000000000000000000000';
 const DEFAULT_ORG_NAME = 'Demo Organisation';
@@ -46,7 +47,11 @@ async function main(): Promise<void> {
 
   assertLocalDatabase(connectionString);
 
-  const adminEmail = arg('--admin-email') ?? process.env['SEED_ADMIN_EMAIL'] ?? DEFAULT_ADMIN_EMAIL;
+  const adminEmail = normalizeEmail(
+    arg('--admin-email') ??
+      process.env['SEED_ADMIN_EMAIL'] ??
+      DEFAULT_ADMIN_EMAIL,
+  );
   const adminPassword =
     arg('--admin-password') ??
     process.env['SEED_ADMIN_PASSWORD'] ??
