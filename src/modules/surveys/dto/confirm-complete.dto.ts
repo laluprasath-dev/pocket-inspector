@@ -22,7 +22,7 @@ export class ConfirmCompleteDto {
   nextScheduledNote?: string;
 
   @ApiPropertyOptional({
-    description: 'Inspector user ID to assign to the next survey',
+    description: 'Photographer user ID to assign to the next survey',
   })
   @IsOptional()
   @IsString()

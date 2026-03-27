@@ -25,7 +25,7 @@ import { CreateBuildingDto } from './dto/create-building.dto';
 import { RegisterBuildingCertificateDto } from './dto/register-building-certificate.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
 
-@ApiTags('buildings')
+@ApiTags('buildings', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'buildings' })
 export class BuildingsController {
@@ -36,7 +36,7 @@ export class BuildingsController {
   @Get()
   @ApiOperation({
     summary:
-      'List buildings — admin sees all, inspector sees buildings with accepted current assignments',
+      'List buildings — admin sees all, photographer sees buildings with accepted current assignments',
   })
   @ApiQuery({ name: 'siteId', required: false })
   findAll(@CurrentUser() user: User, @Query('siteId') siteId?: string) {
@@ -85,7 +85,7 @@ export class BuildingsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Inspector approves a building (sets APPROVED — required before admin can upload certificate)',
+      'Photographer approves a building (sets APPROVED — required before admin can upload certificate)',
   })
   approve(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.approve(id, user.id, user.orgId);
@@ -107,7 +107,7 @@ export class BuildingsController {
   @Post(':id/certificate/register')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Register building certificate + notify inspectors (admin only)',
+    summary: 'Register building certificate + notify photographers (admin only)',
   })
   registerCertificate(
     @Param('id') id: string,

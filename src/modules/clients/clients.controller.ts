@@ -18,7 +18,7 @@ import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
-@ApiTags('clients')
+@ApiTags('clients', 'admin-portal')
 @ApiBearerAuth('access-token')
 @Roles(Role.ADMIN)
 @Controller({ version: '1', path: 'clients' })

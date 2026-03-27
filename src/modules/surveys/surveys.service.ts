@@ -486,7 +486,7 @@ export class SurveysService {
 
     if (survey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED) {
       throw new BadRequestException(
-        'Inspector fieldwork must be completed before confirming survey completion',
+        'Photographer fieldwork must be completed before confirming survey completion',
       );
     }
 

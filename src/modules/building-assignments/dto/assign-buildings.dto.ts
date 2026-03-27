@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 
 export class AssignBuildingsDto {
-  @ApiProperty({ description: 'Inspector user ID' })
+  @ApiProperty({ description: 'Photographer user ID' })
   @IsString()
   inspectorId: string;
 

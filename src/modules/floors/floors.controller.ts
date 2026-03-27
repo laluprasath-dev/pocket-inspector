@@ -18,7 +18,7 @@ import { CreateFloorDto } from './dto/create-floor.dto';
 import { UpdateFloorDto } from './dto/update-floor.dto';
 import { FloorsService } from './floors.service';
 
-@ApiTags('floors')
+@ApiTags('floors', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'floors' })
 export class FloorsController {
@@ -26,7 +26,7 @@ export class FloorsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Create a floor in a building (admin or inspector)',
+    summary: 'Create a floor in a building (admin or photographer)',
   })
   create(@Body() dto: CreateFloorDto, @CurrentUser() user: User) {
     return this.floorsService.create(dto, user.orgId, user.id, user.role);
@@ -60,7 +60,7 @@ export class FloorsController {
   @Get(':id/doors')
   @ApiOperation({
     summary:
-      'List doors on a floor — inspector only sees doors in accessible buildings',
+      'List doors on a floor — photographer only sees doors in accessible buildings',
   })
   getDoors(@Param('id') id: string, @CurrentUser() user: User) {
     return this.floorsService.getDoors(id, user.orgId, user.id, user.role);

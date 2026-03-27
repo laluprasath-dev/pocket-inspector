@@ -447,7 +447,7 @@ export class BuildingAssignmentsService {
 
     if (current.inspectorId === dto.inspectorId) {
       throw new BadRequestException(
-        'This building is already assigned to the selected inspector',
+        'This building is already assigned to the selected photographer',
       );
     }
 

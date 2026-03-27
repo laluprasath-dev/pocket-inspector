@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateExportDto } from './dto/create-export.dto';
 import { ExportsService } from './exports.service';
 
-@ApiTags('exports')
+@ApiTags('exports', 'admin-portal')
 @ApiBearerAuth('access-token')
 @Roles(Role.ADMIN)
 @Controller({ version: '1', path: 'exports' })

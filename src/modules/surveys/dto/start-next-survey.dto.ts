@@ -22,7 +22,7 @@ export class StartNextSurveyDto {
   nextScheduledNote?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional inspector user ID associated with this planned survey (not an assignment)',
+    description: 'Optional photographer user ID associated with this planned survey (not an assignment)',
   })
   @IsOptional()
   @IsString()

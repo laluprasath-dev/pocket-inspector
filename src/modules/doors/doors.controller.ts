@@ -24,7 +24,7 @@ import { RequestImageUploadDto } from './dto/request-image-upload.dto';
 import { UpdateDoorDto } from './dto/update-door.dto';
 import { DoorsService } from './doors.service';
 
-@ApiTags('doors')
+@ApiTags('doors', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'doors' })
 export class DoorsController {
@@ -33,7 +33,7 @@ export class DoorsController {
   // ── Door CRUD ──────────────────────────────────────────────────────────────
 
   @Post()
-  @ApiOperation({ summary: 'Create a door on a floor (admin or inspector)' })
+  @ApiOperation({ summary: 'Create a door on a floor (admin or photographer)' })
   create(@Body() dto: CreateDoorDto, @CurrentUser() user: User) {
     return this.doorsService.create(dto, user.orgId, user.id, user.role);
   }
@@ -61,7 +61,7 @@ export class DoorsController {
   @Roles(Role.INSPECTOR)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Inspector submits a door (requires ≥1 image, sets SUBMITTED)',
+    summary: 'Photographer submits a door (requires ≥1 image, sets SUBMITTED)',
   })
   submit(@Param('id') id: string, @CurrentUser() user: User) {
     return this.doorsService.submit(id, user.id, user.orgId, user.role);
@@ -174,7 +174,7 @@ export class DoorsController {
     description:
       'Deletes image files from GCS (original + thumbnail) and removes the DB records. ' +
       'Each deletion is recorded in the audit log with a full metadata snapshot. ' +
-      'Admin can delete any image on the door; inspector can only delete images they uploaded.',
+      'Admin can delete any image on the door; photographers can only delete images they uploaded.',
   })
   bulkDeleteImages(
     @Param('id') id: string,
@@ -207,7 +207,7 @@ export class DoorsController {
   @Roles(Role.ADMIN)
   @ApiOperation({
     summary:
-      'Register door certificate → sets door CERTIFIED + notifies inspectors',
+      'Register door certificate → sets door CERTIFIED + notifies photographers',
   })
   registerCertificate(
     @Param('id') id: string,

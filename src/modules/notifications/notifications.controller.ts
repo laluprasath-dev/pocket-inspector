@@ -5,7 +5,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RegisterDeviceTokenDto } from './dto/register-device-token.dto';
 import { NotificationsService } from './notifications.service';
 
-@ApiTags('notifications')
+@ApiTags('notifications', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'me' })
 export class NotificationsController {

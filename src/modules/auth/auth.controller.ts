@@ -39,7 +39,7 @@ function clientIp(req: FastifyRequest): string {
   );
 }
 
-@ApiTags('auth')
+@ApiTags('auth', 'admin-portal', 'mobile-photographer')
 @Controller({ version: '1', path: 'auth' })
 export class AuthController {
   constructor(

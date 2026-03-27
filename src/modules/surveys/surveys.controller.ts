@@ -23,7 +23,7 @@ import { ScheduleNextDto } from './dto/schedule-next.dto';
 import { StartNextSurveyDto } from './dto/start-next-survey.dto';
 import { SurveysService } from './surveys.service';
 
-@ApiTags('surveys')
+@ApiTags('surveys', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'buildings/:buildingId/surveys' })
 export class SurveysController {
@@ -88,7 +88,7 @@ export class SurveysController {
   @ApiParam({ name: 'surveyId', description: 'Survey ID' })
   @ApiOperation({
     summary:
-      'Mark the active survey fieldwork as completed for the accepted inspector',
+      'Mark the active survey fieldwork as completed for the accepted photographer',
   })
   completeFieldwork(
     @Param('buildingId') buildingId: string,
@@ -190,7 +190,7 @@ export class SurveysController {
   @ApiParam({ name: 'buildingId', description: 'Building ID' })
   @ApiOperation({
     summary:
-      'Update the next survey scheduling fields on the current active survey (admin only). Sends a push notification to the assigned inspector if provided.',
+      'Update the next survey scheduling fields on the current active survey (admin only). Sends a push notification to the assigned photographer if provided.',
   })
   scheduleNext(
     @Param('buildingId') buildingId: string,

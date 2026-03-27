@@ -22,7 +22,7 @@ export class ScheduleNextDto {
   nextScheduledNote?: string;
 
   @ApiPropertyOptional({
-    description: 'Inspector user ID to assign for the next survey',
+    description: 'Photographer user ID to assign for the next survey',
   })
   @IsOptional()
   @IsString()

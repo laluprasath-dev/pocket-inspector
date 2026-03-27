@@ -50,6 +50,8 @@ POST https://pocket-inspector-api-.../v1/auth/login
 
 **Swagger UI** (local dev only): `http://localhost:3001/api/docs`
 
+Use the Swagger tag `admin-portal` for the admin-only and admin-primary endpoint view. The same split is mirrored in Postman under `🖥️ Admin Portal Endpoints`.
+
 ---
 
 ## 2. Authentication
@@ -193,6 +195,8 @@ Use these exact string values in request bodies.
 | `ExportStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` |
 | `SurveyStatus` | `ACTIVE`, `COMPLETED` |
 
+UI/product wording uses `Photographer`, but the current API contract still uses the existing role value `INSPECTOR` and fields like `inspectorId`.
+
 ---
 
 ## 5. Module: Organisation
@@ -235,7 +239,7 @@ POST /v1/users
 
 ```json
 {
-  "email": "inspector@example.com",
+  "email": "photographer@example.com",
   "password": "securepassword123",
   "role": "INSPECTOR",
   "firstName": "Jane",
@@ -243,7 +247,7 @@ POST /v1/users
 }
 ```
 
-> Use this to onboard new admins or inspectors. There is no public signup — all accounts are created internally.
+> Use this to onboard new admins or photographers. There is no public signup — all accounts are created internally.
 
 ### Get a user by ID
 
@@ -251,7 +255,7 @@ POST /v1/users
 GET /v1/users/:id
 ```
 
-Admin can get any user. An inspector can only get their own profile.
+Admin can get any user. A photographer can only get their own profile.
 
 ### Update a user
 
@@ -266,7 +270,7 @@ PATCH /v1/users/:id
 }
 ```
 
-Admin can update any user. An inspector can only update themselves.
+Admin can update any user. A photographer can only update themselves.
 
 ---
 
@@ -340,7 +344,7 @@ Sites are optional top-level containers for groups of buildings. In the current 
 GET /v1/sites
 ```
 
-Admin sees all sites. Inspector sees only their own or assigned sites.
+Admin sees all sites. Photographers see only their own or assigned sites.
 
 ### Create a site
 
@@ -407,7 +411,7 @@ GET /v1/buildings
 GET /v1/buildings?siteId=<siteId>    — filter by site
 ```
 
-Admin sees all. Inspector sees own + assigned.
+Admin sees all. Photographers see own + assigned.
 
 Client mapping rules for buildings:
 - Standalone building (`siteId = null`): may set `clientId`.
@@ -481,17 +485,17 @@ GET /v1/buildings/:id/floors
 ```
 
 > Use `status` to drive UI badges in the building section: `DRAFT` → `APPROVED` → `CERTIFIED ✅`  
-> Show an **"Inspector Approved"** badge when `status === 'APPROVED'` and a **"Certified ✅"** badge when `status === 'CERTIFIED'`.  
+> Show a **"Photographer Approved"** badge when `status === 'APPROVED'` and a **"Certified ✅"** badge when `status === 'CERTIFIED'`.  
 > Hide the "Upload Certificate" button until `status === 'APPROVED'` or `status === 'CERTIFIED'`.  
 > Show the "Download Certificate" button only when `certificatePresent === true`.
 
-### Approve a building *(inspector action — shown for completeness)*
+### Approve a building *(photographer action — shown for completeness)*
 
 ```
 POST /v1/buildings/:id/approve
 ```
 
-Sets building status from `DRAFT` → `APPROVED`. This is an **inspector** action — the admin panel does not need to call this endpoint, but the admin can **display the current `status`** to show whether the inspector has approved the building. Until the inspector approves, the admin's "Upload Certificate" button should be disabled or hidden.
+Sets building status from `DRAFT` → `APPROVED`. This is a **photographer** action — the admin panel does not need to call this endpoint, but the admin can **display the current `status`** to show whether the photographer has approved the building. Until the photographer approves, the admin's "Upload Certificate" button should be disabled or hidden.
 
 ---
 
@@ -599,13 +603,13 @@ PATCH /v1/doors/:id
 { "code": "D-102", "locationNotes": "Updated notes" }
 ```
 
-### Submit a door *(inspector action — shown for completeness)*
+### Submit a door *(photographer action — shown for completeness)*
 
 ```
 POST /v1/doors/:id/submit
 ```
 
-Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is an **inspector** action — the admin panel does not need to call this endpoint, but the admin can display the current `status` to show whether the inspector has submitted the door. Until the inspector submits, the admin's "Upload Certificate" button should be disabled or hidden.
+Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is a **photographer** action — the admin panel does not need to call this endpoint, but the admin can display the current `status` to show whether the photographer has submitted the door. Until the photographer submits, the admin's "Upload Certificate" button should be disabled or hidden.
 
 ---
 
@@ -675,7 +679,7 @@ DELETE /v1/doors/:id/images/bulk
 
 - Minimum 1, maximum 20 IDs per request.
 - Admin can delete any image on the door.
-- Inspector can only delete images they uploaded.
+- Photographers can only delete images they uploaded.
 
 **Response**
 
@@ -782,14 +786,14 @@ POST /v1/doors/:id/images/register/batch
 
 ## 13. Module: Certificates (Door & Building)
 
-Certificates are PDFs uploaded by the admin. Both door and building certificates require an inspector action first:
+Certificates are PDFs uploaded by the admin. Both door and building certificates require a photographer action first:
 
-| Entity | Inspector action | Status gate for certificate upload |
+| Entity | Photographer action | Status gate for certificate upload |
 |---|---|---|
 | Door | `POST /v1/doors/:id/submit` | `SUBMITTED` or `CERTIFIED` |
 | Building | `POST /v1/buildings/:id/approve` | `APPROVED` or `CERTIFIED` |
 
-Uploading a certificate automatically sets the entity status to `CERTIFIED` and sends push notifications to assigned inspectors.
+Uploading a certificate automatically sets the entity status to `CERTIFIED` and sends push notifications to assigned photographers.
 
 ### Door certificate *(admin only)*
 
@@ -831,7 +835,7 @@ POST /v1/doors/:id/certificate/register
 }
 ```
 
-This sets the door status to `CERTIFIED` and notifies assigned inspectors.
+This sets the door status to `CERTIFIED` and notifies assigned photographers.
 
 **Download the door certificate**
 
@@ -845,7 +849,7 @@ Returns `{ signedUrl, expiresAt }`. Open or stream this URL to display/download 
 
 ### Building certificate *(admin only)*
 
-> **Pre-requisite**: The building must be approved by an inspector (`status === 'APPROVED'` or `'CERTIFIED'`) before the admin can upload a certificate. The API will return `400 Bad Request` if you try to upload or register while the building is still `DRAFT`.
+> **Pre-requisite**: The building must be approved by a photographer (`status === 'APPROVED'` or `'CERTIFIED'`) before the admin can upload a certificate. The API will return `400 Bad Request` if you try to upload or register while the building is still `DRAFT`.
 
 Same 3-step pattern as door certificates.
 
@@ -877,7 +881,7 @@ POST /v1/buildings/:id/certificate/register
 }
 ```
 
-This sets the building status to `CERTIFIED` and notifies assigned inspectors.
+This sets the building status to `CERTIFIED` and notifies assigned photographers.
 
 **Download**
 
@@ -997,13 +1001,13 @@ Building_BlockA/
 
 ## 16. Module: Survey Versioning
 
-Each building has numbered survey cycles (v1, v2, v3 …). A survey represents one complete inspection cycle: inspector uploads photos → admin uploads door certificates → admin uploads building certificate → admin confirms completion. Once confirmed, the survey is **frozen and read-only**. A new survey can be started at any time by cloning the building's floor/door structure (without images or certificates).
+Each building has numbered survey cycles (v1, v2, v3 …). A survey represents one complete inspection cycle: photographer uploads photos → admin uploads door certificates → admin uploads building certificate → admin confirms completion. Once confirmed, the survey is **frozen and read-only**. A new survey can be started at any time by cloning the building's floor/door structure (without images or certificates).
 
 ### Survey lifecycle
 
 ```
 Building created          →  Survey v1 ACTIVE (auto-created on first floor add)
-Inspector photos + submit →  Doors: DRAFT → SUBMITTED
+Photographer photos + submit →  Doors: DRAFT → SUBMITTED
 Admin door certs          →  Doors: SUBMITTED → CERTIFIED
 Admin building cert       →  Building: APPROVED → CERTIFIED
 Admin confirm-complete    →  Survey v1: ACTIVE → COMPLETED  (frozen, read-only)
@@ -1202,8 +1206,8 @@ Marks the current `ACTIVE` survey as `COMPLETED`. This is the **"Confirm Survey 
 ```
 
 **Push notifications sent on success:**
-- All assigned inspectors receive: *"Survey v1 for Building Name has been confirmed complete."*
-- If `nextAssignedInspectorId` + `nextScheduledAt` provided: that inspector receives: *"You have been scheduled for the next survey of Building Name on 2026-06-01."*
+- All assigned photographers receive: *"Survey v1 for Building Name has been confirmed complete."*
+- If `nextAssignedInspectorId` + `nextScheduledAt` provided: that photographer receives: *"You have been scheduled for the next survey of Building Name on 2026-06-01."*
 
 **Error responses:**
 
@@ -1275,7 +1279,7 @@ Starts a new survey cycle by cloning the floor/door structure from the last comp
 PATCH /v1/buildings/:id/surveys/current/schedule
 ```
 
-Updates scheduling metadata on the current active survey. Can be called at any time — before or after completion. If `nextAssignedInspectorId` is provided, a push notification is sent to that inspector.
+Updates scheduling metadata on the current active survey. Can be called at any time — before or after completion. If `nextAssignedInspectorId` is provided, a push notification is sent to that photographer.
 
 **Request body** (all fields optional — send only fields to update)
 
@@ -1441,7 +1445,7 @@ GET /v1/buildings/:id
 
 ## 20. Admin-only vs Shared Endpoints
 
-| Endpoint | Admin | Inspector |
+| Endpoint | Admin | Photographer |
 |---|---|---|
 | `GET/POST/PATCH/DELETE /v1/clients*` | ✅ | ❌ |
 | `POST /v1/users` | ✅ | ❌ |

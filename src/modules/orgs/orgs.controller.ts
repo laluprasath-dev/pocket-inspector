@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UpdateOrgDto } from './dto/update-org.dto';
 import { OrgsService } from './orgs.service';
 
-@ApiTags('orgs')
+@ApiTags('orgs', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'orgs' })
 export class OrgsController {

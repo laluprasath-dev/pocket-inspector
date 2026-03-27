@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class ReassignBuildingDto {
-  @ApiProperty({ description: 'New inspector user ID' })
+  @ApiProperty({ description: 'New photographer user ID' })
   @IsString()
   inspectorId: string;
 

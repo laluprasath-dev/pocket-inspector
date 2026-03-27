@@ -414,7 +414,7 @@ export class BuildingsService {
       activeSurvey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED
     ) {
       throw new BadRequestException(
-        'Inspector fieldwork must be completed before requesting a building certificate upload',
+        'Photographer fieldwork must be completed before requesting a building certificate upload',
       );
     }
 
@@ -468,7 +468,7 @@ export class BuildingsService {
       activeSurvey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED
     ) {
       throw new BadRequestException(
-        'Inspector fieldwork must be completed before registering a building certificate',
+        'Photographer fieldwork must be completed before registering a building certificate',
       );
     }
 

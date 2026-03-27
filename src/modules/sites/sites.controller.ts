@@ -18,7 +18,7 @@ import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
 import { SitesService } from './sites.service';
 
-@ApiTags('sites')
+@ApiTags('sites', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'sites' })
 export class SitesController {
@@ -27,7 +27,7 @@ export class SitesController {
   @Get()
   @ApiOperation({
     summary:
-      'List sites — admin sees all, inspector sees sites with accepted current building assignments',
+      'List sites — admin sees all, photographer sees sites with accepted current building assignments',
   })
   findAll(@CurrentUser() user: User) {
     return this.sitesService.findAll(user.orgId, user.id, user.role);

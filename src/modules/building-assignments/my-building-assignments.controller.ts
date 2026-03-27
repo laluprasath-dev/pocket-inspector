@@ -7,7 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { BuildingAssignmentsService } from './building-assignments.service';
 import { AssignmentHistoryQueryDto } from './dto/assignment-history-query.dto';
 
-@ApiTags('building-assignments')
+@ApiTags('building-assignments', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'me/building-assignments' })
 export class MyBuildingAssignmentsController {
@@ -19,7 +19,7 @@ export class MyBuildingAssignmentsController {
   @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary:
-      'List current inspector assignments separated into pending and accepted buckets',
+      'List current photographer assignments separated into pending and accepted buckets',
   })
   listMine(@CurrentUser() user: User) {
     return this.buildingAssignmentsService.listInspectorAssignments(
@@ -32,7 +32,7 @@ export class MyBuildingAssignmentsController {
   @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary:
-      'Inspector-specific assignment and workflow history with actor/timestamp details',
+      'Photographer-specific assignment and workflow history with actor/timestamp details',
   })
   getMyHistory(
     @Query() query: AssignmentHistoryQueryDto,

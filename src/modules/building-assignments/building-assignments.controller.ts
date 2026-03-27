@@ -19,7 +19,7 @@ import { AssignmentHistoryQueryDto } from './dto/assignment-history-query.dto';
 import { ReassignBuildingDto } from './dto/reassign-building.dto';
 import { RespondBuildingAssignmentDto } from './dto/respond-building-assignment.dto';
 
-@ApiTags('building-assignments')
+@ApiTags('building-assignments', 'admin-portal', 'mobile-photographer')
 @ApiBearerAuth('access-token')
 @Controller({ version: '1', path: 'building-assignments' })
 export class BuildingAssignmentsController {
@@ -29,7 +29,7 @@ export class BuildingAssignmentsController {
 
   @Post()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Assign a single building to an inspector' })
+  @ApiOperation({ summary: 'Assign a single building to a photographer' })
   assignBuilding(@Body() dto: AssignBuildingDto, @CurrentUser() user: User) {
     return this.buildingAssignmentsService.assignBuilding(
       dto,
@@ -40,7 +40,7 @@ export class BuildingAssignmentsController {
 
   @Post('bulk')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Assign multiple buildings to one inspector' })
+  @ApiOperation({ summary: 'Assign multiple buildings to one photographer' })
   assignMany(@Body() dto: AssignBuildingsDto, @CurrentUser() user: User) {
     return this.buildingAssignmentsService.assignMany(dto, user.id, user.orgId);
   }
@@ -49,7 +49,7 @@ export class BuildingAssignmentsController {
   @Roles(Role.ADMIN)
   @ApiOperation({
     summary:
-      'Assign current site buildings to one inspector, optionally scoped to selected building IDs',
+      'Assign current site buildings to one photographer, optionally scoped to selected building IDs',
   })
   assignSiteBuildings(
     @Param('siteId') siteId: string,
@@ -66,7 +66,7 @@ export class BuildingAssignmentsController {
 
   @Post('buildings/:buildingId/reassign')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Reassign a building to a different inspector' })
+  @ApiOperation({ summary: 'Reassign a building to a different photographer' })
   reassignBuilding(
     @Param('buildingId') buildingId: string,
     @Body() dto: ReassignBuildingDto,

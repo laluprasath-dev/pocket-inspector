@@ -6,7 +6,7 @@ export class AssignBuildingDto {
   @IsString()
   buildingId: string;
 
-  @ApiProperty({ description: 'Inspector user ID' })
+  @ApiProperty({ description: 'Photographer user ID' })
   @IsString()
   inspectorId: string;
 

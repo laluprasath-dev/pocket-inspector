@@ -12,7 +12,12 @@
 ## Collection
 
 - `Pocket-Inspector.postman_collection.json` is the single active collection.
-- It uses `building-assignments` + `surveys` for the current admin/inspector workflow.
+- It uses `building-assignments` + `surveys` for the current admin/photographer workflow.
+- Start with the top-level consumer folders:
+  - `🖥️ Admin Portal Endpoints`
+  - `📱 Photographer Mobile Endpoints`
+- The module folders below them remain the canonical full reference.
+- Use `🧪 QA / Access Control` for explicit negative permission checks such as expected `403` requests.
 
 ## Key Variables Used In Phase 6 Flow
 
@@ -33,12 +38,12 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - Create site/building requests in `Building Assignment Workflow -> Admin Portal Flow`
 
 2. Create active survey prerequisites
-- Assign and accept one inspector assignment (single assignment + inspector accept)
+- Assign and accept one photographer assignment (single assignment + photographer accept)
 - Create floor/door and satisfy door submission/certification prerequisites
 - Ensure building certificate prerequisite requests are available
 
-3. Inspector marks active survey fieldwork complete
-- `📋 Surveys -> Complete Survey Fieldwork (Inspector)`
+3. Photographer marks active survey fieldwork complete
+- `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
 
 4. Confirm-complete with scheduling (creates planned next)
 - `📋 Surveys -> Confirm Survey Complete + Schedule Planned Next (Admin only)`
@@ -48,15 +53,15 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - `🧭 Building Assignment Workflow -> Admin Portal Flow -> Assign Single Building To Planned Survey (with surveyId)`
 - Verify assignment payload includes survey metadata fields
 
-6. Inspector accepts planned assignment
-- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> Accept Single Assignment`
+6. Photographer accepts planned assignment
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Accept Single Assignment`
 
 7. Activate planned survey
 - `📋 Surveys -> Activate Planned Survey (Admin only)`
 - Verify response is `ACTIVE` and `currentSurveyId` updated
 
-8. Inspector marks newly active survey fieldwork complete
-- `📋 Surveys -> Complete Survey Fieldwork (Inspector)`
+8. Photographer marks newly active survey fieldwork complete
+- `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
 
 9. Certificate upload/register after fieldwork completion
 - `🏢 Buildings -> Request Building Certificate Upload URL`
@@ -72,14 +77,14 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - Verify new survey is `PLANNED` and `plannedSurveyId` is set
 
 12. History and assignment verification
-- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> My Building Assignments`
-- `🧭 Building Assignment Workflow -> Inspector Mobile Flow -> My Assignment History`
-- `🧭 Building Assignment Workflow -> Admin Portal Flow -> Admin Assignment History`
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Building Assignments`
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Assignment History`
+- `🖥️ Admin Portal Endpoints -> 🧭 Assignment Workflow -> Admin Assignment History`
 - Confirm survey metadata is present in assignment/history rows where available
 
 ## Survey Lifecycle Requests In Collection
 
-Under `📋 Surveys`:
+Under `📋 Surveys` or the consumer folders:
 
 - `List Survey History`
 - `Get Current Active Survey`
@@ -88,7 +93,7 @@ Under `📋 Surveys`:
 - `Confirm Survey Complete (Skip Next Scheduling)`
 - `Start Next Survey (Admin only)` (creates `PLANNED`)
 - `Activate Planned Survey (Admin only)`
-- `Complete Survey Fieldwork (Inspector)`
+- `Complete Survey Fieldwork (Photographer)`
 - `Reopen Survey Fieldwork (Admin)`
 
 ## Notification Notes
@@ -112,4 +117,4 @@ Relevant event types reflected by backend behavior:
 - `400` on certificate upload/register usually means fieldwork completion missing.
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
-- `403/404` on inspector write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
+- `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.

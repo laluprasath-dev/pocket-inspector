@@ -144,6 +144,14 @@ async function bootstrap(): Promise<void> {
         'Backend API for the Pocket Inspector mobile + admin platform',
       )
       .setVersion('1.0')
+      .addTag(
+        'admin-portal',
+        'Endpoints used by the admin portal for setup, assignment, lifecycle, certification, and exports',
+      )
+      .addTag(
+        'mobile-photographer',
+        'Endpoints used by the photographer mobile app for login, invitations, fieldwork, uploads, and survey completion',
+      )
       .addBearerAuth(
         { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
         'access-token',

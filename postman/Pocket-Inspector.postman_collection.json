@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to inspectors\n- INSPECTOR must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Inspector\n5. Use Building Assignment Workflow -> Inspector Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Use certificate and survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- INSPECTOR — works only on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/inspector workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Use certificate and survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -89,6 +89,3812 @@
   ],
   "item": [
     {
+      "name": "🖥️ Admin Portal Endpoints",
+      "description": "Curated admin portal requests. Use this section for setup, team management, buildings, assignment workflow, survey lifecycle, certification, and exports.",
+      "item": [
+        {
+          "name": "🔑 Auth & Org",
+          "description": "Admin login, session management, and organisation settings.",
+          "item": [
+            {
+              "name": "Login as Admin",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data) {",
+                      "    pm.environment.set('accessToken',  json.data.accessToken);",
+                      "    pm.environment.set('adminToken', json.data.accessToken);",
+                      "    pm.collectionVariables.set('adminToken', json.data.accessToken);",
+                      "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                      "    // Save deviceId returned by server (auto-detected from User-Agent)",
+                      "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
+                      "    pm.test('Login successful — tokens saved', () => {",
+                      "        pm.expect(json.data.accessToken).to.be.a('string');",
+                      "    });",
+                      "} else {",
+                      "    pm.test('Login FAILED — check email/password', () => { pm.expect(false).to.be.true; });",
+                      "}",
+                      "",
+                      "// Also save adminId from /v1/auth/me",
+                      "const meReq = {",
+                      "    url: pm.environment.get('baseUrl') + '/v1/auth/me',",
+                      "    method: 'GET',",
+                      "    header: { Authorization: 'Bearer ' + json.data.accessToken }",
+                      "};",
+                      "pm.sendRequest(meReq, (err, res) => {",
+                      "    if (!err && res.json().data) {",
+                      "        pm.environment.set('adminId', res.json().data.id);",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Login with admin credentials. Only email and password are needed — device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
+              }
+            },
+            {
+              "name": "Refresh Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data) {",
+                      "    pm.environment.set('accessToken',  json.data.accessToken);",
+                      "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                      "    pm.test('Tokens refreshed', () => pm.response.to.have.status(200));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/refresh",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "refresh"
+                  ]
+                },
+                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call — old refresh token is invalidated immediately."
+              }
+            },
+            {
+              "name": "Get Current User (me)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "me"
+                  ]
+                },
+                "description": "Returns the profile of whoever is currently logged in (based on the Bearer token)."
+              }
+            },
+            {
+              "name": "List Active Sessions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions"
+                  ]
+                },
+                "description": "Shows all devices currently logged in as the current user — deviceName, deviceType, IP address, last used time."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Sessions listed', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "if (json.data && json.data.length > 0) {",
+                      "    const other = json.data.find(s => !s.isCurrent);",
+                      "    if (other) pm.environment.set('revokeSessionId', other.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Revoke Session by ID",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions/{{revokeSessionId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions",
+                    "{{revokeSessionId}}"
+                  ]
+                },
+                "description": "Kicks a specific device. That device gets 401 on its next API request and must log in again."
+              },
+              "event": []
+            },
+            {
+              "name": "Revoke ALL Sessions",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions?keepCurrent=true",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions"
+                  ],
+                  "query": [
+                    {
+                      "key": "keepCurrent",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "Logs out from all devices. Use ?keepCurrent=true to stay logged in on the current device."
+              },
+              "event": []
+            },
+            {
+              "name": "Logout (current device)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "description": "Revoke the current session. You must log in again after this."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Re-login as Admin after logout so subsequent requests still work",
+                      "const baseUrl = pm.environment.get('baseUrl');",
+                      "const adminEmail = pm.environment.get('adminEmail') || 'admin@example.com';",
+                      "const adminPassword = pm.environment.get('adminPassword') || 'Admin1234!';",
+                      "pm.sendRequest({",
+                      "    url: baseUrl + '/v1/auth/login',",
+                      "    method: 'POST',",
+                      "    header: { 'Content-Type': 'application/json' },",
+                      "    body: { mode: 'raw', raw: JSON.stringify({ email: adminEmail, password: adminPassword }) }",
+                      "}, (err, res) => {",
+                      "    if (!err && res.json().data) {",
+                      "        pm.environment.set('accessToken', res.json().data.accessToken);",
+                      "        pm.environment.set('adminToken', res.json().data.accessToken);",
+                      "        if (res.json().data.deviceId) pm.environment.set('deviceId', res.json().data.deviceId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get My Org",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/orgs/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "orgs",
+                    "me"
+                  ]
+                },
+                "description": "Returns the organisation the current user belongs to."
+              }
+            },
+            {
+              "name": "Update My Org (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Acme Inspections Ltd\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/orgs/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "orgs",
+                    "me"
+                  ]
+                },
+                "description": "Update the organisation name. Admin only."
+              }
+            }
+          ]
+        },
+        {
+          "name": "👥 Team & Clients",
+          "description": "Admin-only people and customer management.",
+          "item": [
+            {
+              "name": "List All Users (Admin only)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users"
+                  ]
+                },
+                "description": "Returns all users in the org. Admin only."
+              }
+            },
+            {
+              "name": "Create User (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data) {",
+                      "    pm.test('User created', () => pm.response.to.have.status(201));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "// Switch to admin token",
+                      "const adminToken = pm.environment.get('adminToken');",
+                      "if (adminToken) pm.environment.set('accessToken', adminToken);",
+                      "// Generate unique email to avoid 409 conflicts",
+                      "const ts = Date.now();",
+                      "pm.environment.set('newUserEmail', `testuser.${ts}@example.com`);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"Test1234!\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"role\": \"INSPECTOR\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users"
+                  ]
+                },
+                "description": "Create a new user. Set role to ADMIN or API role `INSPECTOR` for photographers. A random email is generated to avoid conflicts on repeated test runs."
+              }
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users",
+                    "{{adminId}}"
+                  ]
+                },
+                "description": "Get a specific user by their ID."
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Name\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users",
+                    "{{adminId}}"
+                  ]
+                },
+                "description": "Update a user's name or role."
+              }
+            },
+            {
+              "name": "List Clients (Admin only)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/clients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "clients"
+                  ]
+                },
+                "description": "List all clients in the org. Admin only. Returns clients sorted by name."
+              }
+            },
+            {
+              "name": "Create Client (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('clientId', json.data.id);",
+                      "    pm.test('Client created — clientId saved', () => pm.response.to.have.status(201));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account — monthly billing\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/clients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "clients"
+                  ]
+                },
+                "description": "Create a new client. Only `name` is required — all other fields are optional. Name must be unique within the org. Saves clientId."
+              }
+            },
+            {
+              "name": "Get Client by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "clients",
+                    "{{clientId}}"
+                  ]
+                },
+                "description": "Get a specific client with its linked sites and standalone buildings."
+              }
+            },
+            {
+              "name": "Update Client (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contactName\": \"Jane Doe\",\n  \"contactEmail\": \"jane@acme.com\",\n  \"notes\": \"Updated contact person\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "clients",
+                    "{{clientId}}"
+                  ]
+                },
+                "description": "Update client details. Name must remain unique if changed."
+              }
+            },
+            {
+              "name": "Delete Client (Admin only)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/clients/{{clientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "clients",
+                    "{{clientId}}"
+                  ]
+                },
+                "description": "Delete a client. This is permanent. Linked sites and buildings will have their clientId set to null."
+              }
+            }
+          ]
+        },
+        {
+          "name": "🏗️ Sites & Buildings",
+          "description": "Site and building setup, edits, and current-building certificate operations.",
+          "item": [
+            {
+              "name": "List Sites",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites"
+                  ]
+                },
+                "description": "List sites. ADMIN sees all sites in the organisation. Photographer accounts only see sites that currently contain accepted building assignments."
+              }
+            },
+            {
+              "name": "Create Site",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('siteId', json.data.id);",
+                      "    pm.test('Site created — siteId saved', () => pm.response.to.have.status(201));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main Campus\",\n  \"referenceCode\": \"MC-001\",\n  \"locationNotes\": \"City centre, near the main entrance\",\n  \"clientId\": \"{{clientId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites"
+                  ]
+                },
+                "description": "Create a new site. ADMIN only. Saves siteId."
+              }
+            },
+            {
+              "name": "Get Site by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites",
+                    "{{siteId}}"
+                  ]
+                },
+                "description": "Get a specific site."
+              }
+            },
+            {
+              "name": "Update Site (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main Campus (Renovated)\",\n  \"locationNotes\": \"Newly renovated east wing\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites",
+                    "{{siteId}}"
+                  ]
+                },
+                "description": "Update site name or notes."
+              }
+            },
+            {
+              "name": "Delete Site (Admin only)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites",
+                    "{{siteId}}"
+                  ]
+                },
+                "description": "Delete a site. This is permanent."
+              }
+            },
+            {
+              "name": "List Buildings",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings?siteId={{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ],
+                  "query": [
+                    {
+                      "key": "siteId",
+                      "value": "{{siteId}}",
+                      "description": "Optional — filter by site"
+                    }
+                  ]
+                },
+                "description": "List buildings. ADMIN sees all buildings in the organisation. Photographer accounts only see buildings where they currently have an accepted assignment. Optional filter: ?siteId="
+              }
+            },
+            {
+              "name": "Create Building",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('buildingId', json.data.id);",
+                      "    pm.test('Building created — buildingId saved', () => pm.response.to.have.status(201));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Block A\",\n  \"buildingCode\": \"BLD-001\",\n  \"locationNotes\": \"North wing\",\n  \"clientId\": \"{{clientId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ]
+                },
+                "description": "Create a building. ADMIN only. Saves buildingId. If the selected site already has assignment history, the response may include assignmentAdvisory for portal prompting."
+              }
+            },
+            {
+              "name": "Create Building In Existing Site (advisory example)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Building created for advisory check', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('secondaryBuildingId', json.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Additional Building For Advisory\",\n  \"siteId\": \"{{siteId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ]
+                },
+                "description": "Use this after a site already has assignment context. The response may include assignmentAdvisory so the portal can decide whether to keep the same photographer or choose another one."
+              }
+            },
+            {
+              "name": "Get Building by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}"
+                  ]
+                },
+                "description": "Get a specific building."
+              }
+            },
+            {
+              "name": "Update Building (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Block A (Extended)\",\n  \"locationNotes\": \"Extended north wing, 3 floors\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}"
+                  ]
+                },
+                "description": "Update building details."
+              }
+            },
+            {
+              "name": "List Floors in Building",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/floors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "floors"
+                  ]
+                },
+                "description": "List all floors for a building."
+              }
+            },
+            {
+              "name": "Request Building Certificate Upload (Admin only)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contentType\": \"application/pdf\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/signed-upload",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "certificate",
+                    "signed-upload"
+                  ]
+                },
+                "description": "Get a pre-signed GCS URL to upload a PDF certificate. URL expires in 15 minutes — upload immediately."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200 || pm.response.code === 201) {",
+                      "    const json = pm.response.json();",
+                      "    pm.environment.set('buildingCertId', json.data.certId);",
+                      "    pm.environment.set('buildingCertPath', json.data.objectPath);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Register Building Certificate (Admin only)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"certId\": \"{{buildingCertId}}\",\n  \"objectPath\": \"{{buildingCertPath}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "certificate",
+                    "register"
+                  ]
+                },
+                "description": "After uploading to GCS, call this to register the certificate path in the database."
+              }
+            },
+            {
+              "name": "Get Building Certificate Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a pre-signed URL to download the building certificate PDF."
+              }
+            },
+            {
+              "name": "Delete Building Certificate (Admin only)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "certificate"
+                  ]
+                },
+                "description": "Delete the building certificate. Removes the PDF from GCS and deletes the certificate record so a new one can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
+              }
+            }
+          ]
+        },
+        {
+          "name": "🧭 Assignment Workflow",
+          "description": "Admin-side assignment creation, grouping, reassignment, and history.",
+          "item": [
+            {
+              "name": "Create Site For Assignment Flow",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Site created for assignment flow', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('siteId', json.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Assignment Flow Site\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites"
+                  ]
+                },
+                "description": "Creates a clean site for testing assignment and grouped invitation flows."
+              }
+            },
+            {
+              "name": "Create Primary Building For Assignment Flow",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Primary building created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('buildingId', json.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Assignment Building A\",\n  \"siteId\": \"{{siteId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ]
+                },
+                "description": "Creates the main building used for single assignment, reassignment, and complete/reopen examples."
+              }
+            },
+            {
+              "name": "Create Secondary Building For Grouped Flow",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Secondary building created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('secondaryBuildingId', json.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Assignment Building B\",\n  \"siteId\": \"{{siteId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ]
+                },
+                "description": "Creates a second building under the same site so grouped and bulk assignment flows can be tested."
+              }
+            },
+            {
+              "name": "Assign Single Building",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Single assignment created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('assignmentId', json.data.id);",
+                      "if (json.data && json.data.building && json.data.building.id) pm.environment.set('buildingId', json.data.building.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"buildingId\": \"{{buildingId}}\",\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"adminNote\": \"Please inspect this building\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments"
+                  ]
+                },
+                "description": "Assign one building to one photographer without surveyId (legacy/transitional active-work flow). For planned survey-cycle assignment use the dedicated surveyId request below."
+              }
+            },
+            {
+              "name": "Assign Single Building To Planned Survey (with surveyId)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Survey-linked assignment created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('assignmentId', json.data.id);",
+                      "if (json.data && json.data.surveyId) pm.environment.set('plannedSurveyId', json.data.surveyId);",
+                      "pm.test('Response has survey metadata', () => {",
+                      "    pm.expect(json.data).to.have.property('surveyId');",
+                      "    pm.expect(json.data).to.have.property('surveyVersion');",
+                      "    pm.expect(json.data).to.have.property('surveyStatus');",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"buildingId\": \"{{buildingId}}\",\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"surveyId\": \"{{plannedSurveyId}}\",\n  \"adminNote\": \"Planned-cycle assignment\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments"
+                  ]
+                },
+                "description": "Assign to a specific survey version by passing surveyId. Use this for PLANNED next-cycle invitations before activation. Emits BUILDING_ASSIGNMENT_INVITED payload with buildingId/surveyId/surveyVersion."
+              }
+            },
+            {
+              "name": "Assign Selected Buildings In Bulk",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Bulk assignment created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.group && json.data.group.id) pm.environment.set('assignmentGroupId', json.data.group.id);",
+                      "if (json.data && json.data.assignments && json.data.assignments.length > 0) pm.environment.set('assignmentId', json.data.assignments[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"buildingIds\": [\"{{buildingId}}\", \"{{secondaryBuildingId}}\"],\n  \"adminNote\": \"Bulk assignment for one inspector\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/bulk",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "bulk"
+                  ]
+                },
+                "description": "Assign multiple selected buildings in one request. If the buildings belong to one site, the response may include grouped invitation metadata."
+              }
+            },
+            {
+              "name": "Assign Current Site Buildings",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Site-level assignment created', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.group && json.data.group.id) pm.environment.set('assignmentGroupId', json.data.group.id);",
+                      "if (json.data && json.data.assignments && json.data.assignments.length > 0) pm.environment.set('assignmentId', json.data.assignments[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"adminNote\": \"Assign all current buildings in this site\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/sites/{{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "sites",
+                    "{{siteId}}"
+                  ]
+                },
+                "description": "Assign all current buildings under the selected site. Future buildings added later are not auto-assigned."
+              }
+            },
+            {
+              "name": "Reassign Building",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Building reassigned', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) pm.environment.set('assignmentId', json.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inspectorId\": \"{{inspectorId}}\",\n  \"adminNote\": \"Reassigning this building\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/buildings/{{buildingId}}/reassign",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "buildings",
+                    "{{buildingId}}",
+                    "reassign"
+                  ]
+                },
+                "description": "Reassign the current building. Old access is removed immediately and the new photographer gets a fresh pending assignment."
+              }
+            },
+            {
+              "name": "Admin Assignment History",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Admin assignment history returned', () => pm.response.to.have.status(200));",
+                      "const row = (json.data || []).find((item) => item.surveyId);",
+                      "if (row) {",
+                      "    pm.test('History row includes survey metadata fields', () => {",
+                      "        pm.expect(row).to.have.property('surveyId');",
+                      "        pm.expect(row).to.have.property('surveyVersion');",
+                      "        pm.expect(row).to.have.property('surveyStatus');",
+                      "        pm.expect(row).to.have.property('surveyExecutionStatus');",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/history?buildingId={{buildingId}}&state=ACCEPTED&page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "buildingId",
+                      "value": "{{buildingId}}"
+                    },
+                    {
+                      "key": "state",
+                      "value": "ACCEPTED"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Portal history view. Change filters to inspect assignment, rejection, reassignment, completion, and reopen events. History rows now include survey metadata fields where available (surveyId, surveyVersion, surveyStatus, surveyExecutionStatus)."
+              }
+            }
+          ]
+        },
+        {
+          "name": "🏠 Floors & Doors",
+          "description": "Admin reads/edits for floor and door structure, images, and door certificates.",
+          "item": [
+            {
+              "name": "Get Floor by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}"
+                  ]
+                },
+                "description": "Get a specific floor."
+              }
+            },
+            {
+              "name": "Update Floor (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"label\": \"Level 0\",\n  \"notes\": \"Basement parking\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}"
+                  ]
+                },
+                "description": "Update floor label or notes."
+              }
+            },
+            {
+              "name": "Delete Floor (Admin only)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}"
+                  ]
+                },
+                "description": "Delete a floor."
+              }
+            },
+            {
+              "name": "List Doors in Floor",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}/doors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}",
+                    "doors"
+                  ]
+                },
+                "description": "List all doors on a floor."
+              }
+            },
+            {
+              "name": "Get Door by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}"
+                  ]
+                },
+                "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
+              }
+            },
+            {
+              "name": "Update Door (Admin only)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"locationNotes\": \"Updated — end of corridor, fire exit side\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}"
+                  ]
+                },
+                "description": "Update door code or notes. ADMIN only."
+              }
+            },
+            {
+              "name": "List Door Images",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images"
+                  ]
+                },
+                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` — signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` — signed URL for the 400×400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use — re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "pm.test('returns array', () => pm.expect(body.data).to.be.an('array'));",
+                      "if (body.data && body.data.length > 0) {",
+                      "  const imgs = body.data;",
+                      "  pm.environment.set('imageId', imgs[0].id);",
+                      "  // Use last image for delete so imageId stays valid for signed-download",
+                      "  pm.environment.set('deleteImageId', imgs[imgs.length - 1].id);",
+                      "  const img = imgs[0];",
+                      "  pm.test('has downloadUrl', () => pm.expect(img.downloadUrl).to.be.a('string'));",
+                      "  pm.test('has downloadUrlExpiresAt', () => pm.expect(img.downloadUrlExpiresAt).to.be.a('string'));",
+                      "  pm.test('downloadUrlExpiresAt is ISO date', () => {",
+                      "    pm.expect(new Date(img.downloadUrlExpiresAt).toISOString()).to.equal(img.downloadUrlExpiresAt);",
+                      "  });",
+                      "  if (img.downloadUrlThumb) {",
+                      "    pm.test('has downloadUrlThumbExpiresAt', () => pm.expect(img.downloadUrlThumbExpiresAt).to.be.a('string'));",
+                      "    const thumbExpiry = new Date(img.downloadUrlThumbExpiresAt);",
+                      "    const origExpiry  = new Date(img.downloadUrlExpiresAt);",
+                      "    pm.test('thumb expires later than original', () => {",
+                      "      pm.expect(thumbExpiry.getTime()).to.be.above(origExpiry.getTime());",
+                      "    });",
+                      "  }",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Image Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/{{imageId}}/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "{{imageId}}",
+                    "signed-download"
+                  ]
+                },
+                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` — refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "const d = body.data;",
+                      "pm.test('has downloadUrl',          () => pm.expect(d.downloadUrl).to.be.a('string'));",
+                      "pm.test('has downloadUrlExpiresAt', () => pm.expect(d.downloadUrlExpiresAt).to.be.a('string'));",
+                      "pm.test('expiresAt is ISO 8601',    () => {",
+                      "  pm.expect(new Date(d.downloadUrlExpiresAt).toISOString()).to.equal(d.downloadUrlExpiresAt);",
+                      "});",
+                      "pm.test('has role', () => pm.expect(d.role).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Bulk Delete Door Images",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"imageIds\": [\n    \"{{deleteImageId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/bulk",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "bulk"
+                  ]
+                },
+                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "pm.test('deleted count returned', () => {",
+                      "  pm.expect(body.data).to.have.property('deleted');",
+                      "  pm.expect(body.data.deleted).to.be.above(0);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Request Door Certificate Upload (Admin only)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"contentType\": \"application/pdf\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/signed-upload",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate",
+                    "signed-upload"
+                  ]
+                },
+                "description": "Get a pre-signed GCS URL to upload a door certificate PDF."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200 || pm.response.code === 201) {",
+                      "    const json = pm.response.json();",
+                      "    pm.environment.set('doorCertId', json.data.certId);",
+                      "    pm.environment.set('doorCertPath', json.data.objectPath);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Register Door Certificate (Admin only)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"certId\": \"{{doorCertId}}\",\n  \"objectPath\": \"{{doorCertPath}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate",
+                    "register"
+                  ]
+                },
+                "description": "Register the uploaded door certificate."
+              }
+            },
+            {
+              "name": "Get Door Certificate Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a signed URL to download the door certificate PDF."
+              }
+            },
+            {
+              "name": "Delete Door Certificate (Admin only)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate"
+                  ]
+                },
+                "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED so a new certificate can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
+              }
+            }
+          ]
+        },
+        {
+          "name": "📋 Survey Lifecycle",
+          "description": "Admin survey history, activation, scheduling, completion, and reopen controls.",
+          "item": [
+            {
+              "name": "List Survey History",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Survey history returned', () => pm.response.to.have.status(200));",
+                      "if (json.data && json.data.length > 0) {",
+                      "    pm.environment.set('surveyId', json.data[0].id);",
+                      "    const planned = json.data.find((s) => s.status === 'PLANNED');",
+                      "    const active = json.data.find((s) => s.status === 'ACTIVE');",
+                      "    if (planned) pm.environment.set('plannedSurveyId', planned.id);",
+                      "    if (active) pm.environment.set('currentSurveyId', active.id);",
+                      "    console.log('surveyId saved:', json.data[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys"
+                  ]
+                },
+                "description": "List all survey versions for a building in version order (oldest first). Use this for the Survey History tab. Saves surveyId from the first result."
+              }
+            },
+            {
+              "name": "Get Current Active Survey",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('currentSurveyId', json.data.id);",
+                      "    pm.test('Active survey returned', () => pm.response.to.have.status(200));",
+                      "    pm.test('Survey is ACTIVE', () => pm.expect(json.data.status).to.eql('ACTIVE'));",
+                      "} else {",
+                      "    pm.test('No active survey (404 expected on completed buildings)', () => pm.response.to.have.status(404));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/current",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "current"
+                  ]
+                },
+                "description": "Get the current ACTIVE survey for a building. Returns 404 if no active survey exists (all surveys are completed and start-next hasn't been called yet). Saves currentSurveyId."
+              }
+            },
+            {
+              "name": "Get Survey Detail (by ID)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{surveyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{surveyId}}"
+                  ]
+                },
+                "description": "Get full read-only detail of any survey (active or completed). Includes all floors and doors with statuses and image/cert counts. Use surveyId saved from List Survey History."
+              }
+            },
+            {
+              "name": "Get Historical Building Cert Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{surveyId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{surveyId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a signed download URL for the building certificate of a specific (historical) survey. Use in the history detail view."
+              }
+            },
+            {
+              "name": "Confirm Survey Complete + Schedule Planned Next (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (pm.response.code === 200) {",
+                      "    pm.test('Survey confirmed complete', () => pm.expect(json.data.status).to.eql('COMPLETED'));",
+                      "    if (json.data.plannedNextSurvey && json.data.plannedNextSurvey.id) {",
+                      "        pm.environment.set('plannedSurveyId', json.data.plannedNextSurvey.id);",
+                      "        pm.test('Planned next survey created', () => pm.expect(json.data.plannedNextSurvey.status).to.eql('PLANNED'));",
+                      "    }",
+                      "    console.log('Survey v' + json.data.version + ' is now COMPLETED');",
+                      "} else {",
+                      "    console.log('Error (expected if pre-conditions not met):', json.message);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/confirm-complete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "confirm-complete"
+                  ]
+                },
+                "description": "Complete the current ACTIVE survey and schedule the next cycle in the same call. Requires: active survey executionStatus=INSPECTOR_COMPLETED, building certificate registered for active survey, and all doors in that survey CERTIFIED. When scheduling is provided, backend creates plannedNextSurvey (status=PLANNED). Emits SURVEY_COMPLETED payload with buildingId/surveyId/surveyVersion."
+              }
+            },
+            {
+              "name": "Confirm Survey Complete (Skip Next Scheduling)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (pm.response.code === 200) {",
+                      "    pm.test('Survey confirmed complete', () => pm.expect(json.data.status).to.eql('COMPLETED'));",
+                      "    pm.test('No planned next survey created', () => pm.expect(json.data.plannedNextSurvey).to.eql(null));",
+                      "} else {",
+                      "    console.log('Error (expected if pre-conditions not met):', json.message);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/confirm-complete",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "confirm-complete"
+                  ]
+                },
+                "description": "Complete the current ACTIVE survey without scheduling the next cycle. No planned next survey row is created."
+              }
+            },
+            {
+              "name": "Start Next Survey (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('plannedSurveyId', json.data.id);",
+                      "    pm.test('Planned survey created', () => pm.response.to.have.status(201));",
+                      "    pm.test('New survey is PLANNED', () => pm.expect(json.data.status).to.eql('PLANNED'));",
+                      "    console.log('Survey v' + json.data.version + ' planned — cloned ' + json.data.floorsCloned + ' floors, ' + json.data.doorsCloned + ' doors');",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/start-next",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "start-next"
+                  ]
+                },
+                "description": "Create the next survey cycle as PLANNED (admin only). Clones floors/doors only from last completed survey, does not activate, does not create assignment, and does not reset building status yet. Saves plannedSurveyId."
+              }
+            },
+            {
+              "name": "Activate Planned Survey (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (pm.response.code === 200) {",
+                      "    pm.test('Planned survey activated', () => pm.expect(json.data.status).to.eql('ACTIVE'));",
+                      "    pm.environment.set('currentSurveyId', json.data.id);",
+                      "    pm.test('Execution reset to IN_PROGRESS', () => pm.expect(json.data.executionStatus).to.eql('IN_PROGRESS'));",
+                      "} else {",
+                      "    console.log('Activation blocked (expected if assignment not yet accepted):', json.message);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{plannedSurveyId}}/activate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{plannedSurveyId}}",
+                    "activate"
+                  ]
+                },
+                "description": "Activate a planned survey version. Requires accepted assignment linked to plannedSurveyId. On success, survey becomes ACTIVE and building status is reset for the new cycle. Emits SURVEY_ACTIVATED payload with buildingId/surveyId/surveyVersion."
+              }
+            },
+            {
+              "name": "Reopen Survey Fieldwork (Admin)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('adminToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (pm.response.code === 200) {",
+                      "    pm.test('Survey fieldwork reopened', () => pm.expect(json.data.executionStatus).to.eql('IN_PROGRESS'));",
+                      "} else {",
+                      "    console.log('Reopen blocked:', json.message);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{currentSurveyId}}/reopen-fieldwork",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{currentSurveyId}}",
+                    "reopen-fieldwork"
+                  ]
+                },
+                "description": "Admin reopens an active survey whose fieldwork was marked complete, making it editable again. Emits SURVEY_FIELDWORK_REOPENED payload with buildingId/surveyId/surveyVersion."
+              }
+            },
+            {
+              "name": "Schedule Next Survey (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Schedule updated', () => pm.response.to.have.status(200));"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection — focus on upper floors\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/current/schedule",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "current",
+                    "schedule"
+                  ]
+                },
+                "description": "Update scheduling metadata on the current active survey (admin only). All fields are optional. Pass null to clear a field. If nextAssignedInspectorId is provided, a push notification is sent to that photographer."
+              }
+            }
+          ]
+        },
+        {
+          "name": "📦 Exports",
+          "description": "Admin-only export jobs and downloads.",
+          "item": [
+            {
+              "name": "Create Export Job (Admin only)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('exportJobId', json.data.id);",
+                      "    pm.test('Export job created — exportJobId saved', () => pm.response.to.have.status(201));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"targetType\": \"BUILDING\",\n  \"targetId\": \"{{buildingId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/exports",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "exports"
+                  ]
+                },
+                "description": "Start a background job to build a ZIP of site, building, floor, or door survey data. Saves exportJobId."
+              }
+            },
+            {
+              "name": "Get Export Job Status",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/exports/{{exportJobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "exports",
+                    "{{exportJobId}}"
+                  ]
+                },
+                "description": "Check status: QUEUED → RUNNING → DONE (or FAILED). Poll every few seconds."
+              }
+            },
+            {
+              "name": "Get Export Download URL (when DONE)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/exports/{{exportJobId}}/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "exports",
+                    "{{exportJobId}}",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a signed URL to download the ZIP. Only works when status is DONE."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📱 Photographer Mobile Endpoints",
+      "description": "Curated photographer mobile requests. Use this section for login, invitation handling, fieldwork, uploads, approvals, and active survey completion.",
+      "item": [
+        {
+          "name": "🔑 Auth & Profile",
+          "description": "Photographer login, current-user access, and device/session management.",
+          "item": [
+            {
+              "name": "Login as Photographer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data) {",
+                      "    pm.environment.set('accessToken',  json.data.accessToken);",
+                      "    pm.environment.set('inspectorToken', json.data.accessToken);",
+                      "    pm.collectionVariables.set('inspectorToken', json.data.accessToken);",
+                      "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                      "    // Save deviceId returned by server (auto-detected from User-Agent)",
+                      "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
+                      "    pm.test('Inspector login successful', () => {",
+                      "        pm.expect(json.data.accessToken).to.be.a('string');",
+                      "    });",
+                      "    const meReq = {",
+                      "        url: pm.environment.get('baseUrl') + '/v1/auth/me',",
+                      "        method: 'GET',",
+                      "        header: { Authorization: 'Bearer ' + json.data.accessToken }",
+                      "    };",
+                      "    pm.sendRequest(meReq, (err, res) => {",
+                      "        if (!err && res.json().data) {",
+                      "            pm.environment.set('inspectorId', res.json().data.id);",
+                      "        }",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{inspectorEmail}}\",\n  \"password\": \"{{inspectorPassword}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Login with photographer credentials. Switches accessToken to the photographer token. Saves compatibility variables `inspectorToken` and `inspectorId`."
+              }
+            },
+            {
+              "name": "Refresh Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data) {",
+                      "    pm.environment.set('accessToken',  json.data.accessToken);",
+                      "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                      "    pm.test('Tokens refreshed', () => pm.response.to.have.status(200));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/refresh",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "refresh"
+                  ]
+                },
+                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call — old refresh token is invalidated immediately."
+              }
+            },
+            {
+              "name": "Get Current User (me)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "me"
+                  ]
+                },
+                "description": "Returns the profile of whoever is currently logged in (based on the Bearer token)."
+              }
+            },
+            {
+              "name": "List Active Sessions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions"
+                  ]
+                },
+                "description": "Shows all devices currently logged in as the current user — deviceName, deviceType, IP address, last used time."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Sessions listed', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "if (json.data && json.data.length > 0) {",
+                      "    const other = json.data.find(s => !s.isCurrent);",
+                      "    if (other) pm.environment.set('revokeSessionId', other.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Revoke Session by ID",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions/{{revokeSessionId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions",
+                    "{{revokeSessionId}}"
+                  ]
+                },
+                "description": "Kicks a specific device. That device gets 401 on its next API request and must log in again."
+              },
+              "event": []
+            },
+            {
+              "name": "Revoke ALL Sessions",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/sessions?keepCurrent=true",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "sessions"
+                  ],
+                  "query": [
+                    {
+                      "key": "keepCurrent",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "Logs out from all devices. Use ?keepCurrent=true to stay logged in on the current device."
+              },
+              "event": []
+            },
+            {
+              "name": "Logout (current device)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/v1/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "description": "Revoke the current session. You must log in again after this."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Re-login as Admin after logout so subsequent requests still work",
+                      "const baseUrl = pm.environment.get('baseUrl');",
+                      "const adminEmail = pm.environment.get('adminEmail') || 'admin@example.com';",
+                      "const adminPassword = pm.environment.get('adminPassword') || 'Admin1234!';",
+                      "pm.sendRequest({",
+                      "    url: baseUrl + '/v1/auth/login',",
+                      "    method: 'POST',",
+                      "    header: { 'Content-Type': 'application/json' },",
+                      "    body: { mode: 'raw', raw: JSON.stringify({ email: adminEmail, password: adminPassword }) }",
+                      "}, (err, res) => {",
+                      "    if (!err && res.json().data) {",
+                      "        pm.environment.set('accessToken', res.json().data.accessToken);",
+                      "        pm.environment.set('adminToken', res.json().data.accessToken);",
+                      "        if (res.json().data.deviceId) pm.environment.set('deviceId', res.json().data.deviceId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get My Org",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/orgs/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "orgs",
+                    "me"
+                  ]
+                },
+                "description": "Returns the organisation the current user belongs to."
+              }
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users",
+                    "{{adminId}}"
+                  ]
+                },
+                "description": "Get a specific user by their ID."
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Name\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/users/{{adminId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "users",
+                    "{{adminId}}"
+                  ]
+                },
+                "description": "Update a user's name or role."
+              }
+            },
+            {
+              "name": "Register Device Token (FCM)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token\": \"fcm-device-token-from-mobile-sdk\",\n  \"platform\": \"IOS\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/device-token",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "device-token"
+                  ]
+                },
+                "description": "Register a Firebase push notification token for this device. Call after login on mobile apps."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('inspectorToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "🧭 Assignment Inbox",
+          "description": "Pending and accepted assignment flows for the photographer app.",
+          "item": [
+            {
+              "name": "My Building Assignments",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Assignments listed', () => pm.response.to.have.status(200));",
+                      "const all = [...(json.data?.pending || []), ...(json.data?.accepted || [])];",
+                      "if (all.length > 0) {",
+                      "    pm.environment.set('assignmentId', all[0].id);",
+                      "}",
+                      "const grouped = all.find((item) => item.group && item.group.id);",
+                      "if (grouped) pm.environment.set('assignmentGroupId', grouped.group.id);",
+                      "const withSurvey = all.find((item) => item.surveyId);",
+                      "if (withSurvey && withSurvey.surveyId) pm.environment.set('surveyId', withSurvey.surveyId);",
+                      "const planned = all.find((item) => item.surveyStatus === 'PLANNED');",
+                      "if (planned && planned.surveyId) pm.environment.set('plannedSurveyId', planned.surveyId);",
+                      "const active = all.find((item) => item.surveyStatus === 'ACTIVE');",
+                      "if (active && active.surveyId) pm.environment.set('currentSurveyId', active.surveyId);",
+                      "if (withSurvey) {",
+                      "    pm.test('Survey metadata fields present for assignment item', () => {",
+                      "        pm.expect(withSurvey).to.have.property('surveyId');",
+                      "        pm.expect(withSurvey).to.have.property('surveyVersion');",
+                      "        pm.expect(withSurvey).to.have.property('surveyStatus');",
+                      "        pm.expect(withSurvey).to.have.property('surveyExecutionStatus');",
+                      "        pm.expect(withSurvey).to.have.property('scheduledStartAt');",
+                      "        pm.expect(withSurvey).to.have.property('activatedAt');",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments"
+                  ]
+                },
+                "description": "Mobile inbox view. Pending and accepted buckets remain, and each item now includes survey metadata fields so mobile can distinguish pending invitation vs accepted planned upcoming vs accepted active work."
+              }
+            },
+            {
+              "name": "Accept Single Assignment",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Single assignment accepted', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.building && json.data.building.id) pm.environment.set('buildingId', json.data.building.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACCEPTED\",\n  \"inspectorNote\": \"Accepted from mobile\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/{{assignmentId}}/respond",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "{{assignmentId}}",
+                    "respond"
+                  ]
+                },
+                "description": "Accept one pending assignment. This unlocks workflow access for that building."
+              }
+            },
+            {
+              "name": "Reject Single Assignment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"REJECTED\",\n  \"inspectorNote\": \"Rejecting this assignment\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/{{assignmentId}}/respond",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "{{assignmentId}}",
+                    "respond"
+                  ]
+                },
+                "description": "Reject one pending assignment. Once rejected, the building should stay inaccessible in workflow endpoints."
+              }
+            },
+            {
+              "name": "Accept Grouped Invitation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACCEPTED\",\n  \"inspectorNote\": \"Accepting grouped site invitation\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/groups/{{assignmentGroupId}}/respond",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "groups",
+                    "{{assignmentGroupId}}",
+                    "respond"
+                  ]
+                },
+                "description": "Accept all pending buildings that belong to the same grouped site invitation."
+              }
+            },
+            {
+              "name": "Reject Grouped Invitation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"REJECTED\",\n  \"inspectorNote\": \"Rejecting grouped site invitation\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/building-assignments/groups/{{assignmentGroupId}}/respond",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "building-assignments",
+                    "groups",
+                    "{{assignmentGroupId}}",
+                    "respond"
+                  ]
+                },
+                "description": "Reject all pending buildings in the same grouped invitation."
+              }
+            },
+            {
+              "name": "My Assignment History",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/history?state=ACCEPTED&page=1&limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "history"
+                  ],
+                  "query": [
+                    {
+                      "key": "state",
+                      "value": "ACCEPTED"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Photographer history timeline. Change state filter to review accepted, rejected, removed, completed, and reopened events. Responses include survey context fields when available."
+              }
+            }
+          ]
+        },
+        {
+          "name": "🏗️ Accessible Sites & Buildings",
+          "description": "Read endpoints for only the sites and buildings the photographer can access.",
+          "item": [
+            {
+              "name": "List Sites",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites"
+                  ]
+                },
+                "description": "List sites. ADMIN sees all sites in the organisation. Photographer accounts only see sites that currently contain accepted building assignments."
+              }
+            },
+            {
+              "name": "Get Site by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites/{{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites",
+                    "{{siteId}}"
+                  ]
+                },
+                "description": "Get a specific site."
+              }
+            },
+            {
+              "name": "List Buildings",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings?siteId={{siteId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ],
+                  "query": [
+                    {
+                      "key": "siteId",
+                      "value": "{{siteId}}",
+                      "description": "Optional — filter by site"
+                    }
+                  ]
+                },
+                "description": "List buildings. ADMIN sees all buildings in the organisation. Photographer accounts only see buildings where they currently have an accepted assignment. Optional filter: ?siteId="
+              }
+            },
+            {
+              "name": "Get Building by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}"
+                  ]
+                },
+                "description": "Get a specific building."
+              }
+            },
+            {
+              "name": "List Floors in Building",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/floors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "floors"
+                  ]
+                },
+                "description": "List all floors for a building."
+              }
+            },
+            {
+              "name": "Get Building Certificate Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a pre-signed URL to download the building certificate PDF."
+              }
+            },
+            {
+              "name": "List Survey History",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Survey history returned', () => pm.response.to.have.status(200));",
+                      "if (json.data && json.data.length > 0) {",
+                      "    pm.environment.set('surveyId', json.data[0].id);",
+                      "    const planned = json.data.find((s) => s.status === 'PLANNED');",
+                      "    const active = json.data.find((s) => s.status === 'ACTIVE');",
+                      "    if (planned) pm.environment.set('plannedSurveyId', planned.id);",
+                      "    if (active) pm.environment.set('currentSurveyId', active.id);",
+                      "    console.log('surveyId saved:', json.data[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys"
+                  ]
+                },
+                "description": "List all survey versions for a building in version order (oldest first). Use this for the Survey History tab. Saves surveyId from the first result."
+              }
+            },
+            {
+              "name": "Get Current Active Survey",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('currentSurveyId', json.data.id);",
+                      "    pm.test('Active survey returned', () => pm.response.to.have.status(200));",
+                      "    pm.test('Survey is ACTIVE', () => pm.expect(json.data.status).to.eql('ACTIVE'));",
+                      "} else {",
+                      "    pm.test('No active survey (404 expected on completed buildings)', () => pm.response.to.have.status(404));",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/current",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "current"
+                  ]
+                },
+                "description": "Get the current ACTIVE survey for a building. Returns 404 if no active survey exists (all surveys are completed and start-next hasn't been called yet). Saves currentSurveyId."
+              }
+            },
+            {
+              "name": "Get Survey Detail (by ID)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{surveyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{surveyId}}"
+                  ]
+                },
+                "description": "Get full read-only detail of any survey (active or completed). Includes all floors and doors with statuses and image/cert counts. Use surveyId saved from List Survey History."
+              }
+            },
+            {
+              "name": "Get Historical Building Cert Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{surveyId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{surveyId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a signed download URL for the building certificate of a specific (historical) survey. Use in the history detail view."
+              }
+            }
+          ]
+        },
+        {
+          "name": "📸 Fieldwork & Uploads",
+          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.",
+          "item": [
+            {
+              "name": "Approve Building (Photographer only)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/approve",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "approve"
+                  ]
+                },
+                "description": "Accepted photographer marks the building as approved. This is part of the existing certificate flow and still requires valid building workflow access."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('inspectorToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Floor as Accepted Photographer",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const base = pm.environment.get('baseUrl');",
+                      "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                      "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                      "pm.sendRequest({",
+                      "    url: base + '/v1/auth/login', method: 'POST',",
+                      "    header: {'Content-Type': 'application/json'},",
+                      "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                      "}, function(err, res) {",
+                      "    if (!err && res.code === 200 && res.json().data) {",
+                      "        const t = res.json().data.accessToken;",
+                      "        pm.environment.set('inspectorToken', t);",
+                      "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Accepted inspector can create floor — 201', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('floorId', json.data.id);",
+                      "    pm.environment.set('inspectorFloorId', json.data.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"buildingId\": \"{{buildingId}}\",\n  \"label\": \"G\",\n  \"notes\": \"Accepted inspector floor\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors"
+                  ]
+                },
+                "description": "Use this after the photographer has accepted the assignment for buildingId. Saves floorId and inspectorFloorId."
+              }
+            },
+            {
+              "name": "Get Floor by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}"
+                  ]
+                },
+                "description": "Get a specific floor."
+              }
+            },
+            {
+              "name": "List Doors in Floor",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/floors/{{floorId}}/doors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "floors",
+                    "{{floorId}}",
+                    "doors"
+                  ]
+                },
+                "description": "List all doors on a floor."
+              }
+            },
+            {
+              "name": "Create Door as Accepted Photographer",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const base = pm.environment.get('baseUrl');",
+                      "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                      "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                      "pm.sendRequest({",
+                      "    url: base + '/v1/auth/login', method: 'POST',",
+                      "    header: {'Content-Type': 'application/json'},",
+                      "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                      "}, function(err, res) {",
+                      "    if (!err && res.code === 200 && res.json().data) {",
+                      "        const t = res.json().data.accessToken;",
+                      "        pm.environment.set('inspectorToken', t);",
+                      "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Accepted inspector can create door — 201', () => pm.response.to.have.status(201));",
+                      "if (json.data && json.data.id) {",
+                      "    pm.environment.set('doorId', json.data.id);",
+                      "    pm.environment.set('inspectorDoorId', json.data.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"floorId\": \"{{floorId}}\",\n  \"code\": \"INS-D-001\",\n  \"locationNotes\": \"Accepted inspector door\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors"
+                  ]
+                },
+                "description": "Use this after the photographer has accepted the assignment and has a valid floorId in that building. Saves doorId and inspectorDoorId."
+              }
+            },
+            {
+              "name": "Get Door by ID",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}"
+                  ]
+                },
+                "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
+              }
+            },
+            {
+              "name": "Request Image Upload URL (Photographer)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200 || pm.response.code === 201) {",
+                      "    const json = pm.response.json();",
+                      "    pm.environment.set('imageUploadId', json.data.imageId);",
+                      "    pm.environment.set('imageId', json.data.imageId);",
+                      "    pm.environment.set('imageObjectPath', json.data.objectPath);",
+                      "    pm.environment.set('imageUploadUrl', json.data.signedUrl);",
+                      "    pm.environment.set('signedUploadUrl', json.data.signedUrl);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"FRONT_FACE\",\n  \"contentType\": \"image/jpeg\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/signed-upload",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "signed-upload"
+                  ]
+                },
+                "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment and has access to the current doorId."
+              }
+            },
+            {
+              "name": "Register Door Image (after GCS upload)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"imageId\": \"{{imageUploadId}}\",\n  \"objectPath\": \"{{imageObjectPath}}\",\n  \"role\": \"FRONT_FACE\",\n  \"label\": \"Front face of door\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "register"
+                  ]
+                },
+                "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "// Switch to inspector token",
+                      "const inspectorToken = pm.environment.get('inspectorToken');",
+                      "if (inspectorToken) pm.environment.set('accessToken', inspectorToken);",
+                      "",
+                      "// If GCS signed-upload failed (no imageId set), use placeholder values",
+                      "// so Register Image can still run and allow door submission",
+                      "if (!pm.environment.get('imageUploadId')) {",
+                      "    pm.environment.set('imageUploadId', 'placeholder-' + Date.now());",
+                      "}",
+                      "if (!pm.environment.get('imageObjectPath')) {",
+                      "    pm.environment.set('imageObjectPath', 'uploads/door-image-placeholder.jpg');",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Upload Image to GCS (PUT signed URL)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "// This request must be run manually — paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
+                      "// Skipped automatically during Newman runs when no real URL is set.",
+                      "const url = pm.environment.get('signedUploadUrl') || '';",
+                      "if (!url || !url.startsWith('https://storage.googleapis.com')) {",
+                      "    pm.execution.skipRequest();",
+                      "}",
+                      "// Remove Authorization header — GCS signed URLs must NOT receive a Bearer token.",
+                      "pm.request.headers.remove('Authorization');"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "image/jpeg",
+                    "description": "Must exactly match the contentType you passed to signed-upload (e.g. image/jpeg, image/png, image/heic)"
+                  }
+                ],
+                "body": {
+                  "mode": "file",
+                  "file": {}
+                },
+                "url": "{{signedUploadUrl}}",
+                "description": "STEP 2 of 3 — Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab → select 'binary' → click 'Select File' → pick your image file\n5. Send — GCS returns 200 OK with an empty body if successful\n\n⚠️  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n⚠️  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n➜ NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
+              }
+            },
+            {
+              "name": "Batch Request Image Upload URLs",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"images\": [\n    { \"role\": \"FRONT_FACE\",        \"contentType\": \"image/jpeg\" },\n    { \"role\": \"REAR_FACE\",         \"contentType\": \"image/jpeg\" },\n    { \"role\": \"FRAME_GAP\",         \"contentType\": \"image/jpeg\" },\n    { \"role\": \"INTUMESCENT_STRIP\", \"contentType\": \"image/jpeg\" },\n    { \"role\": \"SELF_CLOSER\",       \"contentType\": \"image/jpeg\" },\n    { \"role\": \"HINGES\",            \"contentType\": \"image/jpeg\" },\n    { \"role\": \"SIGNAGE\",           \"contentType\": \"image/jpeg\" },\n    { \"role\": \"OTHER\",             \"contentType\": \"image/jpeg\" }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/signed-upload/batch",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "signed-upload",
+                    "batch"
+                  ]
+                },
+                "description": "STEP 1 of 3 (Batch) — Request signed GCS upload URLs for up to 10 door images in a single call.\n\nWhy is 'role' required per image?\nThe role is embedded into each image's GCS storage path (e.g. orgs/.../images/FRONT_FACE/uuid.jpg). Without it the server cannot build the path or generate the signed URL.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER\n\nResponse returns an array of: { signedUrl, objectPath, imageId, role }\n\n➜ NEXT: For each item in the response, PUT the image binary to its signedUrl. See 'Upload Image to GCS (PUT signed URL)'. Run all PUTs in parallel for best performance — no Authorization header on any of them.\n\n➜ THEN: Call 'Batch Register Image URLs' with all imageId + objectPath pairs to save all records in one request."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (json.data && Array.isArray(json.data)) {",
+                      "    pm.environment.set('batchUploadResults', JSON.stringify(json.data));",
+                      "    pm.test('Batch signed URLs returned — ' + json.data.length + ' items', () => {",
+                      "        pm.response.to.have.status(200);",
+                      "        pm.expect(json.data.length).to.be.greaterThan(0);",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Batch Register Image URLs (after GCS uploads)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"images\": [\n    { \"imageId\": \"<imageId-1>\", \"objectPath\": \"<objectPath-1>\", \"role\": \"FRONT_FACE\",        \"label\": \"Front face of door\" },\n    { \"imageId\": \"<imageId-2>\", \"objectPath\": \"<objectPath-2>\", \"role\": \"REAR_FACE\",         \"label\": \"Rear face of door\" },\n    { \"imageId\": \"<imageId-3>\", \"objectPath\": \"<objectPath-3>\", \"role\": \"FRAME_GAP\",         \"label\": \"Gap measurement at frame\" },\n    { \"imageId\": \"<imageId-4>\", \"objectPath\": \"<objectPath-4>\", \"role\": \"INTUMESCENT_STRIP\", \"label\": \"Intumescent strip condition\" },\n    { \"imageId\": \"<imageId-5>\", \"objectPath\": \"<objectPath-5>\", \"role\": \"SELF_CLOSER\",       \"label\": \"Self-closer mechanism\" },\n    { \"imageId\": \"<imageId-6>\", \"objectPath\": \"<objectPath-6>\", \"role\": \"HINGES\",            \"label\": \"Hinge type and fitment\" },\n    { \"imageId\": \"<imageId-7>\", \"objectPath\": \"<objectPath-7>\", \"role\": \"SIGNAGE\",           \"label\": \"Fire door keep shut sign\" },\n    { \"imageId\": \"<imageId-8>\", \"objectPath\": \"<objectPath-8>\", \"role\": \"OTHER\",             \"label\": \"Describe what this photo shows\" }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/register/batch",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "register",
+                    "batch"
+                  ]
+                },
+                "description": "STEP 3 of 3 (Batch) — Register all images in the database after uploading them to GCS.\n\nReplace each <imageId-N> and <objectPath-N> with the values returned from 'Batch Request Image Upload URLs' (Step 1). All records are saved in a single database transaction.\n\n'label' is optional on each image — use it to add a human-readable description, especially useful for OTHER images.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER"
+              }
+            },
+            {
+              "name": "List Door Images",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images"
+                  ]
+                },
+                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` — signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` — signed URL for the 400×400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use — re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "pm.test('returns array', () => pm.expect(body.data).to.be.an('array'));",
+                      "if (body.data && body.data.length > 0) {",
+                      "  const imgs = body.data;",
+                      "  pm.environment.set('imageId', imgs[0].id);",
+                      "  // Use last image for delete so imageId stays valid for signed-download",
+                      "  pm.environment.set('deleteImageId', imgs[imgs.length - 1].id);",
+                      "  const img = imgs[0];",
+                      "  pm.test('has downloadUrl', () => pm.expect(img.downloadUrl).to.be.a('string'));",
+                      "  pm.test('has downloadUrlExpiresAt', () => pm.expect(img.downloadUrlExpiresAt).to.be.a('string'));",
+                      "  pm.test('downloadUrlExpiresAt is ISO date', () => {",
+                      "    pm.expect(new Date(img.downloadUrlExpiresAt).toISOString()).to.equal(img.downloadUrlExpiresAt);",
+                      "  });",
+                      "  if (img.downloadUrlThumb) {",
+                      "    pm.test('has downloadUrlThumbExpiresAt', () => pm.expect(img.downloadUrlThumbExpiresAt).to.be.a('string'));",
+                      "    const thumbExpiry = new Date(img.downloadUrlThumbExpiresAt);",
+                      "    const origExpiry  = new Date(img.downloadUrlExpiresAt);",
+                      "    pm.test('thumb expires later than original', () => {",
+                      "      pm.expect(thumbExpiry.getTime()).to.be.above(origExpiry.getTime());",
+                      "    });",
+                      "  }",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Image Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/{{imageId}}/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "{{imageId}}",
+                    "signed-download"
+                  ]
+                },
+                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` — refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "const d = body.data;",
+                      "pm.test('has downloadUrl',          () => pm.expect(d.downloadUrl).to.be.a('string'));",
+                      "pm.test('has downloadUrlExpiresAt', () => pm.expect(d.downloadUrlExpiresAt).to.be.a('string'));",
+                      "pm.test('expiresAt is ISO 8601',    () => {",
+                      "  pm.expect(new Date(d.downloadUrlExpiresAt).toISOString()).to.equal(d.downloadUrlExpiresAt);",
+                      "});",
+                      "pm.test('has role', () => pm.expect(d.role).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Bulk Delete Door Images",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"imageIds\": [\n    \"{{deleteImageId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/images/bulk",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "images",
+                    "bulk"
+                  ]
+                },
+                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "pm.test('deleted count returned', () => {",
+                      "  pm.expect(body.data).to.have.property('deleted');",
+                      "  pm.expect(body.data.deleted).to.be.above(0);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Submit Door (Photographer) — requires ≥1 image",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/submit",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "submit"
+                  ]
+                },
+                "description": "Accepted photographer submits the current door after at least one image has been registered."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('inspectorToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Door Certificate Download URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/certificate/signed-download",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate",
+                    "signed-download"
+                  ]
+                },
+                "description": "Get a signed URL to download the door certificate PDF."
+              }
+            },
+            {
+              "name": "Complete Survey Fieldwork (Photographer)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('inspectorToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "if (pm.response.code === 200) {",
+                      "    pm.test('Survey fieldwork marked complete', () => pm.expect(json.data.executionStatus).to.eql('INSPECTOR_COMPLETED'));",
+                      "} else {",
+                      "    console.log('Fieldwork completion blocked:', json.message);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{currentSurveyId}}/complete-fieldwork",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{currentSurveyId}}",
+                    "complete-fieldwork"
+                  ]
+                },
+                "description": "Photographer marks fieldwork complete for the active survey version. This locks workflow edits until reopen."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "🔑 Auth",
       "item": [
         {
@@ -159,7 +3965,7 @@
           }
         },
         {
-          "name": "Login as Inspector",
+          "name": "Login as Photographer",
           "event": [
             {
               "listen": "test",
@@ -218,7 +4024,7 @@
                 "login"
               ]
             },
-            "description": "Login with inspector credentials. Switches accessToken to inspector's token. Saves inspectorToken and inspectorId."
+            "description": "Login with photographer credentials. Switches accessToken to the photographer token. Saves compatibility variables `inspectorToken` and `inspectorId`."
           }
         },
         {
@@ -571,7 +4377,7 @@
                 "users"
               ]
             },
-            "description": "Create a new user. Set role to ADMIN or INSPECTOR. A random email is generated to avoid conflicts on repeated test runs."
+            "description": "Create a new user. Set role to ADMIN or API role `INSPECTOR` for photographers. A random email is generated to avoid conflicts on repeated test runs."
           }
         },
         {
@@ -793,7 +4599,7 @@
                 "sites"
               ]
             },
-            "description": "List sites. ADMIN sees all sites in the organisation. INSPECTOR only sees sites that currently contain accepted building assignments."
+            "description": "List sites. ADMIN sees all sites in the organisation. Photographer accounts only see sites that currently contain accepted building assignments."
           }
         },
         {
@@ -836,69 +4642,6 @@
               ]
             },
             "description": "Create a new site. ADMIN only. Saves siteId."
-          }
-        },
-        {
-          "name": "Create Site as Inspector (should be 403)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "const base = pm.environment.get('baseUrl');",
-                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
-                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
-                  "pm.sendRequest({",
-                  "    url: base + '/v1/auth/login', method: 'POST',",
-                  "    header: {'Content-Type': 'application/json'},",
-                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
-                  "}, function(err, res) {",
-                  "    if (!err && res.code === 200 && res.json().data) {",
-                  "        const t = res.json().data.accessToken;",
-                  "        pm.environment.set('inspectorToken', t);",
-                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
-                  "    }",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Inspector is blocked from creating a site — 403', () => pm.response.to.have.status(403));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Inspector Test Site\",\n  \"referenceCode\": \"INS-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/sites",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "sites"
-              ]
-            },
-            "description": "Role check request. Inspectors should not be able to create sites in the new model."
           }
         },
         {
@@ -1004,7 +4747,7 @@
                 }
               ]
             },
-            "description": "List buildings. ADMIN sees all buildings in the organisation. INSPECTOR only sees buildings where they currently have an accepted assignment. Optional filter: ?siteId="
+            "description": "List buildings. ADMIN sees all buildings in the organisation. Photographer accounts only see buildings where they currently have an accepted assignment. Optional filter: ?siteId="
           }
         },
         {
@@ -1086,70 +4829,7 @@
                 "buildings"
               ]
             },
-            "description": "Use this after a site already has assignment context. The response may include assignmentAdvisory so the portal can decide whether to keep the same inspector or choose another one."
-          }
-        },
-        {
-          "name": "Create Building as Inspector (should be 403)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "const base = pm.environment.get('baseUrl');",
-                  "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
-                  "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
-                  "pm.sendRequest({",
-                  "    url: base + '/v1/auth/login', method: 'POST',",
-                  "    header: {'Content-Type': 'application/json'},",
-                  "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
-                  "}, function(err, res) {",
-                  "    if (!err && res.code === 200 && res.json().data) {",
-                  "        const t = res.json().data.accessToken;",
-                  "        pm.environment.set('inspectorToken', t);",
-                  "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
-                  "    }",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Inspector is blocked from creating a building — 403', () => pm.response.to.have.status(403));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Inspector Test Block\",\n  \"buildingCode\": \"INS-BLD-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/buildings",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "buildings"
-              ]
-            },
-            "description": "Role check request. Inspectors should not be able to create buildings in the new model."
+            "description": "Use this after a site already has assignment context. The response may include assignmentAdvisory so the portal can decide whether to keep the same photographer or choose another one."
           }
         },
         {
@@ -1218,7 +4898,7 @@
           }
         },
         {
-          "name": "Approve Building (Inspector only)",
+          "name": "Approve Building (Photographer only)",
           "request": {
             "method": "POST",
             "url": {
@@ -1233,7 +4913,7 @@
                 "approve"
               ]
             },
-            "description": "Accepted inspector marks the building as approved. This is part of the existing certificate flow and still requires valid building workflow access."
+            "description": "Accepted photographer marks the building as approved. This is part of the existing certificate flow and still requires valid building workflow access."
           },
           "event": [
             {
@@ -1553,7 +5233,7 @@
                     "building-assignments"
                   ]
                 },
-                "description": "Assign one building to one inspector without surveyId (legacy/transitional active-work flow). For planned survey-cycle assignment use the dedicated surveyId request below."
+                "description": "Assign one building to one photographer without surveyId (legacy/transitional active-work flow). For planned survey-cycle assignment use the dedicated surveyId request below."
               }
             },
             {
@@ -1727,7 +5407,7 @@
                     "reassign"
                   ]
                 },
-                "description": "Reassign the current building. Old access is removed immediately and the new inspector gets a fresh pending assignment."
+                "description": "Reassign the current building. Old access is removed immediately and the new photographer gets a fresh pending assignment."
               }
             },
             {
@@ -1790,7 +5470,7 @@
           ]
         },
         {
-          "name": "Inspector Mobile Flow",
+          "name": "Photographer Mobile Flow",
           "event": [
             {
               "listen": "prerequest",
@@ -2017,7 +5697,7 @@
                     }
                   ]
                 },
-                "description": "Inspector history timeline. Change state filter to review accepted, rejected, removed, completed, and reopened events. Responses include survey context fields when available."
+                "description": "Photographer history timeline. Change state filter to review accepted, rejected, removed, completed, and reopened events. Responses include survey context fields when available."
               }
             }
           ]
@@ -2066,11 +5746,11 @@
                 "floors"
               ]
             },
-            "description": "Create a floor. ADMIN can create floors directly. INSPECTOR can create floors only after accepting the building assignment for the current buildingId."
+            "description": "Create a floor. ADMIN can create floors directly. Photographer accounts can create floors only after accepting the building assignment for the current buildingId."
           }
         },
         {
-          "name": "Create Floor as Accepted Inspector",
+          "name": "Create Floor as Accepted Photographer",
           "event": [
             {
               "listen": "prerequest",
@@ -2134,7 +5814,7 @@
                 "floors"
               ]
             },
-            "description": "Use this after the inspector has accepted the assignment for buildingId. Saves floorId and inspectorFloorId."
+            "description": "Use this after the photographer has accepted the assignment for buildingId. Saves floorId and inspectorFloorId."
           }
         },
         {
@@ -2304,11 +5984,11 @@
                 "doors"
               ]
             },
-            "description": "Create a door. ADMIN can create doors directly. INSPECTOR can create doors only after accepting the assignment for the building that owns the current floorId. Saves doorId."
+            "description": "Create a door. ADMIN can create doors directly. Photographer accounts can create doors only after accepting the assignment for the building that owns the current floorId. Saves doorId."
           }
         },
         {
-          "name": "Create Door as Accepted Inspector",
+          "name": "Create Door as Accepted Photographer",
           "event": [
             {
               "listen": "prerequest",
@@ -2372,7 +6052,7 @@
                 "doors"
               ]
             },
-            "description": "Use this after the inspector has accepted the assignment and has a valid floorId in that building. Saves doorId and inspectorDoorId."
+            "description": "Use this after the photographer has accepted the assignment and has a valid floorId in that building. Saves doorId and inspectorDoorId."
           }
         },
         {
@@ -2422,7 +6102,7 @@
           }
         },
         {
-          "name": "Request Image Upload URL (Inspector)",
+          "name": "Request Image Upload URL (Photographer)",
           "event": [
             {
               "listen": "test",
@@ -2466,7 +6146,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Request a signed upload URL for a door image. Use this only after the inspector has accepted the building assignment and has access to the current doorId."
+            "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment and has access to the current doorId."
           }
         },
         {
@@ -2496,7 +6176,7 @@
                 "register"
               ]
             },
-            "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-inspector workflow."
+            "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow."
           },
           "event": [
             {
@@ -2760,7 +6440,7 @@
                 "bulk"
               ]
             },
-            "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Inspector can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+            "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
           },
           "response": [],
           "event": [
@@ -2781,7 +6461,7 @@
           ]
         },
         {
-          "name": "Submit Door (Inspector) — requires ≥1 image",
+          "name": "Submit Door (Photographer) — requires ≥1 image",
           "request": {
             "method": "POST",
             "url": {
@@ -2796,7 +6476,7 @@
                 "submit"
               ]
             },
-            "description": "Accepted inspector submits the current door after at least one image has been registered."
+            "description": "Accepted photographer submits the current door after at least one image has been registered."
           },
           "event": [
             {
@@ -3430,7 +7110,7 @@
           }
         },
         {
-          "name": "Complete Survey Fieldwork (Inspector)",
+          "name": "Complete Survey Fieldwork (Photographer)",
           "event": [
             {
               "listen": "prerequest",
@@ -3473,7 +7153,7 @@
                 "complete-fieldwork"
               ]
             },
-            "description": "Inspector marks fieldwork complete for the active survey version. This locks workflow edits until reopen."
+            "description": "Photographer marks fieldwork complete for the active survey version. This locks workflow edits until reopen."
           }
         },
         {
@@ -3562,7 +7242,7 @@
                 "schedule"
               ]
             },
-            "description": "Update scheduling metadata on the current active survey (admin only). All fields are optional. Pass null to clear a field. If nextAssignedInspectorId is provided, a push notification is sent to that inspector."
+            "description": "Update scheduling metadata on the current active survey (admin only). All fields are optional. Pass null to clear a field. If nextAssignedInspectorId is provided, a push notification is sent to that photographer."
           }
         }
       ]
@@ -3588,6 +7268,144 @@
             },
             "description": "Check server and database health. Returns { status: 'ok' } when everything is running."
           }
+        }
+      ]
+    },
+    {
+      "name": "🧪 QA / Access Control",
+      "description": "Negative and authorization-focused checks. Keep these separate from the normal admin portal and photographer workflow folders.",
+      "item": [
+        {
+          "name": "🚫 Forbidden Writes",
+          "description": "Requests that should fail because the caller does not have permission for the action.",
+          "item": [
+            {
+              "name": "Create Site as Photographer (should be 403)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const base = pm.environment.get('baseUrl');",
+                      "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                      "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                      "pm.sendRequest({",
+                      "    url: base + '/v1/auth/login', method: 'POST',",
+                      "    header: {'Content-Type': 'application/json'},",
+                      "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                      "}, function(err, res) {",
+                      "    if (!err && res.code === 200 && res.json().data) {",
+                      "        const t = res.json().data.accessToken;",
+                      "        pm.environment.set('inspectorToken', t);",
+                      "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Inspector is blocked from creating a site — 403', () => pm.response.to.have.status(403));"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Inspector Test Site\",\n  \"referenceCode\": \"INS-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/sites",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "sites"
+                  ]
+                },
+                "description": "Role check request. Photographers should not be able to create sites in the new model."
+              }
+            },
+            {
+              "name": "Create Building as Photographer (should be 403)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const base = pm.environment.get('baseUrl');",
+                      "const email = pm.environment.get('inspectorEmail') || 'inspector@example.com';",
+                      "const pass  = pm.environment.get('inspectorPassword') || 'Inspector1234!';",
+                      "pm.sendRequest({",
+                      "    url: base + '/v1/auth/login', method: 'POST',",
+                      "    header: {'Content-Type': 'application/json'},",
+                      "    body: {mode: 'raw', raw: JSON.stringify({email, password: pass})}",
+                      "}, function(err, res) {",
+                      "    if (!err && res.code === 200 && res.json().data) {",
+                      "        const t = res.json().data.accessToken;",
+                      "        pm.environment.set('inspectorToken', t);",
+                      "        pm.request.headers.upsert({key: 'Authorization', value: 'Bearer ' + t});",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Inspector is blocked from creating a building — 403', () => pm.response.to.have.status(403));"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Inspector Test Block\",\n  \"buildingCode\": \"INS-BLD-001\",\n  \"locationNotes\": \"Created by inspector to verify access\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings"
+                  ]
+                },
+                "description": "Role check request. Photographers should not be able to create buildings in the new model."
+              }
+            }
+          ]
         }
       ]
     }
