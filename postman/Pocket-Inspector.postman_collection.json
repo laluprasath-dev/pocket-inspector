@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Use certificate and survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -1484,7 +1484,7 @@
         },
         {
           "name": "🏠 Floors & Doors",
-          "description": "Admin reads/edits for floor and door structure, images, and door certificates.",
+          "description": "Admin reads/edits for floor and door structure, images, and door certificates.\n\nAdmin review flow: submitted doors can be certified or reopened for changes; certified doors must drop back to SUBMITTED before reopening to DRAFT.",
           "item": [
             {
               "name": "Get Floor by ID",
@@ -1584,7 +1584,7 @@
                     "{{doorId}}"
                   ]
                 },
-                "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
+                "description": "Fetch the current door detail, including status, photo count, certificate presence, and timestamps. Use the `status` field to decide whether photo edits are allowed: DRAFT = editable, SUBMITTED/CERTIFIED = locked."
               }
             },
             {
@@ -1708,7 +1708,7 @@
               ]
             },
             {
-              "name": "Bulk Delete Door Images",
+              "name": "Bulk Delete Door Images (DRAFT only)",
               "request": {
                 "method": "DELETE",
                 "header": [],
@@ -1734,7 +1734,7 @@
                     "bulk"
                   ]
                 },
-                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
               },
               "response": [],
               "event": [
@@ -1781,7 +1781,7 @@
                     "signed-upload"
                   ]
                 },
-                "description": "Get a pre-signed GCS URL to upload a door certificate PDF."
+                "description": "Request a signed upload URL for a door certificate PDF. The door must already be SUBMITTED or CERTIFIED; DRAFT doors cannot be certified. Use this during admin review after the photographer has submitted the door."
               },
               "event": [
                 {
@@ -1826,7 +1826,7 @@
                     "register"
                   ]
                 },
-                "description": "Register the uploaded door certificate."
+                "description": "Register the uploaded certificate and mark the door as CERTIFIED. Allowed for SUBMITTED doors, and can also replace the certificate on an already CERTIFIED door while the survey is still active."
               }
             },
             {
@@ -1850,7 +1850,7 @@
               }
             },
             {
-              "name": "Delete Door Certificate (Admin only)",
+              "name": "Delete Door Certificate (Admin only) — back to SUBMITTED",
               "request": {
                 "method": "DELETE",
                 "url": {
@@ -1865,8 +1865,41 @@
                     "certificate"
                   ]
                 },
-                "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED so a new certificate can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
+                "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED. If photo changes are needed after that, call `Reopen Door for Changes (Admin only)` to move the door from SUBMITTED to DRAFT. Returns 204 No Content on success. Only callable by ADMIN."
               }
+            },
+            {
+              "name": "Reopen Door for Changes (Admin only)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/doors/{{doorId}}/reopen",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "doors",
+                    "{{doorId}}",
+                    "reopen"
+                  ]
+                },
+                "description": "Moves a submitted door back to DRAFT so the photographer can edit photos again. Use this when review finds issues after submission. If the door is CERTIFIED, first delete the certificate to return it to SUBMITTED, then call this request to reach DRAFT."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const body = pm.response.json();",
+                      "pm.test('door returned to DRAFT', () => pm.expect(body.data.status).to.eql('DRAFT'));"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         },
@@ -3209,7 +3242,7 @@
         },
         {
           "name": "📸 Fieldwork & Uploads",
-          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.",
+          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.",
           "item": [
             {
               "name": "Approve Building (Photographer only)",
@@ -3430,11 +3463,11 @@
                     "{{doorId}}"
                   ]
                 },
-                "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
+                "description": "Fetch the current door detail, including status, photo count, certificate presence, and timestamps. Use the `status` field to decide whether photo edits are allowed: DRAFT = editable, SUBMITTED/CERTIFIED = locked."
               }
             },
             {
-              "name": "Request Image Upload URL (Photographer)",
+              "name": "Request Image Upload URL (Photographer, DRAFT only)",
               "event": [
                 {
                   "listen": "test",
@@ -3478,11 +3511,11 @@
                     "signed-upload"
                   ]
                 },
-                "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment and has access to the current doorId."
+                "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment, has access to the current doorId, and the door status is DRAFT. Once the door is submitted or certified, photo edits are locked until an admin reopens the door."
               }
             },
             {
-              "name": "Register Door Image (after GCS upload)",
+              "name": "Register Door Image (after GCS upload, DRAFT only)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3508,7 +3541,7 @@
                     "register"
                   ]
                 },
-                "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow."
+                "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow and is allowed only while the door is in DRAFT. After submit, admins must reopen the door before any photo changes can be registered."
               },
               "event": [
                 {
@@ -3574,7 +3607,7 @@
               }
             },
             {
-              "name": "Batch Request Image Upload URLs",
+              "name": "Batch Request Image Upload URLs (DRAFT only)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3601,7 +3634,7 @@
                     "batch"
                   ]
                 },
-                "description": "STEP 1 of 3 (Batch) — Request signed GCS upload URLs for up to 10 door images in a single call.\n\nWhy is 'role' required per image?\nThe role is embedded into each image's GCS storage path (e.g. orgs/.../images/FRONT_FACE/uuid.jpg). Without it the server cannot build the path or generate the signed URL.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER\n\nResponse returns an array of: { signedUrl, objectPath, imageId, role }\n\n➜ NEXT: For each item in the response, PUT the image binary to its signedUrl. See 'Upload Image to GCS (PUT signed URL)'. Run all PUTs in parallel for best performance — no Authorization header on any of them.\n\n➜ THEN: Call 'Batch Register Image URLs' with all imageId + objectPath pairs to save all records in one request."
+                "description": "Requests signed upload URLs for multiple photos in one step. Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before more photos can be added."
               },
               "event": [
                 {
@@ -3623,7 +3656,7 @@
               ]
             },
             {
-              "name": "Batch Register Image URLs (after GCS uploads)",
+              "name": "Batch Register Image URLs (after GCS uploads, DRAFT only)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3650,7 +3683,7 @@
                     "batch"
                   ]
                 },
-                "description": "STEP 3 of 3 (Batch) — Register all images in the database after uploading them to GCS.\n\nReplace each <imageId-N> and <objectPath-N> with the values returned from 'Batch Request Image Upload URLs' (Step 1). All records are saved in a single database transaction.\n\n'label' is optional on each image — use it to add a human-readable description, especially useful for OTHER images.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER"
+                "description": "Registers multiple uploaded door images after GCS upload. Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before more photos can be registered."
               }
             },
             {
@@ -3746,7 +3779,7 @@
               ]
             },
             {
-              "name": "Bulk Delete Door Images",
+              "name": "Bulk Delete Door Images (DRAFT only)",
               "request": {
                 "method": "DELETE",
                 "header": [],
@@ -3772,7 +3805,7 @@
                     "bulk"
                   ]
                 },
-                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
               },
               "response": [],
               "event": [
@@ -3793,7 +3826,7 @@
               ]
             },
             {
-              "name": "Submit Door (Photographer) — requires ≥1 image",
+              "name": "Submit Door (Photographer) — requires ≥1 image, locks photos",
               "request": {
                 "method": "POST",
                 "url": {
@@ -3808,7 +3841,7 @@
                     "submit"
                   ]
                 },
-                "description": "Accepted photographer submits the current door after at least one image has been registered."
+                "description": "Accepted photographer submits the current door after at least one image has been registered. This moves the door to SUBMITTED and locks all photo edits until an admin reopens the door."
               },
               "event": [
                 {
@@ -6070,7 +6103,7 @@
                 "{{doorId}}"
               ]
             },
-            "description": "Get a door with its current status (DRAFT / SUBMITTED / CERTIFIED) and all images."
+            "description": "Fetch the current door detail, including status, photo count, certificate presence, and timestamps. Use the `status` field to decide whether photo edits are allowed: DRAFT = editable, SUBMITTED/CERTIFIED = locked."
           }
         },
         {
@@ -6102,7 +6135,7 @@
           }
         },
         {
-          "name": "Request Image Upload URL (Photographer)",
+          "name": "Request Image Upload URL (Photographer, DRAFT only)",
           "event": [
             {
               "listen": "test",
@@ -6146,11 +6179,11 @@
                 "signed-upload"
               ]
             },
-            "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment and has access to the current doorId."
+            "description": "Request a signed upload URL for a door image. Use this only after the photographer has accepted the building assignment, has access to the current doorId, and the door status is DRAFT. Once the door is submitted or certified, photo edits are locked until an admin reopens the door."
           }
         },
         {
-          "name": "Register Door Image (after GCS upload)",
+          "name": "Register Door Image (after GCS upload, DRAFT only)",
           "request": {
             "method": "POST",
             "header": [
@@ -6176,7 +6209,7 @@
                 "register"
               ]
             },
-            "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow."
+            "description": "Register the uploaded image after using the signed upload URL. This request is part of the accepted-photographer workflow and is allowed only while the door is in DRAFT. After submit, admins must reopen the door before any photo changes can be registered."
           },
           "event": [
             {
@@ -6242,7 +6275,7 @@
           }
         },
         {
-          "name": "Batch Request Image Upload URLs",
+          "name": "Batch Request Image Upload URLs (DRAFT only)",
           "request": {
             "method": "POST",
             "header": [
@@ -6269,7 +6302,7 @@
                 "batch"
               ]
             },
-            "description": "STEP 1 of 3 (Batch) — Request signed GCS upload URLs for up to 10 door images in a single call.\n\nWhy is 'role' required per image?\nThe role is embedded into each image's GCS storage path (e.g. orgs/.../images/FRONT_FACE/uuid.jpg). Without it the server cannot build the path or generate the signed URL.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER\n\nResponse returns an array of: { signedUrl, objectPath, imageId, role }\n\n➜ NEXT: For each item in the response, PUT the image binary to its signedUrl. See 'Upload Image to GCS (PUT signed URL)'. Run all PUTs in parallel for best performance — no Authorization header on any of them.\n\n➜ THEN: Call 'Batch Register Image URLs' with all imageId + objectPath pairs to save all records in one request."
+            "description": "Requests signed upload URLs for multiple photos in one step. Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before more photos can be added."
           },
           "event": [
             {
@@ -6291,7 +6324,7 @@
           ]
         },
         {
-          "name": "Batch Register Image URLs (after GCS uploads)",
+          "name": "Batch Register Image URLs (after GCS uploads, DRAFT only)",
           "request": {
             "method": "POST",
             "header": [
@@ -6318,7 +6351,7 @@
                 "batch"
               ]
             },
-            "description": "STEP 3 of 3 (Batch) — Register all images in the database after uploading them to GCS.\n\nReplace each <imageId-N> and <objectPath-N> with the values returned from 'Batch Request Image Upload URLs' (Step 1). All records are saved in a single database transaction.\n\n'label' is optional on each image — use it to add a human-readable description, especially useful for OTHER images.\n\nAvailable roles: FRONT_FACE | REAR_FACE | FRAME_GAP | INTUMESCENT_STRIP | SELF_CLOSER | HINGES | SIGNAGE | OTHER"
+            "description": "Registers multiple uploaded door images after GCS upload. Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before more photos can be registered."
           }
         },
         {
@@ -6414,7 +6447,7 @@
           ]
         },
         {
-          "name": "Bulk Delete Door Images",
+          "name": "Bulk Delete Door Images (DRAFT only)",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -6440,7 +6473,7 @@
                 "bulk"
               ]
             },
-            "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+            "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
           },
           "response": [],
           "event": [
@@ -6461,7 +6494,7 @@
           ]
         },
         {
-          "name": "Submit Door (Photographer) — requires ≥1 image",
+          "name": "Submit Door (Photographer) — requires ≥1 image, locks photos",
           "request": {
             "method": "POST",
             "url": {
@@ -6476,7 +6509,7 @@
                 "submit"
               ]
             },
-            "description": "Accepted photographer submits the current door after at least one image has been registered."
+            "description": "Accepted photographer submits the current door after at least one image has been registered. This moves the door to SUBMITTED and locks all photo edits until an admin reopens the door."
           },
           "event": [
             {
@@ -6518,7 +6551,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Get a pre-signed GCS URL to upload a door certificate PDF."
+            "description": "Request a signed upload URL for a door certificate PDF. The door must already be SUBMITTED or CERTIFIED; DRAFT doors cannot be certified. Use this during admin review after the photographer has submitted the door."
           },
           "event": [
             {
@@ -6563,7 +6596,7 @@
                 "register"
               ]
             },
-            "description": "Register the uploaded door certificate."
+            "description": "Register the uploaded certificate and mark the door as CERTIFIED. Allowed for SUBMITTED doors, and can also replace the certificate on an already CERTIFIED door while the survey is still active."
           }
         },
         {
@@ -6587,7 +6620,7 @@
           }
         },
         {
-          "name": "Delete Door Certificate (Admin only)",
+          "name": "Delete Door Certificate (Admin only) — back to SUBMITTED",
           "request": {
             "method": "DELETE",
             "url": {
@@ -6602,8 +6635,41 @@
                 "certificate"
               ]
             },
-            "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED so a new certificate can be uploaded. Returns 204 No Content on success. Only callable by ADMIN."
+            "description": "Delete the door certificate. Removes the PDF from GCS, deletes the certificate record, and resets the door status from CERTIFIED back to SUBMITTED. If photo changes are needed after that, call `Reopen Door for Changes (Admin only)` to move the door from SUBMITTED to DRAFT. Returns 204 No Content on success. Only callable by ADMIN."
           }
+        },
+        {
+          "name": "Reopen Door for Changes (Admin only)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/doors/{{doorId}}/reopen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "doors",
+                "{{doorId}}",
+                "reopen"
+              ]
+            },
+            "description": "Moves a submitted door back to DRAFT so the photographer can edit photos again. Use this when review finds issues after submission. If the door is CERTIFIED, first delete the certificate to return it to SUBMITTED, then call this request to reach DRAFT."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('door returned to DRAFT', () => pm.expect(body.data.status).to.eql('DRAFT'));"
+                ]
+              }
+            }
+          ]
         }
       ],
       "event": [

@@ -40,11 +40,11 @@ These are available to both `ADMIN` and photographer accounts (API role `INSPECT
 | `GET /doors/:id` | Admin, Photographer | Photographer only on assigned building |
 | `GET /doors/:id/images` | Admin, Photographer | Photographer only on assigned building |
 | `GET /doors/:id/images/:imageId/signed-download` | Admin, Photographer | Photographer only on assigned building |
-| `POST /doors/:id/images/signed-upload` | Admin, Photographer | Photographer only on assigned building |
-| `POST /doors/:id/images/register` | Admin, Photographer | Photographer only on assigned building |
-| `POST /doors/:id/images/signed-upload/batch` | Admin, Photographer | Photographer only on assigned building |
-| `POST /doors/:id/images/register/batch` | Admin, Photographer | Photographer only on assigned building |
-| `DELETE /doors/:id/images/bulk` | Admin, Photographer | Admin can delete any; photographer only own uploads |
+| `POST /doors/:id/images/signed-upload` | Admin, Photographer | Draft doors only; photographer only on assigned building |
+| `POST /doors/:id/images/register` | Admin, Photographer | Draft doors only; photographer only on assigned building |
+| `POST /doors/:id/images/signed-upload/batch` | Admin, Photographer | Draft doors only; photographer only on assigned building |
+| `POST /doors/:id/images/register/batch` | Admin, Photographer | Draft doors only; photographer only on assigned building |
+| `DELETE /doors/:id/images/bulk` | Admin, Photographer | Draft doors only; admin can delete any; photographer only own uploads |
 | `GET /doors/:id/certificate/signed-download` | Admin, Photographer | Photographer only on assigned building |
 | `GET /buildings/:buildingId/surveys` | Admin, Photographer | Survey history for an accessible building |
 | `GET /buildings/:buildingId/surveys/current` | Admin, Photographer | Current active survey |
@@ -76,9 +76,10 @@ These are the endpoints the admin portal should use for management and lifecycle
 | `PATCH /floors/:id` | Update floor |
 | `DELETE /floors/:id` | Delete floor |
 | `PATCH /doors/:id` | Update door |
+| `POST /doors/:id/reopen` | Return submitted door to DRAFT so photos can be edited again |
 | `POST /doors/:id/certificate/signed-upload` | Request door certificate upload URL |
 | `POST /doors/:id/certificate/register` | Register door certificate |
-| `DELETE /doors/:id/certificate` | Delete door certificate |
+| `DELETE /doors/:id/certificate` | Delete door certificate and return door to SUBMITTED |
 | `POST /building-assignments` | Assign one building to photographer |
 | `POST /building-assignments/bulk` | Assign many buildings to photographer |
 | `POST /building-assignments/sites/:siteId` | Assign site buildings to photographer |
@@ -104,7 +105,7 @@ These are the endpoints the photographer app should use for invitation handling 
 | `POST /building-assignments/:assignmentId/respond` | Accept or decline one assignment |
 | `POST /building-assignments/groups/:groupId/respond` | Accept or decline grouped site invitation |
 | `POST /buildings/:id/approve` | Approve building before certificate stage |
-| `POST /doors/:id/submit` | Submit door after images are uploaded |
+| `POST /doors/:id/submit` | Submit door after images are uploaded; photo edits lock until admin reopen |
 | `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` | Mark active survey fieldwork complete |
 
 ## Recommended Fresh Flow
@@ -117,6 +118,6 @@ These are the endpoints the photographer app should use for invitation handling 
 6. Photographer login: `POST /auth/login`
 7. Photographer checks invitation: `GET /me/building-assignments`
 8. Photographer accepts invitation: `POST /building-assignments/:assignmentId/respond`
-9. Photographer performs fieldwork: `POST /floors`, `POST /doors`, image upload/register endpoints, `POST /doors/:id/submit`
+9. Photographer performs fieldwork: `POST /floors`, `POST /doors`, draft-only image upload/register endpoints, `POST /doors/:id/submit`
 10. Photographer completes survey fieldwork: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
-11. Admin reviews and finishes lifecycle: certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
+11. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed, certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed

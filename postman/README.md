@@ -40,6 +40,7 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 2. Create active survey prerequisites
 - Assign and accept one photographer assignment (single assignment + photographer accept)
 - Create floor/door and satisfy door submission/certification prerequisites
+- Remember: door photo upload/register/delete is `DRAFT` only; after submit the admin must reopen the door for changes
 - Ensure building certificate prerequisite requests are available
 
 3. Photographer marks active survey fieldwork complete
@@ -115,6 +116,7 @@ Relevant event types reflected by backend behavior:
 ## Troubleshooting
 
 - `400` on certificate upload/register usually means fieldwork completion missing.
+- `400` on door image upload/register/delete usually means the door is no longer `DRAFT` and must be reopened first.
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.

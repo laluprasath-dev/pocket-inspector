@@ -611,6 +611,8 @@ POST /v1/doors/:id/submit
 
 Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is a **photographer** action — the admin panel does not need to call this endpoint, but the admin can display the current `status` to show whether the photographer has submitted the door. Until the photographer submits, the admin's "Upload Certificate" button should be disabled or hidden.
 
+Once submitted, door photos are locked. If review finds issues, the admin must call `POST /v1/doors/:id/reopen` to move the door back to `DRAFT` before the photographer can change photos again.
+
 ---
 
 ## 12. Module: Door Images
@@ -680,6 +682,8 @@ DELETE /v1/doors/:id/images/bulk
 - Minimum 1, maximum 20 IDs per request.
 - Admin can delete any image on the door.
 - Photographers can only delete images they uploaded.
+- Photo deletion is allowed only while the door is `DRAFT`.
+- If the door is `SUBMITTED` or `CERTIFIED`, the admin must reopen it before photos can be deleted.
 
 **Response**
 
@@ -695,6 +699,8 @@ DELETE /v1/doors/:id/images/bulk
 ### Upload images (signed URL flow)
 
 The admin portal does not send images directly to the backend. Instead it uses a **3-step signed URL flow** (see [Section 17](#17-signed-url-pattern--how-it-works)).
+
+> Photo upload and image registration are allowed only while the door status is `DRAFT`. After submit, the door is locked until an admin reopens it.
 
 **Step 1 — Request signed upload URL (single)**
 
@@ -836,6 +842,31 @@ POST /v1/doors/:id/certificate/register
 ```
 
 This sets the door status to `CERTIFIED` and notifies assigned photographers.
+
+### Reopen a submitted door for photo changes *(admin only)*
+
+```
+POST /v1/doors/:id/reopen
+```
+
+Moves a door from `SUBMITTED` back to `DRAFT` so the photographer can edit photos again.
+
+- Use this when admin review finds issues after submission.
+- This does **not** work on `CERTIFIED` doors.
+- For certified doors, first delete the certificate to return the door to `SUBMITTED`, then call this endpoint to return it to `DRAFT`.
+
+### Delete door certificate *(admin only)*
+
+```
+DELETE /v1/doors/:id/certificate
+```
+
+Returns `204 No Content`.
+
+- Removes the door certificate PDF from GCS
+- Deletes the certificate record
+- Resets the door from `CERTIFIED` back to `SUBMITTED`
+- If photo changes are needed after that, call `POST /v1/doors/:id/reopen`
 
 **Download the door certificate**
 
@@ -1008,7 +1039,9 @@ Each building has numbered survey cycles (v1, v2, v3 …). A survey represents o
 ```
 Building created          →  Survey v1 ACTIVE (auto-created on first floor add)
 Photographer photos + submit →  Doors: DRAFT → SUBMITTED
+Admin review reopen       →  Doors: SUBMITTED → DRAFT
 Admin door certs          →  Doors: SUBMITTED → CERTIFIED
+Admin delete cert         →  Doors: CERTIFIED → SUBMITTED
 Admin building cert       →  Building: APPROVED → CERTIFIED
 Admin confirm-complete    →  Survey v1: ACTIVE → COMPLETED  (frozen, read-only)
 Admin start-next          →  Survey v2: ACTIVE  (floors/doors cloned, no images)
