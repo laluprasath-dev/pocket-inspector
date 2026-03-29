@@ -314,7 +314,7 @@ describe('Building Assignment Verification (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/v1/buildings/${buildingId}/approve`)
       .set('Authorization', `Bearer ${inspectorToken}`)
-      .expect(403);
+      .expect(404);
 
     await request(app.getHttpServer())
       .post('/v1/floors')

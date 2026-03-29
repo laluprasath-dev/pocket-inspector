@@ -351,37 +351,6 @@ export class BuildingsService {
     });
   }
 
-  // ── Inspector approval ─────────────────────────────────────────────────────
-
-  async approve(id: string, userId: string, orgId: string) {
-    await this.buildingAssignments.assertInspectorCanWorkOnBuilding(
-      id,
-      userId,
-      orgId,
-    );
-
-    const building = await this.prisma.building.findFirst({ where: { id, orgId } });
-    if (!building) throw new NotFoundException(`Building ${id} not found`);
-
-    if (building.status === BuildingStatus.APPROVED) {
-      throw new BadRequestException('Building is already approved');
-    }
-    if (building.status === BuildingStatus.CERTIFIED) {
-      throw new BadRequestException(
-        'Building is already certified and cannot be re-approved',
-      );
-    }
-
-    return this.prisma.building.update({
-      where: { id },
-      data: {
-        status: BuildingStatus.APPROVED,
-        approvedAt: new Date(),
-        approvedById: userId,
-      },
-    });
-  }
-
   // ── Building certificate ───────────────────────────────────────────────────
 
   async requestCertificateUpload(buildingId: string, orgId: string) {
@@ -396,7 +365,7 @@ export class BuildingsService {
       building.status !== BuildingStatus.CERTIFIED
     ) {
       throw new BadRequestException(
-        'Building must be approved by a photographer before a certificate can be uploaded',
+        'Building fieldwork must be completed before a certificate can be uploaded',
       );
     }
 
@@ -450,7 +419,7 @@ export class BuildingsService {
       building.status !== BuildingStatus.CERTIFIED
     ) {
       throw new BadRequestException(
-        'Building must be approved by a photographer before a certificate can be registered',
+        'Building fieldwork must be completed before a certificate can be registered',
       );
     }
 

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- photographer final fieldwork completion is done via `buildings/:buildingId/surveys/:surveyId/complete-fieldwork`\n- `buildings/:id/approve` is legacy compatibility only and is not required in the current survey workflow\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- photographer final fieldwork completion is done via `buildings/:buildingId/surveys/:surveyId/complete-fieldwork`\n\n## Consumer Sections\n- `\ud83d\udda5\ufe0f Admin Portal Endpoints` groups the intended admin portal requests\n- `\ud83d\udcf1 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN \u2014 manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -89,11 +89,11 @@
   ],
   "item": [
     {
-      "name": "🖥️ Admin Portal Endpoints",
+      "name": "\ud83d\udda5\ufe0f Admin Portal Endpoints",
       "description": "Curated admin portal requests. Use this section for setup, team management, buildings, assignment workflow, survey lifecycle, certification, and exports.",
       "item": [
         {
-          "name": "🔑 Auth & Org",
+          "name": "\ud83d\udd11 Auth & Org",
           "description": "Admin login, session management, and organisation settings.",
           "item": [
             {
@@ -111,11 +111,11 @@
                       "    pm.environment.set('refreshToken', json.data.refreshToken);",
                       "    // Save deviceId returned by server (auto-detected from User-Agent)",
                       "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
-                      "    pm.test('Login successful — tokens saved', () => {",
+                      "    pm.test('Login successful \u2014 tokens saved', () => {",
                       "        pm.expect(json.data.accessToken).to.be.a('string');",
                       "    });",
                       "} else {",
-                      "    pm.test('Login FAILED — check email/password', () => { pm.expect(false).to.be.true; });",
+                      "    pm.test('Login FAILED \u2014 check email/password', () => { pm.expect(false).to.be.true; });",
                       "}",
                       "",
                       "// Also save adminId from /v1/auth/me",
@@ -160,7 +160,7 @@
                     "login"
                   ]
                 },
-                "description": "Login with admin credentials. Only email and password are needed — device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
+                "description": "Login with admin credentials. Only email and password are needed \u2014 device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
               }
             },
             {
@@ -207,7 +207,7 @@
                     "refresh"
                   ]
                 },
-                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call — old refresh token is invalidated immediately."
+                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call \u2014 old refresh token is invalidated immediately."
               }
             },
             {
@@ -249,7 +249,7 @@
                     "sessions"
                   ]
                 },
-                "description": "Shows all devices currently logged in as the current user — deviceName, deviceType, IP address, last used time."
+                "description": "Shows all devices currently logged in as the current user \u2014 deviceName, deviceType, IP address, last used time."
               },
               "event": [
                 {
@@ -424,7 +424,7 @@
           ]
         },
         {
-          "name": "👥 Team & Clients",
+          "name": "\ud83d\udc65 Team & Clients",
           "description": "Admin-only people and customer management.",
           "item": [
             {
@@ -572,7 +572,7 @@
                       "const json = pm.response.json();",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('clientId', json.data.id);",
-                      "    pm.test('Client created — clientId saved', () => pm.response.to.have.status(201));",
+                      "    pm.test('Client created \u2014 clientId saved', () => pm.response.to.have.status(201));",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -589,7 +589,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account — monthly billing\"\n}"
+                  "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account \u2014 monthly billing\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/v1/clients",
@@ -601,7 +601,7 @@
                     "clients"
                   ]
                 },
-                "description": "Create a new client. Only `name` is required — all other fields are optional. Name must be unique within the org. Saves clientId."
+                "description": "Create a new client. Only `name` is required \u2014 all other fields are optional. Name must be unique within the org. Saves clientId."
               }
             },
             {
@@ -671,7 +671,7 @@
           ]
         },
         {
-          "name": "🏗️ Sites & Buildings",
+          "name": "\ud83c\udfd7\ufe0f Sites & Buildings",
           "description": "Site and building setup, edits, and current-building certificate operations.",
           "item": [
             {
@@ -701,7 +701,7 @@
                       "const json = pm.response.json();",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('siteId', json.data.id);",
-                      "    pm.test('Site created — siteId saved', () => pm.response.to.have.status(201));",
+                      "    pm.test('Site created \u2014 siteId saved', () => pm.response.to.have.status(201));",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -814,7 +814,7 @@
                     {
                       "key": "siteId",
                       "value": "{{siteId}}",
-                      "description": "Optional — filter by site"
+                      "description": "Optional \u2014 filter by site"
                     }
                   ]
                 },
@@ -831,7 +831,7 @@
                       "const json = pm.response.json();",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('buildingId', json.data.id);",
-                      "    pm.test('Building created — buildingId saved', () => pm.response.to.have.status(201));",
+                      "    pm.test('Building created \u2014 buildingId saved', () => pm.response.to.have.status(201));",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -1085,7 +1085,7 @@
           ]
         },
         {
-          "name": "🧭 Assignment Workflow",
+          "name": "\ud83e\udded Assignment Workflow",
           "description": "Admin-side assignment creation, grouping, reassignment, and history.",
           "item": [
             {
@@ -1483,7 +1483,7 @@
           ]
         },
         {
-          "name": "🏠 Floors & Doors",
+          "name": "\ud83c\udfe0 Floors & Doors",
           "description": "Admin reads/edits for floor and door structure, images, and door certificates.\n\nAdmin review flow: submitted doors can be certified or reopened for changes; certified doors must drop back to SUBMITTED before reopening to DRAFT.",
           "item": [
             {
@@ -1599,7 +1599,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"locationNotes\": \"Updated — end of corridor, fire exit side\"\n}"
+                  "raw": "{\n  \"locationNotes\": \"Updated \u2014 end of corridor, fire exit side\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
@@ -1631,7 +1631,7 @@
                     "images"
                   ]
                 },
-                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` — signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` — signed URL for the 400×400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use — re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` \u2014 signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` \u2014 signed URL for the 400\u00d7400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use \u2014 re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
               },
               "event": [
                 {
@@ -1685,7 +1685,7 @@
                     "signed-download"
                   ]
                 },
-                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` — refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` \u2014 refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
               },
               "event": [
                 {
@@ -1734,7 +1734,7 @@
                     "bulk"
                   ]
                 },
-                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+                "description": "Permanently deletes 1\u201320 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
               },
               "response": [],
               "event": [
@@ -1850,7 +1850,7 @@
               }
             },
             {
-              "name": "Delete Door Certificate (Admin only) — back to SUBMITTED",
+              "name": "Delete Door Certificate (Admin only) \u2014 back to SUBMITTED",
               "request": {
                 "method": "DELETE",
                 "url": {
@@ -1904,7 +1904,7 @@
           ]
         },
         {
-          "name": "📋 Survey Lifecycle",
+          "name": "\ud83d\udccb Survey Lifecycle",
           "description": "Admin survey history, activation, scheduling, completion, and reopen controls.",
           "item": [
             {
@@ -2136,7 +2136,7 @@
                       "    pm.environment.set('plannedSurveyId', json.data.id);",
                       "    pm.test('Planned survey created', () => pm.response.to.have.status(201));",
                       "    pm.test('New survey is PLANNED', () => pm.expect(json.data.status).to.eql('PLANNED'));",
-                      "    console.log('Survey v' + json.data.version + ' planned — cloned ' + json.data.floorsCloned + ' floors, ' + json.data.doorsCloned + ' doors');",
+                      "    console.log('Survey v' + json.data.version + ' planned \u2014 cloned ' + json.data.floorsCloned + ' floors, ' + json.data.doorsCloned + ' doors');",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -2280,7 +2280,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection — focus on upper floors\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
+                  "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection \u2014 focus on upper floors\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/current/schedule",
@@ -2302,7 +2302,7 @@
           ]
         },
         {
-          "name": "📦 Exports",
+          "name": "\ud83d\udce6 Exports",
           "description": "Admin-only export jobs and downloads.",
           "item": [
             {
@@ -2315,7 +2315,7 @@
                       "const json = pm.response.json();",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('exportJobId', json.data.id);",
-                      "    pm.test('Export job created — exportJobId saved', () => pm.response.to.have.status(201));",
+                      "    pm.test('Export job created \u2014 exportJobId saved', () => pm.response.to.have.status(201));",
                       "}"
                     ],
                     "type": "text/javascript"
@@ -2362,7 +2362,7 @@
                     "{{exportJobId}}"
                   ]
                 },
-                "description": "Check status: QUEUED → RUNNING → DONE (or FAILED). Poll every few seconds."
+                "description": "Check status: QUEUED \u2192 RUNNING \u2192 DONE (or FAILED). Poll every few seconds."
               }
             },
             {
@@ -2389,11 +2389,11 @@
       ]
     },
     {
-      "name": "📱 Photographer Mobile Endpoints",
+      "name": "\ud83d\udcf1 Photographer Mobile Endpoints",
       "description": "Curated photographer mobile requests. Use this section for login, invitation handling, fieldwork, uploads, approvals, and active survey completion.",
       "item": [
         {
-          "name": "🔑 Auth & Profile",
+          "name": "\ud83d\udd11 Auth & Profile",
           "description": "Photographer login, current-user access, and device/session management.",
           "item": [
             {
@@ -2503,7 +2503,7 @@
                     "refresh"
                   ]
                 },
-                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call — old refresh token is invalidated immediately."
+                "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call \u2014 old refresh token is invalidated immediately."
               }
             },
             {
@@ -2545,7 +2545,7 @@
                     "sessions"
                   ]
                 },
-                "description": "Shows all devices currently logged in as the current user — deviceName, deviceType, IP address, last used time."
+                "description": "Shows all devices currently logged in as the current user \u2014 deviceName, deviceType, IP address, last used time."
               },
               "event": [
                 {
@@ -2778,7 +2778,7 @@
           ]
         },
         {
-          "name": "🧭 Assignment Inbox",
+          "name": "\ud83e\udded Assignment Inbox",
           "description": "Pending and accepted assignment flows for the photographer app.",
           "item": [
             {
@@ -3000,7 +3000,7 @@
           ]
         },
         {
-          "name": "🏗️ Accessible Sites & Buildings",
+          "name": "\ud83c\udfd7\ufe0f Accessible Sites & Buildings",
           "description": "Read endpoints for only the sites and buildings the photographer can access.",
           "item": [
             {
@@ -3055,7 +3055,7 @@
                     {
                       "key": "siteId",
                       "value": "{{siteId}}",
-                      "description": "Optional — filter by site"
+                      "description": "Optional \u2014 filter by site"
                     }
                   ]
                 },
@@ -3241,7 +3241,7 @@
           ]
         },
         {
-          "name": "📸 Fieldwork & Uploads",
+          "name": "\ud83d\udcf8 Fieldwork & Uploads",
           "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.\n\nUse `Complete Survey Fieldwork (Photographer)` as the single final building-ready signal for the active survey.",
           "item": [
             {
@@ -3274,7 +3274,7 @@
                   "script": {
                     "exec": [
                       "const json = pm.response.json();",
-                      "pm.test('Accepted inspector can create floor — 201', () => pm.response.to.have.status(201));",
+                      "pm.test('Accepted inspector can create floor \u2014 201', () => pm.response.to.have.status(201));",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('floorId', json.data.id);",
                       "    pm.environment.set('inspectorFloorId', json.data.id);",
@@ -3379,7 +3379,7 @@
                   "script": {
                     "exec": [
                       "const json = pm.response.json();",
-                      "pm.test('Accepted inspector can create door — 201', () => pm.response.to.have.status(201));",
+                      "pm.test('Accepted inspector can create door \u2014 201', () => pm.response.to.have.status(201));",
                       "if (json.data && json.data.id) {",
                       "    pm.environment.set('doorId', json.data.id);",
                       "    pm.environment.set('inspectorDoorId', json.data.id);",
@@ -3542,13 +3542,13 @@
                   "listen": "prerequest",
                   "script": {
                     "exec": [
-                      "// This request must be run manually — paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
+                      "// This request must be run manually \u2014 paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
                       "// Skipped automatically during Newman runs when no real URL is set.",
                       "const url = pm.environment.get('signedUploadUrl') || '';",
                       "if (!url || !url.startsWith('https://storage.googleapis.com')) {",
                       "    pm.execution.skipRequest();",
                       "}",
-                      "// Remove Authorization header — GCS signed URLs must NOT receive a Bearer token.",
+                      "// Remove Authorization header \u2014 GCS signed URLs must NOT receive a Bearer token.",
                       "pm.request.headers.remove('Authorization');"
                     ],
                     "type": "text/javascript"
@@ -3572,7 +3572,7 @@
                   "file": {}
                 },
                 "url": "{{signedUploadUrl}}",
-                "description": "STEP 2 of 3 — Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab → select 'binary' → click 'Select File' → pick your image file\n5. Send — GCS returns 200 OK with an empty body if successful\n\n⚠️  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n⚠️  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n➜ NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
+                "description": "STEP 2 of 3 \u2014 Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab \u2192 select 'binary' \u2192 click 'Select File' \u2192 pick your image file\n5. Send \u2014 GCS returns 200 OK with an empty body if successful\n\n\u26a0\ufe0f  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n\u26a0\ufe0f  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n\u279c NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
               }
             },
             {
@@ -3613,7 +3613,7 @@
                       "const json = pm.response.json();",
                       "if (json.data && Array.isArray(json.data)) {",
                       "    pm.environment.set('batchUploadResults', JSON.stringify(json.data));",
-                      "    pm.test('Batch signed URLs returned — ' + json.data.length + ' items', () => {",
+                      "    pm.test('Batch signed URLs returned \u2014 ' + json.data.length + ' items', () => {",
                       "        pm.response.to.have.status(200);",
                       "        pm.expect(json.data.length).to.be.greaterThan(0);",
                       "    });",
@@ -3671,7 +3671,7 @@
                     "images"
                   ]
                 },
-                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` — signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` — signed URL for the 400×400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use — re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+                "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` \u2014 signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` \u2014 signed URL for the 400\u00d7400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use \u2014 re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
               },
               "event": [
                 {
@@ -3725,7 +3725,7 @@
                     "signed-download"
                   ]
                 },
-                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` — refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+                "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` \u2014 refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
               },
               "event": [
                 {
@@ -3774,7 +3774,7 @@
                     "bulk"
                   ]
                 },
-                "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+                "description": "Permanently deletes 1\u201320 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
               },
               "response": [],
               "event": [
@@ -3795,7 +3795,7 @@
               ]
             },
             {
-              "name": "Submit Door (Photographer) — requires ≥1 image, locks photos",
+              "name": "Submit Door (Photographer) \u2014 requires \u22651 image, locks photos",
               "request": {
                 "method": "POST",
                 "url": {
@@ -3889,7 +3889,7 @@
                     "complete-fieldwork"
                   ]
                 },
-                "description": "Photographer marks fieldwork complete for the active survey version. This is the single final “building is ready for admin review” action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
+                "description": "Photographer marks fieldwork complete for the active survey version. This is the single final \u201cbuilding is ready for admin review\u201d action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
               }
             }
           ]
@@ -3897,7 +3897,7 @@
       ]
     },
     {
-      "name": "🔑 Auth",
+      "name": "\ud83d\udd11 Auth",
       "item": [
         {
           "name": "Login as Admin",
@@ -3914,11 +3914,11 @@
                   "    pm.environment.set('refreshToken', json.data.refreshToken);",
                   "    // Save deviceId returned by server (auto-detected from User-Agent)",
                   "    if (json.data.deviceId) pm.environment.set('deviceId', json.data.deviceId);",
-                  "    pm.test('Login successful — tokens saved', () => {",
+                  "    pm.test('Login successful \u2014 tokens saved', () => {",
                   "        pm.expect(json.data.accessToken).to.be.a('string');",
                   "    });",
                   "} else {",
-                  "    pm.test('Login FAILED — check email/password', () => { pm.expect(false).to.be.true; });",
+                  "    pm.test('Login FAILED \u2014 check email/password', () => { pm.expect(false).to.be.true; });",
                   "}",
                   "",
                   "// Also save adminId from /v1/auth/me",
@@ -3963,7 +3963,7 @@
                 "login"
               ]
             },
-            "description": "Login with admin credentials. Only email and password are needed — device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
+            "description": "Login with admin credentials. Only email and password are needed \u2014 device info (deviceId, deviceName, deviceType) is auto-detected from the User-Agent header. The server returns deviceId in the response and it is saved automatically."
           }
         },
         {
@@ -4073,7 +4073,7 @@
                 "refresh"
               ]
             },
-            "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call — old refresh token is invalidated immediately."
+            "description": "Exchange a refresh token for a new access + refresh token pair. Token is rotated on each call \u2014 old refresh token is invalidated immediately."
           }
         },
         {
@@ -4115,7 +4115,7 @@
                 "sessions"
               ]
             },
-            "description": "Shows all devices currently logged in as the current user — deviceName, deviceType, IP address, last used time."
+            "description": "Shows all devices currently logged in as the current user \u2014 deviceName, deviceType, IP address, last used time."
           },
           "event": [
             {
@@ -4244,7 +4244,7 @@
       ]
     },
     {
-      "name": "🏢 Orgs",
+      "name": "\ud83c\udfe2 Orgs",
       "item": [
         {
           "name": "Get My Org",
@@ -4308,7 +4308,7 @@
       ]
     },
     {
-      "name": "👤 Users",
+      "name": "\ud83d\udc64 Users",
       "item": [
         {
           "name": "List All Users (Admin only)",
@@ -4444,7 +4444,7 @@
       ]
     },
     {
-      "name": "👥 Clients",
+      "name": "\ud83d\udc65 Clients",
       "item": [
         {
           "name": "List Clients (Admin only)",
@@ -4473,7 +4473,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('clientId', json.data.id);",
-                  "    pm.test('Client created — clientId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Client created \u2014 clientId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -4490,7 +4490,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account — monthly billing\"\n}"
+              "raw": "{\n  \"name\": \"Acme Fire Safety Ltd\",\n  \"contactName\": \"John Smith\",\n  \"contactEmail\": \"john@acme.com\",\n  \"contactPhone\": \"+44 20 7946 0958\",\n  \"address\": \"123 King Street, London EC2V 8AA\",\n  \"notes\": \"Key account \u2014 monthly billing\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/clients",
@@ -4502,7 +4502,7 @@
                 "clients"
               ]
             },
-            "description": "Create a new client. Only `name` is required — all other fields are optional. Name must be unique within the org. Saves clientId."
+            "description": "Create a new client. Only `name` is required \u2014 all other fields are optional. Name must be unique within the org. Saves clientId."
           }
         },
         {
@@ -4585,7 +4585,7 @@
       ]
     },
     {
-      "name": "📍 Sites",
+      "name": "\ud83d\udccd Sites",
       "item": [
         {
           "name": "List Sites",
@@ -4614,7 +4614,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('siteId', json.data.id);",
-                  "    pm.test('Site created — siteId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Site created \u2014 siteId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -4726,7 +4726,7 @@
       ]
     },
     {
-      "name": "🏗️ Buildings",
+      "name": "\ud83c\udfd7\ufe0f Buildings",
       "item": [
         {
           "name": "List Buildings",
@@ -4745,7 +4745,7 @@
                 {
                   "key": "siteId",
                   "value": "{{siteId}}",
-                  "description": "Optional — filter by site"
+                  "description": "Optional \u2014 filter by site"
                 }
               ]
             },
@@ -4762,7 +4762,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('buildingId', json.data.id);",
-                  "    pm.test('Building created — buildingId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Building created \u2014 buildingId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -4900,37 +4900,6 @@
           }
         },
         {
-          "name": "Legacy Approve Building (Compatibility only)",
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/approve",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "buildings",
-                "{{buildingId}}",
-                "approve"
-              ]
-            },
-            "description": "Legacy compatibility endpoint. Current survey workflow should use `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`, which also marks the building ready for certificate upload."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "const t = pm.environment.get('inspectorToken');",
-                  "if (t) pm.environment.set('accessToken', t);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
           "name": "Request Building Certificate Upload (Admin only)",
           "request": {
             "method": "POST",
@@ -5060,7 +5029,7 @@
       ]
     },
     {
-      "name": "🧭 Building Assignment Workflow",
+      "name": "\ud83e\udded Building Assignment Workflow",
       "item": [
         {
           "name": "Admin Portal Flow",
@@ -5707,7 +5676,7 @@
       ]
     },
     {
-      "name": "🏠 Floors",
+      "name": "\ud83c\udfe0 Floors",
       "item": [
         {
           "name": "Create Floor",
@@ -5719,7 +5688,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('floorId', json.data.id);",
-                  "    pm.test('Floor created — floorId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Floor created \u2014 floorId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -5781,7 +5750,7 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.test('Accepted inspector can create floor — 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Accepted inspector can create floor \u2014 201', () => pm.response.to.have.status(201));",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('floorId', json.data.id);",
                   "    pm.environment.set('inspectorFloorId', json.data.id);",
@@ -5918,7 +5887,7 @@
       ]
     },
     {
-      "name": "🚪 Doors",
+      "name": "\ud83d\udeaa Doors",
       "item": [
         {
           "name": "Create Door",
@@ -5930,7 +5899,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('doorId', json.data.id);",
-                  "    pm.test('Door created — doorId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Door created \u2014 doorId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -6019,7 +5988,7 @@
               "script": {
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.test('Accepted inspector can create door — 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Accepted inspector can create door \u2014 201', () => pm.response.to.have.status(201));",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('doorId', json.data.id);",
                   "    pm.environment.set('inspectorDoorId', json.data.id);",
@@ -6087,7 +6056,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"locationNotes\": \"Updated — end of corridor, fire exit side\"\n}"
+              "raw": "{\n  \"locationNotes\": \"Updated \u2014 end of corridor, fire exit side\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/doors/{{doorId}}",
@@ -6210,13 +6179,13 @@
               "listen": "prerequest",
               "script": {
                 "exec": [
-                  "// This request must be run manually — paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
+                  "// This request must be run manually \u2014 paste the signedUrl from Step 1 into the {{signedUploadUrl}} env variable.",
                   "// Skipped automatically during Newman runs when no real URL is set.",
                   "const url = pm.environment.get('signedUploadUrl') || '';",
                   "if (!url || !url.startsWith('https://storage.googleapis.com')) {",
                   "    pm.execution.skipRequest();",
                   "}",
-                  "// Remove Authorization header — GCS signed URLs must NOT receive a Bearer token.",
+                  "// Remove Authorization header \u2014 GCS signed URLs must NOT receive a Bearer token.",
                   "pm.request.headers.remove('Authorization');"
                 ],
                 "type": "text/javascript"
@@ -6240,7 +6209,7 @@
               "file": {}
             },
             "url": "{{signedUploadUrl}}",
-            "description": "STEP 2 of 3 — Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab → select 'binary' → click 'Select File' → pick your image file\n5. Send — GCS returns 200 OK with an empty body if successful\n\n⚠️  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n⚠️  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n➜ NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
+            "description": "STEP 2 of 3 \u2014 Upload the image file directly to Google Cloud Storage using the signed URL.\n\nHow to use this request:\n1. Copy the 'signedUrl' value from the 'Request Image Upload URL' response\n2. Paste it into the request URL above (replace {{signedUploadUrl}} or set it as an environment variable)\n3. Set Content-Type header to match what you requested (e.g. image/jpeg)\n4. In Body tab \u2192 select 'binary' \u2192 click 'Select File' \u2192 pick your image file\n5. Send \u2014 GCS returns 200 OK with an empty body if successful\n\n\u26a0\ufe0f  IMPORTANT: Do NOT add an Authorization header here. The signed URL itself is the authentication. Adding a Bearer token will cause a 403 error.\n\n\u26a0\ufe0f  The signed URL expires in 15 minutes. If you get a 403, go back to Step 1 and get a new URL.\n\n\u279c NEXT: Call 'Register Door Image (after GCS upload)' with the imageId and objectPath from Step 1 to save the record in the database."
           }
         },
         {
@@ -6281,7 +6250,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && Array.isArray(json.data)) {",
                   "    pm.environment.set('batchUploadResults', JSON.stringify(json.data));",
-                  "    pm.test('Batch signed URLs returned — ' + json.data.length + ' items', () => {",
+                  "    pm.test('Batch signed URLs returned \u2014 ' + json.data.length + ' items', () => {",
                   "        pm.response.to.have.status(200);",
                   "        pm.expect(json.data.length).to.be.greaterThan(0);",
                   "    });",
@@ -6339,7 +6308,7 @@
                 "images"
               ]
             },
-            "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` — signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` — signed URL for the 400×400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use — re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
+            "description": "Returns all images for the door, each with:\n- `downloadUrl` + `downloadUrlExpiresAt` \u2014 signed URL for the original (15 min)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` \u2014 signed URL for the 400\u00d7400 JPEG thumbnail (7 days)\n\n**Client caching strategy:**\nCache URLs keyed by `imageId`. Check `downloadUrlExpiresAt` before use \u2014 re-fetch this list (or call the single-image signed-download endpoint) if expiring within 60 seconds."
           },
           "event": [
             {
@@ -6393,7 +6362,7 @@
                 "signed-download"
               ]
             },
-            "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` — refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
+            "description": "Fetches fresh signed download URLs for a single image.\n\nUse this when the cached `downloadUrl` from `List Door Images` is about to expire (check `downloadUrlExpiresAt` \u2014 refresh 60 s before expiry).\n\nReturns:\n- `downloadUrl` + `downloadUrlExpiresAt` (15 min expiry)\n- `downloadUrlThumb` + `downloadUrlThumbExpiresAt` (7 day expiry)\n- `role` and `label`"
           },
           "event": [
             {
@@ -6442,7 +6411,7 @@
                 "bulk"
               ]
             },
-            "description": "Permanently deletes 1–20 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
+            "description": "Permanently deletes 1\u201320 door images in a single call.\n\n**What happens:**\n1. Validates all imageIds belong to this door and org\n2. Deletes original + thumbnail files from GCS (best-effort)\n3. Removes DB records in a single transaction\n4. Writes an `DOOR_IMAGE_DELETED` audit log entry for each image (with full metadata snapshot)\n\n**Access:** Admin can delete any image. Photographer can only delete images they uploaded.\n\n**Workflow rule:** Allowed only while the door is in DRAFT. Submitted or certified doors must be reopened before photos can be deleted.\n\n**To get imageIds:** call `List Door Images` first and copy the `id` fields."
           },
           "response": [],
           "event": [
@@ -6463,7 +6432,7 @@
           ]
         },
         {
-          "name": "Submit Door (Photographer) — requires ≥1 image, locks photos",
+          "name": "Submit Door (Photographer) \u2014 requires \u22651 image, locks photos",
           "request": {
             "method": "POST",
             "url": {
@@ -6589,7 +6558,7 @@
           }
         },
         {
-          "name": "Delete Door Certificate (Admin only) — back to SUBMITTED",
+          "name": "Delete Door Certificate (Admin only) \u2014 back to SUBMITTED",
           "request": {
             "method": "DELETE",
             "url": {
@@ -6683,7 +6652,7 @@
       ]
     },
     {
-      "name": "📦 Exports",
+      "name": "\ud83d\udce6 Exports",
       "item": [
         {
           "name": "Create Export Job (Admin only)",
@@ -6695,7 +6664,7 @@
                   "const json = pm.response.json();",
                   "if (json.data && json.data.id) {",
                   "    pm.environment.set('exportJobId', json.data.id);",
-                  "    pm.test('Export job created — exportJobId saved', () => pm.response.to.have.status(201));",
+                  "    pm.test('Export job created \u2014 exportJobId saved', () => pm.response.to.have.status(201));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -6742,7 +6711,7 @@
                 "{{exportJobId}}"
               ]
             },
-            "description": "Check status: QUEUED → RUNNING → DONE (or FAILED). Poll every few seconds."
+            "description": "Check status: QUEUED \u2192 RUNNING \u2192 DONE (or FAILED). Poll every few seconds."
           }
         },
         {
@@ -6780,7 +6749,7 @@
       ]
     },
     {
-      "name": "📱 Notifications",
+      "name": "\ud83d\udcf1 Notifications",
       "item": [
         {
           "name": "Register Device Token (FCM)",
@@ -6838,7 +6807,7 @@
       ]
     },
     {
-      "name": "📋 Surveys",
+      "name": "\ud83d\udccb Surveys",
       "description": "Survey versioning lifecycle: PLANNED -> ACTIVE -> COMPLETED with survey-level execution locking. Use this folder for complete-fieldwork/reopen, confirm-complete (schedule or skip), start-next (PLANNED), and activation.",
       "item": [
         {
@@ -7070,7 +7039,7 @@
                   "    pm.environment.set('plannedSurveyId', json.data.id);",
                   "    pm.test('Planned survey created', () => pm.response.to.have.status(201));",
                   "    pm.test('New survey is PLANNED', () => pm.expect(json.data.status).to.eql('PLANNED'));",
-                  "    console.log('Survey v' + json.data.version + ' planned — cloned ' + json.data.floorsCloned + ' floors, ' + json.data.doorsCloned + ' doors');",
+                  "    console.log('Survey v' + json.data.version + ' planned \u2014 cloned ' + json.data.floorsCloned + ' floors, ' + json.data.doorsCloned + ' doors');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -7188,7 +7157,7 @@
                 "complete-fieldwork"
               ]
             },
-            "description": "Photographer marks fieldwork complete for the active survey version. This is the single final “building is ready for admin review” action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
+            "description": "Photographer marks fieldwork complete for the active survey version. This is the single final \u201cbuilding is ready for admin review\u201d action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
           }
         },
         {
@@ -7261,7 +7230,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection — focus on upper floors\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
+              "raw": "{\n  \"nextScheduledAt\": \"2026-06-01T09:00:00Z\",\n  \"nextScheduledNote\": \"Q2 annual inspection \u2014 focus on upper floors\",\n  \"nextAssignedInspectorId\": \"{{inspectorId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/current/schedule",
@@ -7283,7 +7252,7 @@
       ]
     },
     {
-      "name": "❤️ Health",
+      "name": "\u2764\ufe0f Health",
       "item": [
         {
           "name": "Health Check",
@@ -7307,11 +7276,11 @@
       ]
     },
     {
-      "name": "🧪 QA / Access Control",
+      "name": "\ud83e\uddea QA / Access Control",
       "description": "Negative and authorization-focused checks. Keep these separate from the normal admin portal and photographer workflow folders.",
       "item": [
         {
-          "name": "🚫 Forbidden Writes",
+          "name": "\ud83d\udeab Forbidden Writes",
           "description": "Requests that should fail because the caller does not have permission for the action.",
           "item": [
             {
@@ -7343,7 +7312,7 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "pm.test('Inspector is blocked from creating a site — 403', () => pm.response.to.have.status(403));"
+                      "pm.test('Inspector is blocked from creating a site \u2014 403', () => pm.response.to.have.status(403));"
                     ],
                     "type": "text/javascript"
                   }
@@ -7406,7 +7375,7 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "pm.test('Inspector is blocked from creating a building — 403', () => pm.response.to.have.status(403));"
+                      "pm.test('Inspector is blocked from creating a building \u2014 403', () => pm.response.to.have.status(403));"
                     ],
                     "type": "text/javascript"
                   }

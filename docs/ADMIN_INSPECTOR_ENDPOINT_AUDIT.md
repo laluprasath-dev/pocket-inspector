@@ -128,7 +128,6 @@
 
 ### Workflow completion
 
-- `POST /v1/buildings/:id/approve`
 - `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
 
 ## Shared Endpoints With Access Scoping

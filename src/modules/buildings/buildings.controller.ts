@@ -78,19 +78,6 @@ export class BuildingsController {
     return this.buildingsService.getFloors(id, user.orgId, user.id, user.role);
   }
 
-  // ── Inspector approval ─────────────────────────────────────────────────────
-
-  @Post(':id/approve')
-  @Roles(Role.INSPECTOR)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      'Legacy photographer building approval flag (current flow should use survey complete-fieldwork instead)',
-  })
-  approve(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.buildingsService.approve(id, user.id, user.orgId);
-  }
-
   // ── Building certificate ───────────────────────────────────────────────────
 
   @Post(':id/certificate/signed-upload')

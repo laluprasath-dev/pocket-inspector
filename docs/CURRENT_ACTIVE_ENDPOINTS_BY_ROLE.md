@@ -121,7 +121,4 @@ These are the endpoints the photographer app should use for invitation handling 
 10. Photographer completes the building survey in one final step: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
 11. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed, certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
 
-## Compatibility Note
-
-- `POST /buildings/:id/approve` still exists for backward compatibility, but it is not required in the current survey workflow.
-- The active flow should use `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`, which now also marks the building ready for certificate upload.
+`POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` is the only active building-level completion endpoint. It marks the building ready for certificate upload and marks active survey fieldwork complete.

@@ -489,16 +489,6 @@ GET /v1/buildings/:id/floors
 > Hide the "Upload Certificate" button until `status === 'APPROVED'` or `status === 'CERTIFIED'`.  
 > Show the "Download Certificate" button only when `certificatePresent === true`.
 
-### Legacy approve endpoint *(compatibility only)*
-
-```
-POST /v1/buildings/:id/approve
-```
-
-This legacy endpoint sets building status from `DRAFT` → `APPROVED`.
-
-The current survey workflow should **not** depend on this separate call.
-
 Use:
 
 ```
