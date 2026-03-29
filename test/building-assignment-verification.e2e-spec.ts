@@ -391,11 +391,6 @@ describe('Building Assignment Verification (e2e)', () => {
       .expect(201);
     const floorId = floorRes.body.data.id as string;
 
-    await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/approve`)
-      .set('Authorization', `Bearer ${inspectorToken}`)
-      .expect(200);
-
     const doorRes = await request(app.getHttpServer())
       .post('/v1/doors')
       .set('Authorization', `Bearer ${inspectorToken}`)
@@ -512,11 +507,6 @@ describe('Building Assignment Verification (e2e)', () => {
       .expect(201);
     const floorId = floorRes.body.data.id as string;
 
-    await request(app.getHttpServer())
-      .post(`/v1/buildings/${buildingId}/approve`)
-      .set('Authorization', `Bearer ${inspectorToken}`)
-      .expect(200);
-
     const doorRes = await request(app.getHttpServer())
       .post('/v1/doors')
       .set('Authorization', `Bearer ${inspectorToken}`)
@@ -569,6 +559,12 @@ describe('Building Assignment Verification (e2e)', () => {
       .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`)
       .set('Authorization', `Bearer ${inspectorToken}`)
       .expect(200);
+
+    const buildingAfterComplete = await prisma.building.findUniqueOrThrow({
+      where: { id: buildingId },
+    });
+    expect(buildingAfterComplete.status).toBe('APPROVED');
+    expect(buildingAfterComplete.approvedById).toBe(seeds.inspector.id);
 
     const doorCertDownload = await request(app.getHttpServer())
       .get(`/v1/doors/${doorId}/certificate/signed-download`)

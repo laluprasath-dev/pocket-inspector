@@ -486,6 +486,12 @@ describe('Building Assignments (e2e)', () => {
       expect(completedSurvey.executionStatus).toBe('INSPECTOR_COMPLETED');
       expect(completedSurvey.inspectorCompletedById).toBe(seeds.inspector.id);
 
+      const buildingAfterComplete = await prisma.building.findUniqueOrThrow({
+        where: { id: buildingId },
+      });
+      expect(buildingAfterComplete.status).toBe('APPROVED');
+      expect(buildingAfterComplete.approvedById).toBe(seeds.inspector.id);
+
       await prisma.buildingWorkflowState.update({
         where: { buildingId },
         data: {
@@ -527,6 +533,13 @@ describe('Building Assignments (e2e)', () => {
       });
       expect(reopenedSurvey.executionStatus).toBe('IN_PROGRESS');
       expect(reopenedSurvey.reopenedById).toBe(seeds.admin.id);
+
+      const buildingAfterReopen = await prisma.building.findUniqueOrThrow({
+        where: { id: buildingId },
+      });
+      expect(buildingAfterReopen.status).toBe('DRAFT');
+      expect(buildingAfterReopen.approvedAt).toBeNull();
+      expect(buildingAfterReopen.approvedById).toBeNull();
 
       await prisma.buildingWorkflowState.update({
         where: { buildingId },

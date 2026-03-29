@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- workflow completion is separate from certificate and survey completion\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- photographer final fieldwork completion is done via `buildings/:buildingId/surveys/:surveyId/complete-fieldwork`\n- `buildings/:id/approve` is legacy compatibility only and is not required in the current survey workflow\n\n## Consumer Sections\n- `🖥️ Admin Portal Endpoints` groups the intended admin portal requests\n- `📱 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN — manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -995,7 +995,7 @@
                     "signed-upload"
                   ]
                 },
-                "description": "Get a pre-signed GCS URL to upload a PDF certificate. URL expires in 15 minutes — upload immediately."
+                "description": "Request a signed upload URL for the building certificate PDF. Requires the active survey fieldwork to be completed by the photographer; in the current flow that happens via `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`."
               },
               "event": [
                 {
@@ -1040,7 +1040,7 @@
                     "register"
                   ]
                 },
-                "description": "After uploading to GCS, call this to register the certificate path in the database."
+                "description": "Register the building certificate and set the building to CERTIFIED. Requires the active survey fieldwork to be completed by the photographer first."
               }
             },
             {
@@ -3242,39 +3242,8 @@
         },
         {
           "name": "📸 Fieldwork & Uploads",
-          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.",
+          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.\n\nUse `Complete Survey Fieldwork (Photographer)` as the single final building-ready signal for the active survey.",
           "item": [
-            {
-              "name": "Approve Building (Photographer only)",
-              "request": {
-                "method": "POST",
-                "url": {
-                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/approve",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "v1",
-                    "buildings",
-                    "{{buildingId}}",
-                    "approve"
-                  ]
-                },
-                "description": "Accepted photographer marks the building as approved. This is part of the existing certificate flow and still requires valid building workflow access."
-              },
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "exec": [
-                      "const t = pm.environment.get('inspectorToken');",
-                      "if (t) pm.environment.set('accessToken', t);"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ]
-            },
             {
               "name": "Create Floor as Accepted Photographer",
               "event": [
@@ -3920,7 +3889,7 @@
                     "complete-fieldwork"
                   ]
                 },
-                "description": "Photographer marks fieldwork complete for the active survey version. This locks workflow edits until reopen."
+                "description": "Photographer marks fieldwork complete for the active survey version. This is the single final “building is ready for admin review” action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
               }
             }
           ]
@@ -4931,7 +4900,7 @@
           }
         },
         {
-          "name": "Approve Building (Photographer only)",
+          "name": "Legacy Approve Building (Compatibility only)",
           "request": {
             "method": "POST",
             "url": {
@@ -4946,7 +4915,7 @@
                 "approve"
               ]
             },
-            "description": "Accepted photographer marks the building as approved. This is part of the existing certificate flow and still requires valid building workflow access."
+            "description": "Legacy compatibility endpoint. Current survey workflow should use `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`, which also marks the building ready for certificate upload."
           },
           "event": [
             {
@@ -4988,7 +4957,7 @@
                 "signed-upload"
               ]
             },
-            "description": "Get a pre-signed GCS URL to upload a PDF certificate. URL expires in 15 minutes — upload immediately."
+            "description": "Request a signed upload URL for the building certificate PDF. Requires the active survey fieldwork to be completed by the photographer; in the current flow that happens via `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork`."
           },
           "event": [
             {
@@ -5033,7 +5002,7 @@
                 "register"
               ]
             },
-            "description": "After uploading to GCS, call this to register the certificate path in the database."
+            "description": "Register the building certificate and set the building to CERTIFIED. Requires the active survey fieldwork to be completed by the photographer first."
           }
         },
         {
@@ -7219,7 +7188,7 @@
                 "complete-fieldwork"
               ]
             },
-            "description": "Photographer marks fieldwork complete for the active survey version. This locks workflow edits until reopen."
+            "description": "Photographer marks fieldwork complete for the active survey version. This is the single final “building is ready for admin review” action in the current workflow. It sets survey executionStatus to `INSPECTOR_COMPLETED` and marks the building ready for certificate upload."
           }
         },
         {

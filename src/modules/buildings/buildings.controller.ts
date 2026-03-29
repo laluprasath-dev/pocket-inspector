@@ -85,7 +85,7 @@ export class BuildingsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Photographer approves a building (sets APPROVED — required before admin can upload certificate)',
+      'Legacy photographer building approval flag (current flow should use survey complete-fieldwork instead)',
   })
   approve(@Param('id') id: string, @CurrentUser() user: User) {
     return this.buildingsService.approve(id, user.id, user.orgId);

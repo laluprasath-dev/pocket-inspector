@@ -104,7 +104,6 @@ These are the endpoints the photographer app should use for invitation handling 
 | `GET /me/building-assignments/history` | Photographer assignment/workflow history |
 | `POST /building-assignments/:assignmentId/respond` | Accept or decline one assignment |
 | `POST /building-assignments/groups/:groupId/respond` | Accept or decline grouped site invitation |
-| `POST /buildings/:id/approve` | Approve building before certificate stage |
 | `POST /doors/:id/submit` | Submit door after images are uploaded; photo edits lock until admin reopen |
 | `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` | Mark active survey fieldwork complete |
 
@@ -119,5 +118,10 @@ These are the endpoints the photographer app should use for invitation handling 
 7. Photographer checks invitation: `GET /me/building-assignments`
 8. Photographer accepts invitation: `POST /building-assignments/:assignmentId/respond`
 9. Photographer performs fieldwork: `POST /floors`, `POST /doors`, draft-only image upload/register endpoints, `POST /doors/:id/submit`
-10. Photographer completes survey fieldwork: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
+10. Photographer completes the building survey in one final step: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
 11. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed, certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
+
+## Compatibility Note
+
+- `POST /buildings/:id/approve` still exists for backward compatibility, but it is not required in the current survey workflow.
+- The active flow should use `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`, which now also marks the building ready for certificate upload.

@@ -248,6 +248,11 @@ export class SurveysService {
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
+      const building = await tx.building.findUnique({
+        where: { id: buildingId },
+        select: { status: true, approvedAt: true, approvedById: true },
+      });
+
       const nextSurvey = await tx.survey.update({
         where: { id: survey.id },
         data: {
@@ -264,6 +269,17 @@ export class SurveysService {
           },
         },
       });
+
+      if (building && building.status !== BuildingStatus.CERTIFIED) {
+        await tx.building.update({
+          where: { id: buildingId },
+          data: {
+            status: BuildingStatus.APPROVED,
+            approvedAt: building.approvedAt ?? now,
+            approvedById: building.approvedById ?? inspectorId,
+          },
+        });
+      }
 
       await tx.buildingAssignmentEvent.create({
         data: {
@@ -310,6 +326,11 @@ export class SurveysService {
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
+      const building = await tx.building.findUnique({
+        where: { id: buildingId },
+        select: { status: true },
+      });
+
       const nextSurvey = await tx.survey.update({
         where: { id: survey.id },
         data: {
@@ -326,6 +347,17 @@ export class SurveysService {
           },
         },
       });
+
+      if (building?.status === BuildingStatus.APPROVED) {
+        await tx.building.update({
+          where: { id: buildingId },
+          data: {
+            status: BuildingStatus.DRAFT,
+            approvedAt: null,
+            approvedById: null,
+          },
+        });
+      }
 
       await tx.buildingAssignmentEvent.create({
         data: {

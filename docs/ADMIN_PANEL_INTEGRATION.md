@@ -485,17 +485,27 @@ GET /v1/buildings/:id/floors
 ```
 
 > Use `status` to drive UI badges in the building section: `DRAFT` → `APPROVED` → `CERTIFIED ✅`  
-> Show a **"Photographer Approved"** badge when `status === 'APPROVED'` and a **"Certified ✅"** badge when `status === 'CERTIFIED'`.  
+> Show a **"Ready for Certificate"** badge when `status === 'APPROVED'` and a **"Certified ✅"** badge when `status === 'CERTIFIED'`.  
 > Hide the "Upload Certificate" button until `status === 'APPROVED'` or `status === 'CERTIFIED'`.  
 > Show the "Download Certificate" button only when `certificatePresent === true`.
 
-### Approve a building *(photographer action — shown for completeness)*
+### Legacy approve endpoint *(compatibility only)*
 
 ```
 POST /v1/buildings/:id/approve
 ```
 
-Sets building status from `DRAFT` → `APPROVED`. This is a **photographer** action — the admin panel does not need to call this endpoint, but the admin can **display the current `status`** to show whether the photographer has approved the building. Until the photographer approves, the admin's "Upload Certificate" button should be disabled or hidden.
+This legacy endpoint sets building status from `DRAFT` → `APPROVED`.
+
+The current survey workflow should **not** depend on this separate call.
+
+Use:
+
+```
+POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork
+```
+
+That endpoint is now the photographer's single final "building is done" action for the active survey. It marks survey fieldwork complete and also marks the building ready for certificate upload.
 
 ---
 
@@ -797,7 +807,7 @@ Certificates are PDFs uploaded by the admin. Both door and building certificates
 | Entity | Photographer action | Status gate for certificate upload |
 |---|---|---|
 | Door | `POST /v1/doors/:id/submit` | `SUBMITTED` or `CERTIFIED` |
-| Building | `POST /v1/buildings/:id/approve` | `APPROVED` or `CERTIFIED` |
+| Building | `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork` | Building becomes `APPROVED` and survey fieldwork becomes `INSPECTOR_COMPLETED` |
 
 Uploading a certificate automatically sets the entity status to `CERTIFIED` and sends push notifications to assigned photographers.
 
@@ -880,7 +890,7 @@ Returns `{ signedUrl, expiresAt }`. Open or stream this URL to display/download 
 
 ### Building certificate *(admin only)*
 
-> **Pre-requisite**: The building must be approved by a photographer (`status === 'APPROVED'` or `'CERTIFIED'`) before the admin can upload a certificate. The API will return `400 Bad Request` if you try to upload or register while the building is still `DRAFT`.
+> **Pre-requisite**: The photographer must complete fieldwork for the active survey before the admin can upload a building certificate. In the current flow, `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork` marks the building `APPROVED` and unlocks certificate upload.
 
 Same 3-step pattern as door certificates.
 
@@ -1039,6 +1049,7 @@ Each building has numbered survey cycles (v1, v2, v3 …). A survey represents o
 ```
 Building created          →  Survey v1 ACTIVE (auto-created on first floor add)
 Photographer photos + submit →  Doors: DRAFT → SUBMITTED
+Photographer complete-fieldwork → Building: DRAFT → APPROVED
 Admin review reopen       →  Doors: SUBMITTED → DRAFT
 Admin door certs          →  Doors: SUBMITTED → CERTIFIED
 Admin delete cert         →  Doors: CERTIFIED → SUBMITTED
