@@ -67,6 +67,17 @@ export class DoorsController {
     return this.doorsService.submit(id, user.id, user.orgId, user.role);
   }
 
+  @Post(':id/reopen')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Return a submitted door to DRAFT so the photographer can edit photos again (admin only)',
+  })
+  reopen(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.doorsService.reopenForEdits(id, user.orgId);
+  }
+
   // ── Images ─────────────────────────────────────────────────────────────────
 
   @Get(':id/images')
@@ -98,7 +109,10 @@ export class DoorsController {
 
   @Post(':id/images/signed-upload')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request a signed GCS upload URL for a door image' })
+  @ApiOperation({
+    summary:
+      'Request a signed GCS upload URL for a door image (draft doors only)',
+  })
   requestImageUpload(
     @Param('id') id: string,
     @Body() dto: RequestImageUploadDto,
@@ -114,7 +128,9 @@ export class DoorsController {
   }
 
   @Post(':id/images/register')
-  @ApiOperation({ summary: 'Register an image after direct GCS upload' })
+  @ApiOperation({
+    summary: 'Register an image after direct GCS upload (draft doors only)',
+  })
   registerImage(
     @Param('id') id: string,
     @Body() dto: RegisterImageDto,
@@ -133,7 +149,7 @@ export class DoorsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Request signed GCS upload URLs for multiple door images at once (max 10)',
+      'Request signed GCS upload URLs for multiple door images at once (draft doors only, max 10)',
   })
   batchRequestImageUpload(
     @Param('id') id: string,
@@ -151,7 +167,8 @@ export class DoorsController {
 
   @Post(':id/images/register/batch')
   @ApiOperation({
-    summary: 'Register multiple images after parallel GCS uploads (max 10)',
+    summary:
+      'Register multiple images after parallel GCS uploads (draft doors only, max 10)',
   })
   batchRegisterImages(
     @Param('id') id: string,
@@ -170,11 +187,12 @@ export class DoorsController {
   @Delete(':id/images/bulk')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Permanently delete door images in bulk (max 20)',
+    summary: 'Permanently delete door images in bulk (draft doors only, max 20)',
     description:
       'Deletes image files from GCS (original + thumbnail) and removes the DB records. ' +
       'Each deletion is recorded in the audit log with a full metadata snapshot. ' +
-      'Admin can delete any image on the door; photographers can only delete images they uploaded.',
+      'Admin can delete any image on the door; photographers can only delete images they uploaded. ' +
+      'Submitted or certified doors must be reopened before photos can be changed.',
   })
   bulkDeleteImages(
     @Param('id') id: string,

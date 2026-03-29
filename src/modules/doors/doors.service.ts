@@ -73,6 +73,14 @@ export class DoorsService {
     };
   }
 
+  private assertDoorAllowsImageChanges(status: DoorStatus) {
+    if (status !== DoorStatus.DRAFT) {
+      throw new BadRequestException(
+        'Photos can only be changed while the door is in DRAFT. Reopen the door to continue editing.',
+      );
+    }
+  }
+
   private async getInspectorIdsForDoor(
     doorId: string,
     orgId: string,
@@ -278,9 +286,7 @@ export class DoorsService {
       role,
     );
 
-    if (door.status === DoorStatus.CERTIFIED) {
-      throw new BadRequestException('Cannot upload images to a certified door');
-    }
+    this.assertDoorAllowsImageChanges(door.status);
 
     const imageId = crypto.randomUUID();
     const objectPath = StoragePathBuilder.doorImageOriginal({
@@ -315,7 +321,14 @@ export class DoorsService {
       );
     }
 
-    const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
+    const { door, pathCtx } = await this.getDoorContext(
+      doorId,
+      orgId,
+      userId,
+      role,
+    );
+
+    this.assertDoorAllowsImageChanges(door.status);
 
     const thumbPath =
       dto.objectPathThumb ??
@@ -362,9 +375,7 @@ export class DoorsService {
       role,
     );
 
-    if (door.status === DoorStatus.CERTIFIED) {
-      throw new BadRequestException('Cannot upload images to a certified door');
-    }
+    this.assertDoorAllowsImageChanges(door.status);
 
     return Promise.all(
       dto.images.map(async (item) => {
@@ -402,7 +413,14 @@ export class DoorsService {
       );
     }
 
-    const { pathCtx } = await this.getDoorContext(doorId, orgId, userId, role);
+    const { door, pathCtx } = await this.getDoorContext(
+      doorId,
+      orgId,
+      userId,
+      role,
+    );
+
+    this.assertDoorAllowsImageChanges(door.status);
 
     // Generate all thumbnails in parallel before the transaction
     const withThumbs = await Promise.all(
@@ -435,7 +453,9 @@ export class DoorsService {
   }
 
   async listImages(doorId: string, orgId: string, userId: string, role: Role) {
-    await this.getDoorContext(doorId, orgId, userId, role);
+    const { door } = await this.getDoorContext(doorId, orgId, userId, role);
+
+    this.assertDoorAllowsImageChanges(door.status);
     const images = await this.prisma.doorImage.findMany({
       where: { doorId },
       orderBy: { uploadedAt: 'asc' },
@@ -517,7 +537,9 @@ export class DoorsService {
       );
     }
 
-    await this.getDoorContext(doorId, orgId, userId, role);
+    const { door } = await this.getDoorContext(doorId, orgId, userId, role);
+
+    this.assertDoorAllowsImageChanges(door.status);
 
     // Load all requested images — must belong to this door and org
     const images = await this.prisma.doorImage.findMany({
@@ -731,6 +753,46 @@ export class DoorsService {
     ]);
 
     await this.gcs.deleteObject(cert.objectPathCertificate);
+  }
+
+  async reopenForEdits(doorId: string, orgId: string): Promise<{
+    id: string;
+    status: DoorStatus;
+    submittedAt: Date | null;
+    submittedById: string | null;
+    certifiedAt: Date | null;
+    certifiedById: string | null;
+  }> {
+    await this.surveys.assertDoorEditable(doorId);
+
+    const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
+
+    if (door.status === DoorStatus.DRAFT) {
+      throw new BadRequestException('Door is already in DRAFT');
+    }
+
+    if (door.status === DoorStatus.CERTIFIED) {
+      throw new BadRequestException(
+        'Delete the certificate before reopening a certified door for edits',
+      );
+    }
+
+    return this.prisma.door.update({
+      where: { id: doorId },
+      data: {
+        status: DoorStatus.DRAFT,
+        submittedAt: null,
+        submittedById: null,
+      },
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        submittedById: true,
+        certifiedAt: true,
+        certifiedById: true,
+      },
+    });
   }
 
   // ── Thumbnail generation ───────────────────────────────────────────────────

@@ -526,6 +526,96 @@ describe('Domain Endpoints (e2e)', () => {
         .expect(400);
     });
 
+    it('blocks image upload and deletion once a door is SUBMITTED, until admin reopens it', async () => {
+      const image = await prisma.doorImage.create({
+        data: {
+          doorId,
+          role: 'FRONT_FACE',
+          objectPathOriginal: 'test/submitted-lock.jpg',
+          uploadedById: seeds.inspector.id,
+        },
+      });
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/submit`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/images/signed-upload`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ role: 'REAR_FACE' })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .delete(`/v1/doors/${doorId}/images/bulk`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ imageIds: [image.id] })
+        .expect(400);
+
+      const reopenRes = await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/reopen`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(reopenRes.body.data.status).toBe('DRAFT');
+      expect(reopenRes.body.data.submittedAt).toBeNull();
+
+      await request(app.getHttpServer())
+        .delete(`/v1/doors/${doorId}/images/bulk`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ imageIds: [image.id] })
+        .expect(200);
+    });
+
+    it('blocks image changes on a CERTIFIED door', async () => {
+      const now = new Date();
+      const image = await prisma.doorImage.create({
+        data: {
+          doorId,
+          role: 'FRONT_FACE',
+          objectPathOriginal: 'test/certified-lock.jpg',
+          uploadedById: seeds.inspector.id,
+        },
+      });
+
+      await prisma.doorCertificate.create({
+        data: {
+          doorId,
+          objectPathCertificate: 'test/certified-lock.pdf',
+          uploadedById: seeds.admin.id,
+        },
+      });
+
+      await prisma.door.update({
+        where: { id: doorId },
+        data: {
+          status: 'CERTIFIED',
+          submittedAt: now,
+          submittedById: seeds.inspector.id,
+          certifiedAt: now,
+          certifiedById: seeds.admin.id,
+        },
+      });
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/images/signed-upload`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ role: 'REAR_FACE' })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .delete(`/v1/doors/${doorId}/images/bulk`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ imageIds: [image.id] })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${doorId}/reopen`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+    });
+
     it('GET /v1/floors/:id/doors shows door with image count', async () => {
       await prisma.doorImage.create({
         data: {
