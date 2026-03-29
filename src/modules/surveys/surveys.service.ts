@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '../../../generated/prisma/client';
 import {
   BuildingAssignmentEventType,
   BuildingAssignmentStatus,
@@ -25,6 +26,45 @@ export class SurveysService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  private async cloneSurveyStructure(
+    tx: Prisma.TransactionClient,
+    buildingId: string,
+    surveyId: string,
+    adminId: string,
+    sourceFloors: Array<{
+      label: string | null;
+      notes: string | null;
+      doors: Array<{
+        code: string;
+        locationNotes: string | null;
+      }>;
+    }>,
+  ) {
+    for (const floor of sourceFloors) {
+      const newFloor = await tx.floor.create({
+        data: {
+          buildingId,
+          surveyId,
+          label: floor.label,
+          notes: floor.notes,
+          createdById: adminId,
+        },
+      });
+
+      for (const door of floor.doors) {
+        await tx.door.create({
+          data: {
+            floorId: newFloor.id,
+            code: door.code,
+            locationNotes: door.locationNotes,
+            status: DoorStatus.DRAFT,
+            createdById: adminId,
+          },
+        });
+      }
+    }
+  }
 
   // ── List survey history for a building ────────────────────────────────────
 
@@ -474,7 +514,14 @@ export class SurveysService {
       include: {
         floors: {
           include: {
-            doors: { select: { id: true, status: true, code: true } },
+            doors: {
+              select: {
+                id: true,
+                status: true,
+                code: true,
+                locationNotes: true,
+              },
+            },
           },
         },
         buildingCertificate: { select: { id: true } },
@@ -641,6 +688,21 @@ export class SurveysService {
             nextAssignedInspectorId: true,
           },
         });
+
+        await this.cloneSurveyStructure(
+          tx,
+          buildingId,
+          plannedSurvey.id,
+          adminId,
+          survey.floors.map((floor) => ({
+            label: floor.label,
+            notes: floor.notes,
+            doors: floor.doors.map((door) => ({
+              code: door.code,
+              locationNotes: door.locationNotes,
+            })),
+          })),
+        );
       }
 
       return {
@@ -744,7 +806,6 @@ export class SurveysService {
               select: {
                 code: true,
                 locationNotes: true,
-                createdById: true,
               },
             },
           },
@@ -785,31 +846,20 @@ export class SurveysService {
         },
       });
 
-      // 2. Clone floors and their doors
-      for (const floor of lastSurvey.floors) {
-        const newFloor = await tx.floor.create({
-          data: {
-            buildingId,
-            surveyId: survey.id,
-            label: floor.label,
-            notes: floor.notes,
-            createdById: adminId,
-          },
-        });
-
-        // Clone doors under the new floor (no images, no certs, reset status)
-        for (const door of floor.doors) {
-          await tx.door.create({
-            data: {
-              floorId: newFloor.id,
-              code: door.code,
-              locationNotes: door.locationNotes,
-              status: DoorStatus.DRAFT,
-              createdById: adminId,
-            },
-          });
-        }
-      }
+      await this.cloneSurveyStructure(
+        tx,
+        buildingId,
+        survey.id,
+        adminId,
+        lastSurvey.floors.map((floor) => ({
+          label: floor.label,
+          notes: floor.notes,
+          doors: floor.doors.map((door) => ({
+            code: door.code,
+            locationNotes: door.locationNotes,
+          })),
+        })),
+      );
 
       return survey;
     });

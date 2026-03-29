@@ -720,7 +720,7 @@ describe('Building Assignments (e2e)', () => {
       expect(myAssignments.body.data.accepted).toEqual([]);
     });
 
-    it('confirm-complete with scheduling creates a real PLANNED next survey row', async () => {
+    it('confirm-complete with scheduling creates a planned next survey with structure-only door cloning', async () => {
       const setup = await setupCompletableActiveSurvey('Complete With Schedule');
       const scheduledAt = '2027-02-15T08:30:00.000Z';
 
@@ -747,10 +747,32 @@ describe('Building Assignments (e2e)', () => {
 
       const plannedSurvey = await prisma.survey.findFirstOrThrow({
         where: { buildingId: setup.buildingId, status: 'PLANNED' },
+        include: {
+          floors: {
+            include: {
+              doors: {
+                include: {
+                  images: true,
+                  certificate: true,
+                },
+              },
+            },
+          },
+          buildingCertificate: true,
+        },
       });
       expect(plannedSurvey.scheduledStartAt?.toISOString()).toBe(scheduledAt);
       expect(plannedSurvey.nextScheduledAt?.toISOString()).toBe(scheduledAt);
       expect(plannedSurvey.nextAssignedInspectorId).toBe(seeds.inspector.id);
+      expect(plannedSurvey.floors).toHaveLength(1);
+      expect(plannedSurvey.floors[0].doors).toHaveLength(1);
+      expect(plannedSurvey.floors[0].doors[0].code).toBeDefined();
+      expect(plannedSurvey.floors[0].doors[0].status).toBe('DRAFT');
+      expect(plannedSurvey.floors[0].doors[0].submittedAt).toBeNull();
+      expect(plannedSurvey.floors[0].doors[0].certifiedAt).toBeNull();
+      expect(plannedSurvey.floors[0].doors[0].images).toHaveLength(0);
+      expect(plannedSurvey.floors[0].doors[0].certificate).toBeNull();
+      expect(plannedSurvey.buildingCertificate).toBeNull();
 
       const plannedAssignmentCount = await prisma.buildingAssignment.count({
         where: { buildingId: setup.buildingId, surveyId: plannedSurvey.id, accessEndedAt: null },
