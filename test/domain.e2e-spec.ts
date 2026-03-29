@@ -553,6 +553,14 @@ describe('Domain Endpoints (e2e)', () => {
         .send({ imageIds: [image.id] })
         .expect(400);
 
+      const submittedImages = await request(app.getHttpServer())
+        .get(`/v1/doors/${doorId}/images`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      expect(submittedImages.body.data).toHaveLength(1);
+      expect(submittedImages.body.data[0].id).toBe(image.id);
+
       const reopenRes = await request(app.getHttpServer())
         .post(`/v1/doors/${doorId}/reopen`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -609,6 +617,14 @@ describe('Domain Endpoints (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({ imageIds: [image.id] })
         .expect(400);
+
+      const certifiedImages = await request(app.getHttpServer())
+        .get(`/v1/doors/${doorId}/images`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      expect(certifiedImages.body.data).toHaveLength(1);
+      expect(certifiedImages.body.data[0].id).toBe(image.id);
 
       await request(app.getHttpServer())
         .post(`/v1/doors/${doorId}/reopen`)

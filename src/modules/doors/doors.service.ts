@@ -453,9 +453,7 @@ export class DoorsService {
   }
 
   async listImages(doorId: string, orgId: string, userId: string, role: Role) {
-    const { door } = await this.getDoorContext(doorId, orgId, userId, role);
-
-    this.assertDoorAllowsImageChanges(door.status);
+    await this.getDoorContext(doorId, orgId, userId, role);
     const images = await this.prisma.doorImage.findMany({
       where: { doorId },
       orderBy: { uploadedAt: 'asc' },
