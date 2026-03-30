@@ -9,6 +9,7 @@ import {
   BuildingAssignmentStatus,
   BuildingStatus,
   BuildingWorkflowStatus,
+  DoorStatus,
   Role,
   SurveyExecutionStatus,
   SurveyStatus,
@@ -30,6 +31,37 @@ export class BuildingsService {
     private readonly notifications: NotificationsService,
     private readonly buildingAssignments: BuildingAssignmentsService,
   ) {}
+
+  private formatDoorCodes(doors: Array<{ code: string }>): string {
+    const preview = doors.slice(0, 10).map((door) => door.code).join(', ');
+    const remaining = doors.length - 10;
+    return remaining > 0 ? `${preview} (+${remaining} more)` : preview;
+  }
+
+  private async assertActiveSurveyReadyForBuildingCertificate(
+    surveyId: string,
+    operationLabel: string,
+  ) {
+    const doors = await this.prisma.door.findMany({
+      where: { floor: { surveyId } },
+      select: { code: true, status: true },
+    });
+
+    if (doors.length === 0) {
+      throw new BadRequestException(
+        `At least one door must exist in the active survey before ${operationLabel}`,
+      );
+    }
+
+    const nonCertifiedDoors = doors.filter(
+      (door) => door.status !== DoorStatus.CERTIFIED,
+    );
+    if (nonCertifiedDoors.length > 0) {
+      throw new BadRequestException(
+        `All doors must be certified before ${operationLabel}. Doors not yet certified: ${this.formatDoorCodes(nonCertifiedDoors)}`,
+      );
+    }
+  }
 
   async findAll(
     orgId: string,
@@ -386,6 +418,10 @@ export class BuildingsService {
         'Photographer fieldwork must be completed before requesting a building certificate upload',
       );
     }
+    await this.assertActiveSurveyReadyForBuildingCertificate(
+      activeSurvey.id,
+      'requesting a building certificate upload',
+    );
 
     const certId = crypto.randomUUID();
     const objectPath = StoragePathBuilder.buildingCertificate({
@@ -440,6 +476,10 @@ export class BuildingsService {
         'Photographer fieldwork must be completed before registering a building certificate',
       );
     }
+    await this.assertActiveSurveyReadyForBuildingCertificate(
+      activeSurvey.id,
+      'registering a building certificate',
+    );
 
     const now = new Date();
     const [cert] = await this.prisma.$transaction([

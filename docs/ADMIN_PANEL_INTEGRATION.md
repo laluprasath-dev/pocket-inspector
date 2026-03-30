@@ -497,6 +497,11 @@ POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork
 
 That endpoint is now the photographer's single final "building is done" action for the active survey. It marks survey fieldwork complete and also marks the building ready for certificate upload.
 
+Readiness rules:
+- the active survey must contain at least one door
+- every door in that active survey must already be `SUBMITTED` or `CERTIFIED`
+- if any door is still `DRAFT`, the endpoint returns `400` and lists the blocking door codes
+
 ---
 
 ## 10. Module: Floors
@@ -611,7 +616,7 @@ POST /v1/doors/:id/submit
 
 Sets status from `DRAFT` → `SUBMITTED`. Requires at least one image. This is a **photographer** action — the admin panel does not need to call this endpoint, but the admin can display the current `status` to show whether the photographer has submitted the door. Until the photographer submits, the admin's "Upload Certificate" button should be disabled or hidden.
 
-Once submitted, door photos are locked. If review finds issues, the admin must call `POST /v1/doors/:id/reopen` to move the door back to `DRAFT` before the photographer can change photos again.
+Once submitted, door photos are locked. If review finds issues, the admin must call `POST /v1/doors/:id/reopen` to move the door back to `DRAFT` before the photographer can change photos again. If survey fieldwork had already been marked complete, that same call also reopens the active survey so the photographer can edit again immediately.
 
 ---
 
@@ -854,6 +859,8 @@ Moves a door from `SUBMITTED` back to `DRAFT` so the photographer can edit photo
 - Use this when admin review finds issues after submission.
 - This does **not** work on `CERTIFIED` doors.
 - For certified doors, first delete the certificate to return the door to `SUBMITTED`, then call this endpoint to return it to `DRAFT`.
+- If survey fieldwork had already been marked complete, this endpoint also reopens the active survey back to `IN_PROGRESS`.
+- If the building certificate has already been uploaded for the active survey, delete that building certificate first.
 
 ### Delete door certificate *(admin only)*
 
@@ -866,7 +873,8 @@ Returns `204 No Content`.
 - Removes the door certificate PDF from GCS
 - Deletes the certificate record
 - Resets the door from `CERTIFIED` back to `SUBMITTED`
-- If photo changes are needed after that, call `POST /v1/doors/:id/reopen`
+- If photo changes are needed after that, call `POST /v1/doors/:id/reopen` — this also reopens the active survey if fieldwork had already been marked complete
+- If a building certificate already exists for the active survey, delete that building certificate first
 
 **Download the door certificate**
 
@@ -880,7 +888,9 @@ Returns `{ signedUrl, expiresAt }`. Open or stream this URL to display/download 
 
 ### Building certificate *(admin only)*
 
-> **Pre-requisite**: The photographer must complete fieldwork for the active survey before the admin can upload a building certificate. In the current flow, `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork` marks the building `APPROVED` and unlocks certificate upload.
+> **Pre-requisite**: The photographer must complete fieldwork for the active survey before the admin can upload a building certificate. In the current flow, `POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork` marks the building `APPROVED`, but building certificate upload is still blocked until every door in that active survey is already `CERTIFIED`.
+
+> **Important**: Once a building certificate exists for the active survey, admin must delete it before reopening fieldwork or downgrading any certified door.
 
 Same 3-step pattern as door certificates.
 

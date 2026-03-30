@@ -66,6 +66,29 @@ export class SurveysService {
     }
   }
 
+  private formatDoorCodes(doors: Array<{ code: string }>): string {
+    const preview = doors.slice(0, 10).map((door) => door.code).join(', ');
+    const remaining = doors.length - 10;
+    return remaining > 0 ? `${preview} (+${remaining} more)` : preview;
+  }
+
+  private assertFieldworkReadiness(
+    doors: Array<{ code: string; status: DoorStatus }>,
+  ) {
+    if (doors.length === 0) {
+      throw new BadRequestException(
+        'At least one door must exist in the active survey before fieldwork can be completed',
+      );
+    }
+
+    const draftDoors = doors.filter((door) => door.status === DoorStatus.DRAFT);
+    if (draftDoors.length > 0) {
+      throw new BadRequestException(
+        `All doors must be submitted before completing fieldwork. Doors still in DRAFT: ${this.formatDoorCodes(draftDoors)}`,
+      );
+    }
+  }
+
   // ── List survey history for a building ────────────────────────────────────
 
   async listByBuilding(
@@ -248,6 +271,12 @@ export class SurveysService {
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
+      const surveyDoors = await tx.door.findMany({
+        where: { floor: { surveyId: survey.id } },
+        select: { code: true, status: true },
+      });
+      this.assertFieldworkReadiness(surveyDoors);
+
       const building = await tx.building.findUnique({
         where: { id: buildingId },
         select: { status: true, approvedAt: true, approvedById: true },
@@ -315,6 +344,16 @@ export class SurveysService {
     if (survey.executionStatus !== SurveyExecutionStatus.INSPECTOR_COMPLETED) {
       throw new BadRequestException(
         'Only survey fieldwork marked completed can be reopened',
+      );
+    }
+
+    const buildingCertificate = await this.prisma.buildingCertificate.findUnique({
+      where: { surveyId: survey.id },
+      select: { id: true },
+    });
+    if (buildingCertificate) {
+      throw new BadRequestException(
+        'Delete the building certificate before reopening fieldwork',
       );
     }
 
@@ -575,14 +614,20 @@ export class SurveysService {
       );
     }
 
+    const allDoors = survey.floors.flatMap((floor) => floor.doors);
+    if (allDoors.length === 0) {
+      throw new BadRequestException(
+        'At least one door must exist in the active survey before confirming completion',
+      );
+    }
+
     // Validate all doors are CERTIFIED
-    const nonCertifiedDoors = survey.floors.flatMap((f) =>
-      f.doors.filter((d) => d.status !== DoorStatus.CERTIFIED),
+    const nonCertifiedDoors = allDoors.filter(
+      (door) => door.status !== DoorStatus.CERTIFIED,
     );
     if (nonCertifiedDoors.length > 0) {
-      const codes = nonCertifiedDoors.map((d) => d.code).join(', ');
       throw new BadRequestException(
-        `All doors must be CERTIFIED before confirming survey completion. Doors not yet certified: ${codes}`,
+        `All doors must be CERTIFIED before confirming survey completion. Doors not yet certified: ${this.formatDoorCodes(nonCertifiedDoors)}`,
       );
     }
 

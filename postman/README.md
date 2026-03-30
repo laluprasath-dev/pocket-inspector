@@ -45,6 +45,9 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 
 3. Photographer marks active survey fieldwork complete
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
+- This only succeeds when the active survey has at least one door and no doors remain in `DRAFT`
+- Door certificates can still be uploaded individually as soon as each door is `SUBMITTED`
+- Building certificate upload must wait until every active-survey door is `CERTIFIED`
 
 4. Confirm-complete with scheduling (creates planned next)
 - `📋 Surveys -> Confirm Survey Complete + Schedule Planned Next (Admin only)`
@@ -115,8 +118,11 @@ Relevant event types reflected by backend behavior:
 
 ## Troubleshooting
 
-- `400` on certificate upload/register usually means fieldwork completion missing.
+- `400` on complete-fieldwork usually means there are no doors in the active survey or some doors are still `DRAFT`.
+- `400` on certificate upload/register usually means fieldwork completion is missing or some doors in the active survey are not yet `CERTIFIED`.
 - `400` on door image upload/register/delete usually means the door is no longer `DRAFT` and must be reopened first.
+- Reopening a submitted door after fieldwork completion also reopens the active survey back to `IN_PROGRESS`.
+- `400` on door certificate delete or fieldwork reopen can also mean the active survey still has a building certificate; delete that first.
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.

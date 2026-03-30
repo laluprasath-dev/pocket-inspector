@@ -88,7 +88,7 @@ export class SurveysController {
   @ApiParam({ name: 'surveyId', description: 'Survey ID' })
   @ApiOperation({
     summary:
-      'Mark the active survey fieldwork as completed for the accepted photographer',
+      'Mark the active survey fieldwork as completed for the accepted photographer (requires at least one door and no doors left in DRAFT)',
   })
   completeFieldwork(
     @Param('buildingId') buildingId: string,

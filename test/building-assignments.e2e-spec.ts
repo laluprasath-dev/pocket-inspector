@@ -184,6 +184,33 @@ describe('Building Assignments (e2e)', () => {
     };
   }
 
+  async function createSurveyDoor(
+    buildingId: string,
+    surveyId: string,
+    status: 'DRAFT' | 'SUBMITTED' | 'CERTIFIED',
+    code = `D-${Date.now()}`,
+  ) {
+    const floor = await prisma.floor.findFirstOrThrow({
+      where: { buildingId, surveyId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const now = new Date();
+    return prisma.door.create({
+      data: {
+        floorId: floor.id,
+        code,
+        locationNotes: 'Workflow fixture',
+        status,
+        submittedAt: status === 'DRAFT' ? null : now,
+        submittedById: status === 'DRAFT' ? null : seeds.inspector.id,
+        certifiedAt: status === 'CERTIFIED' ? now : null,
+        certifiedById: status === 'CERTIFIED' ? seeds.admin.id : null,
+        createdById: seeds.inspector.id,
+      },
+    });
+  }
+
   async function seedCompletedSurveyTemplate(name: string) {
     const buildingRes = await request(app.getHttpServer())
       .post('/v1/buildings')
@@ -467,6 +494,7 @@ describe('Building Assignments (e2e)', () => {
     it('uses survey execution state as the canonical fieldwork lock for survey endpoints', async () => {
       const { buildingId } = await createAcceptedBuilding('Workflow Building');
       const survey = await bootstrapActiveSurvey(buildingId);
+      await createSurveyDoor(buildingId, survey.id, 'SUBMITTED', 'WF-101');
 
       const completeRes = await request(app.getHttpServer())
         .post(
@@ -564,6 +592,152 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({ buildingId, label: 'Allowed after reopen' })
         .expect(201);
+    });
+
+    it('blocks fieldwork completion when the active survey has no doors', async () => {
+      const { buildingId } = await createAcceptedBuilding('No Doors Building');
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      const res = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(400);
+
+      expect(res.body.message).toContain(
+        'At least one door must exist in the active survey before fieldwork can be completed',
+      );
+
+      const surveyAfter = await prisma.survey.findUniqueOrThrow({
+        where: { id: survey.id },
+      });
+      expect(surveyAfter.executionStatus).toBe('IN_PROGRESS');
+    });
+
+    it('blocks fieldwork completion when any door is still in DRAFT', async () => {
+      const { buildingId } = await createAcceptedBuilding('Draft Door Building');
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      await createSurveyDoor(buildingId, survey.id, 'SUBMITTED', 'WF-SUB');
+      await createSurveyDoor(buildingId, survey.id, 'DRAFT', 'WF-DRAFT');
+
+      const res = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(400);
+
+      expect(res.body.message).toContain(
+        'All doors must be submitted before completing fieldwork',
+      );
+      expect(res.body.message).toContain('WF-DRAFT');
+
+      const buildingAfter = await prisma.building.findUniqueOrThrow({
+        where: { id: buildingId },
+      });
+      expect(buildingAfter.status).toBe('DRAFT');
+    });
+
+    it('reopening a submitted door after fieldwork completion also reopens the active survey', async () => {
+      const { buildingId } = await createAcceptedBuilding(
+        'Door Reopen Reopens Survey',
+      );
+      const survey = await bootstrapActiveSurvey(buildingId);
+      const door = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'SUBMITTED',
+        'REOPEN-101',
+      );
+
+      await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      const reopenRes = await request(app.getHttpServer())
+        .post(`/v1/doors/${door.id}/reopen`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(reopenRes.body.data.status).toBe('DRAFT');
+
+      const surveyAfter = await prisma.survey.findUniqueOrThrow({
+        where: { id: survey.id },
+      });
+      expect(surveyAfter.executionStatus).toBe('IN_PROGRESS');
+      expect(surveyAfter.reopenedById).toBe(seeds.admin.id);
+
+      const buildingAfter = await prisma.building.findUniqueOrThrow({
+        where: { id: buildingId },
+      });
+      expect(buildingAfter.status).toBe('DRAFT');
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${door.id}/images/signed-upload`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ role: 'FRONT_FACE' })
+        .expect(200);
+    });
+
+    it('requires deleting the building certificate before reopening fieldwork or removing a door certificate', async () => {
+      const setup = await setupCompletableActiveSurvey(
+        'Building Certificate Must Be Removed First',
+      );
+
+      await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${setup.buildingId}/surveys/${setup.surveyId}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      const reopenRes = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${setup.buildingId}/surveys/${setup.surveyId}/reopen-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+      expect(reopenRes.body.message).toContain(
+        'Delete the building certificate before reopening fieldwork',
+      );
+
+      const deleteDoorCertRes = await request(app.getHttpServer())
+        .delete(`/v1/doors/${setup.doorId}/certificate`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+      expect(deleteDoorCertRes.body.message).toContain(
+        'Delete the building certificate before deleting a door certificate',
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/v1/buildings/${setup.buildingId}/certificate`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .delete(`/v1/doors/${setup.doorId}/certificate`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(204);
+
+      const doorAfter = await prisma.door.findUniqueOrThrow({
+        where: { id: setup.doorId },
+      });
+      expect(doorAfter.status).toBe('SUBMITTED');
+
+      await request(app.getHttpServer())
+        .post(`/v1/doors/${setup.doorId}/reopen`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      const surveyAfter = await prisma.survey.findUniqueOrThrow({
+        where: { id: setup.surveyId },
+      });
+      expect(surveyAfter.executionStatus).toBe('IN_PROGRESS');
     });
 
     it('blocks the wrong role on the new survey fieldwork endpoints', async () => {
@@ -841,6 +1015,45 @@ describe('Building Assignments (e2e)', () => {
         .expect(201);
     });
 
+    it('blocks building certificate upload/register until all active-survey doors are certified', async () => {
+      const { buildingId } = await createAcceptedBuilding(
+        'Door Certificate Gate',
+      );
+      const survey = await bootstrapActiveSurvey(buildingId);
+      await createSurveyDoor(buildingId, survey.id, 'SUBMITTED', 'CERT-SUB');
+
+      await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      const uploadRes = await request(app.getHttpServer())
+        .post(`/v1/buildings/${buildingId}/certificate/signed-upload`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(400);
+
+      expect(uploadRes.body.message).toContain(
+        'All doors must be certified before requesting a building certificate upload',
+      );
+      expect(uploadRes.body.message).toContain('CERT-SUB');
+
+      const registerRes = await request(app.getHttpServer())
+        .post(`/v1/buildings/${buildingId}/certificate/register`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          certId: 'forced-cert-id',
+          objectPath: `orgs/${seeds.org.id}/buildings/${buildingId}/forced-cert.pdf`,
+        })
+        .expect(400);
+
+      expect(registerRes.body.message).toContain(
+        'All doors must be certified before registering a building certificate',
+      );
+      expect(registerRes.body.message).toContain('CERT-SUB');
+    });
+
     it('confirm-complete requires survey fieldwork completion and still requires a certificate', async () => {
       const setup = await setupCompletableActiveSurvey('Completion Prereq Gate');
 
@@ -875,6 +1088,51 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({})
         .expect(400);
+    });
+
+    it('confirm-complete rejects a forced zero-door survey state', async () => {
+      const { buildingId } = await createAcceptedBuilding('Zero Door Complete');
+      const survey = await bootstrapActiveSurvey(buildingId);
+      const now = new Date();
+
+      await prisma.survey.update({
+        where: { id: survey.id },
+        data: {
+          executionStatus: 'INSPECTOR_COMPLETED',
+          inspectorCompletedAt: now,
+          inspectorCompletedById: seeds.inspector.id,
+        },
+      });
+
+      await prisma.buildingCertificate.create({
+        data: {
+          buildingId,
+          surveyId: survey.id,
+          objectPathCertificate: `orgs/${seeds.org.id}/buildings/${buildingId}/zero-door-cert.pdf`,
+          uploadedById: seeds.admin.id,
+        },
+      });
+
+      await prisma.building.update({
+        where: { id: buildingId },
+        data: {
+          status: 'CERTIFIED',
+          approvedAt: now,
+          approvedById: seeds.inspector.id,
+          certifiedAt: now,
+          certifiedById: seeds.admin.id,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/buildings/${buildingId}/surveys/confirm-complete`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(400);
+
+      expect(res.body.message).toContain(
+        'At least one door must exist in the active survey before confirming completion',
+      );
     });
 
     it('activation endpoint is admin-only, requires accepted survey-linked assignment, and resets building status on activation', async () => {
@@ -1044,6 +1302,7 @@ describe('Building Assignments (e2e)', () => {
     it('returns inspector and admin history with actor and state information', async () => {
       const { buildingId } = await createAcceptedBuilding('History Building');
       const survey = await bootstrapActiveSurvey(buildingId);
+      await createSurveyDoor(buildingId, survey.id, 'SUBMITTED', 'HIST-101');
 
       await request(app.getHttpServer())
         .post(
@@ -1232,6 +1491,19 @@ describe('Building Assignments (e2e)', () => {
         .post(`/v1/buildings/${template.buildingId}/surveys/${plannedSurveyId}/activate`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
+
+      const plannedDoor = await prisma.door.findFirstOrThrow({
+        where: { floor: { surveyId: plannedSurveyId } },
+        orderBy: { createdAt: 'asc' },
+      });
+      await prisma.door.update({
+        where: { id: plannedDoor.id },
+        data: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          submittedById: seeds.inspector.id,
+        },
+      });
 
       await request(app.getHttpServer())
         .post(

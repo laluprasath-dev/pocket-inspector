@@ -10,6 +10,7 @@ import {
   BuildingAssignmentStatus,
   DoorStatus,
   Role,
+  SurveyExecutionStatus,
   SurveyStatus,
 } from '../../../generated/prisma/enums';
 import { BuildingAssignmentsService } from '../building-assignments/building-assignments.service';
@@ -77,6 +78,23 @@ export class DoorsService {
     if (status !== DoorStatus.DRAFT) {
       throw new BadRequestException(
         'Photos can only be changed while the door is in DRAFT. Reopen the door to continue editing.',
+      );
+    }
+  }
+
+  private async assertNoBuildingCertificateForActiveSurvey(
+    surveyId: string | null,
+    actionLabel: string,
+  ): Promise<void> {
+    if (!surveyId) return;
+
+    const buildingCertificate = await this.prisma.buildingCertificate.findUnique({
+      where: { surveyId },
+      select: { id: true },
+    });
+    if (buildingCertificate) {
+      throw new BadRequestException(
+        `Delete the building certificate before ${actionLabel}`,
       );
     }
   }
@@ -725,6 +743,10 @@ export class DoorsService {
     await this.surveys.assertDoorEditable(doorId);
 
     const { door } = await this.getDoorContext(doorId, orgId, '', Role.ADMIN);
+    await this.assertNoBuildingCertificateForActiveSurvey(
+      door.floor.surveyId,
+      'deleting a door certificate',
+    );
 
     if (door.status !== DoorStatus.CERTIFIED) {
       throw new BadRequestException(
@@ -753,7 +775,11 @@ export class DoorsService {
     await this.gcs.deleteObject(cert.objectPathCertificate);
   }
 
-  async reopenForEdits(doorId: string, orgId: string): Promise<{
+  async reopenForEdits(
+    doorId: string,
+    adminId: string,
+    orgId: string,
+  ): Promise<{
     id: string;
     status: DoorStatus;
     submittedAt: Date | null;
@@ -773,6 +799,36 @@ export class DoorsService {
       throw new BadRequestException(
         'Delete the certificate before reopening a certified door for edits',
       );
+    }
+
+    const surveyId = door.floor.surveyId;
+    await this.assertNoBuildingCertificateForActiveSurvey(
+      surveyId,
+      'reopening a door for edits',
+    );
+    if (surveyId) {
+      const survey = await this.prisma.survey.findUnique({
+        where: { id: surveyId },
+        select: {
+          id: true,
+          buildingId: true,
+          status: true,
+          executionStatus: true,
+        },
+      });
+
+      if (
+        survey &&
+        survey.status === SurveyStatus.ACTIVE &&
+        survey.executionStatus === SurveyExecutionStatus.INSPECTOR_COMPLETED
+      ) {
+        await this.surveys.reopenFieldwork(
+          survey.buildingId,
+          survey.id,
+          adminId,
+          orgId,
+        );
+      }
     }
 
     return this.prisma.door.update({

@@ -614,6 +614,11 @@ describe('Building Assignment Verification (e2e)', () => {
       .expect(200);
 
     await request(app.getHttpServer())
+      .delete(`/v1/buildings/${buildingId}/certificate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(204);
+
+    await request(app.getHttpServer())
       .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/reopen-fieldwork`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);

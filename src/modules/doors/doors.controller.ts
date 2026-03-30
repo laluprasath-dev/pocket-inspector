@@ -72,10 +72,10 @@ export class DoorsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Return a submitted door to DRAFT so the photographer can edit photos again (admin only)',
+      'Return a submitted door to DRAFT so the photographer can edit photos again (admin only). If survey fieldwork was already completed, this also reopens the active survey.',
   })
   reopen(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.doorsService.reopenForEdits(id, user.orgId);
+    return this.doorsService.reopenForEdits(id, user.id, user.orgId);
   }
 
   // ── Images ─────────────────────────────────────────────────────────────────
