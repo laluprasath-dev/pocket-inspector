@@ -211,6 +211,17 @@ describe('Building Assignments (e2e)', () => {
     });
   }
 
+  async function addDoorImage(doorId: string, suffix = Date.now().toString()) {
+    return prisma.doorImage.create({
+      data: {
+        doorId,
+        role: 'FRONT_FACE',
+        objectPathOriginal: `orgs/${seeds.org.id}/doors/${doorId}/image-${suffix}.jpg`,
+        uploadedById: seeds.inspector.id,
+      },
+    });
+  }
+
   async function seedCompletedSurveyTemplate(name: string) {
     const buildingRes = await request(app.getHttpServer())
       .post('/v1/buildings')
@@ -615,6 +626,54 @@ describe('Building Assignments (e2e)', () => {
       expect(surveyAfter.executionStatus).toBe('IN_PROGRESS');
     });
 
+    it('returns a readiness preview for active survey fieldwork completion', async () => {
+      const { buildingId } = await createAcceptedBuilding('Fieldwork Preview');
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      await createSurveyDoor(buildingId, survey.id, 'CERTIFIED', 'PRE-CERT');
+      await createSurveyDoor(buildingId, survey.id, 'SUBMITTED', 'PRE-SUB');
+      const readyDraft = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'PRE-READY',
+      );
+      const missingDraft = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'PRE-MISS',
+      );
+      await addDoorImage(readyDraft.id, 'preview');
+
+      const res = await request(app.getHttpServer())
+        .get(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/fieldwork-readiness`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      expect(res.body.data.summary).toMatchObject({
+        totalDoors: 4,
+        certifiedDoors: 1,
+        submittedDoors: 1,
+        draftDoorsReadyToSubmit: 1,
+        draftDoorsMissingImages: 1,
+        canCompleteNow: false,
+        canAutoSubmitAndComplete: false,
+      });
+      expect(res.body.data.doors.certified[0].code).toBe('PRE-CERT');
+      expect(res.body.data.doors.submitted[0].code).toBe('PRE-SUB');
+      expect(res.body.data.doors.draftReadyToSubmit[0]).toMatchObject({
+        code: 'PRE-READY',
+        imageCount: 1,
+      });
+      expect(res.body.data.doors.draftMissingImages[0]).toMatchObject({
+        code: 'PRE-MISS',
+        imageCount: 0,
+      });
+    });
+
     it('blocks fieldwork completion when any door is still in DRAFT', async () => {
       const { buildingId } = await createAcceptedBuilding('Draft Door Building');
       const survey = await bootstrapActiveSurvey(buildingId);
@@ -638,6 +697,88 @@ describe('Building Assignments (e2e)', () => {
         where: { id: buildingId },
       });
       expect(buildingAfter.status).toBe('DRAFT');
+    });
+
+    it('can bulk-submit valid draft doors while completing fieldwork', async () => {
+      const { buildingId } = await createAcceptedBuilding('Bulk Submit Building');
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      const readyDraftA = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'BULK-001',
+      );
+      const readyDraftB = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'BULK-002',
+      );
+      await addDoorImage(readyDraftA.id, 'bulk-a');
+      await addDoorImage(readyDraftB.id, 'bulk-b');
+
+      const completeRes = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ autoSubmitValidDoors: true })
+        .expect(200);
+
+      expect(completeRes.body.data.executionStatus).toBe(
+        'INSPECTOR_COMPLETED',
+      );
+
+      const doorsAfter = await prisma.door.findMany({
+        where: { floor: { surveyId: survey.id } },
+        orderBy: { code: 'asc' },
+      });
+      expect(doorsAfter.map((door) => door.status)).toEqual([
+        'SUBMITTED',
+        'SUBMITTED',
+      ]);
+      expect(doorsAfter.every((door) => door.submittedById === seeds.inspector.id)).toBe(
+        true,
+      );
+    });
+
+    it('refuses bulk submit completion when any draft door is missing images', async () => {
+      const { buildingId } = await createAcceptedBuilding(
+        'Bulk Submit Missing Images',
+      );
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      const readyDraft = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'BULK-READY',
+      );
+      await addDoorImage(readyDraft.id, 'bulk-ready');
+      await createSurveyDoor(buildingId, survey.id, 'DRAFT', 'BULK-MISS');
+
+      const res = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ autoSubmitValidDoors: true })
+        .expect(400);
+
+      expect(res.body.message).toContain(
+        'Cannot auto-submit and complete fieldwork because these doors have no images',
+      );
+      expect(res.body.message).toContain('BULK-MISS');
+
+      const doorsAfter = await prisma.door.findMany({
+        where: { floor: { surveyId: survey.id } },
+        orderBy: { code: 'asc' },
+      });
+      expect(doorsAfter.map((door) => `${door.code}:${door.status}`)).toEqual([
+        'BULK-MISS:DRAFT',
+        'BULK-READY:DRAFT',
+      ]);
     });
 
     it('reopening a submitted door after fieldwork completion also reopens the active survey', async () => {
@@ -743,6 +884,13 @@ describe('Building Assignments (e2e)', () => {
     it('blocks the wrong role on the new survey fieldwork endpoints', async () => {
       const { buildingId } = await createAcceptedBuilding('Role Guard Building');
       const survey = await bootstrapActiveSurvey(buildingId);
+
+      await request(app.getHttpServer())
+        .get(
+          `/v1/buildings/${buildingId}/surveys/${survey.id}/fieldwork-readiness`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(403);
 
       await request(app.getHttpServer())
         .post(

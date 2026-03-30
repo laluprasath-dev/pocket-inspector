@@ -19,6 +19,7 @@ import { Role } from '../../../generated/prisma/enums';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ConfirmCompleteDto } from './dto/confirm-complete.dto';
+import { CompleteFieldworkDto } from './dto/complete-fieldwork.dto';
 import { ScheduleNextDto } from './dto/schedule-next.dto';
 import { StartNextSurveyDto } from './dto/start-next-survey.dto';
 import { SurveysService } from './surveys.service';
@@ -81,6 +82,27 @@ export class SurveysController {
     );
   }
 
+  @Get(':surveyId/fieldwork-readiness')
+  @Roles(Role.INSPECTOR)
+  @ApiParam({ name: 'buildingId', description: 'Building ID' })
+  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
+  @ApiOperation({
+    summary:
+      'Preview fieldwork completion readiness for the active survey, including doors already submitted/certified and draft doors that can or cannot be bulk-submitted',
+  })
+  getFieldworkReadiness(
+    @Param('buildingId') buildingId: string,
+    @Param('surveyId') surveyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.surveysService.getFieldworkReadiness(
+      buildingId,
+      surveyId,
+      user.id,
+      user.orgId,
+    );
+  }
+
   @Post(':surveyId/complete-fieldwork')
   @Roles(Role.INSPECTOR)
   @HttpCode(HttpStatus.OK)
@@ -88,11 +110,12 @@ export class SurveysController {
   @ApiParam({ name: 'surveyId', description: 'Survey ID' })
   @ApiOperation({
     summary:
-      'Mark the active survey fieldwork as completed for the accepted photographer (requires at least one door and no doors left in DRAFT)',
+      'Mark the active survey fieldwork as completed for the accepted photographer. Optionally bulk-submit valid DRAFT doors first when autoSubmitValidDoors=true.',
   })
   completeFieldwork(
     @Param('buildingId') buildingId: string,
     @Param('surveyId') surveyId: string,
+    @Body() dto: CompleteFieldworkDto,
     @CurrentUser() user: User,
   ) {
     return this.surveysService.completeFieldwork(
@@ -100,6 +123,7 @@ export class SurveysController {
       surveyId,
       user.id,
       user.orgId,
+      dto,
     );
   }
 

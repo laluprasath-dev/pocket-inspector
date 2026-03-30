@@ -492,6 +492,19 @@ GET /v1/buildings/:id/floors
 Use:
 
 ```
+GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness
+```
+
+That endpoint returns a lightweight photographer-facing readiness preview:
+- total doors in the active survey
+- doors already `SUBMITTED`
+- doors already `CERTIFIED`
+- draft doors that already have images and can be bulk-submitted
+- draft doors still missing images and therefore still blocking completion
+
+Then complete with:
+
+```
 POST /v1/buildings/:buildingId/surveys/:surveyId/complete-fieldwork
 ```
 
@@ -499,8 +512,9 @@ That endpoint is now the photographer's single final "building is done" action f
 
 Readiness rules:
 - the active survey must contain at least one door
-- every door in that active survey must already be `SUBMITTED` or `CERTIFIED`
-- if any door is still `DRAFT`, the endpoint returns `400` and lists the blocking door codes
+- by default, every door in that active survey must already be `SUBMITTED` or `CERTIFIED`
+- if some doors are still `DRAFT` but already have images, mobile can call the same endpoint with `{ "autoSubmitValidDoors": true }` to bulk-submit those valid draft doors first
+- if any draft door still has no images, the endpoint returns `400` and lists the blocking door codes
 
 ---
 
@@ -1264,7 +1278,7 @@ Marks the current `ACTIVE` survey as `COMPLETED`. This is the **"Confirm Survey 
 
 > **UI recommendation**: Show this button only when `Building.status === "CERTIFIED"`. After calling this endpoint successfully, show a toast — *"Survey v{N} confirmed complete!"* — and refresh the survey list.
 
-> **Mobile note**: After confirmation, the photographer should no longer see this building in active assignment lists. For read-only history, use `GET /v1/me/building-assignments/completed-surveys` and `GET /v1/me/building-assignments/completed-surveys/:surveyId`. Keep that survey detail response lightweight, then lazy-load heavy read-only assets from the survey-scoped building/door certificate and door image endpoints.
+> **Mobile note**: Before final fieldwork completion, mobile can call `GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` to preview which draft doors can be bulk-submitted and which still need images. After admin confirms completion, the photographer should no longer see this building in active assignment lists. For read-only history, use `GET /v1/me/building-assignments/completed-surveys` and `GET /v1/me/building-assignments/completed-surveys/:surveyId`. Keep that survey detail response lightweight, then lazy-load heavy read-only assets from the survey-scoped building/door certificate and door image endpoints.
 
 ---
 

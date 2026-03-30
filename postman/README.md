@@ -43,9 +43,12 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - Remember: door photo upload/register/delete is `DRAFT` only; after submit the admin must reopen the door for changes
 - Ensure building certificate prerequisite requests are available
 
-3. Photographer marks active survey fieldwork complete
+3. Photographer previews and marks active survey fieldwork complete
+- `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Preview Survey Fieldwork Readiness`
+- This shows which draft doors can be bulk-submitted and which still need images
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
-- This only succeeds when the active survey has at least one door and no doors remain in `DRAFT`
+- By default this only succeeds when the active survey has at least one door and no doors remain in `DRAFT`
+- If draft doors already have images, send `{ "autoSubmitValidDoors": true }` to bulk-submit them during the same call
 - Door certificates can still be uploaded individually as soon as each door is `SUBMITTED`
 - Building certificate upload must wait until every active-survey door is `CERTIFIED`
 
@@ -126,7 +129,7 @@ Relevant event types reflected by backend behavior:
 
 ## Troubleshooting
 
-- `400` on complete-fieldwork usually means there are no doors in the active survey or some doors are still `DRAFT`.
+- `400` on complete-fieldwork usually means there are no doors in the active survey, some doors are still `DRAFT`, or auto-submit was requested while some draft doors still have no images.
 - `400` on certificate upload/register usually means fieldwork completion is missing or some doors in the active survey are not yet `CERTIFIED`.
 - `400` on door image upload/register/delete usually means the door is no longer `DRAFT` and must be reopened first.
 - Reopening a submitted door after fieldwork completion also reopens the active survey back to `IN_PROGRESS`.
@@ -134,5 +137,6 @@ Relevant event types reflected by backend behavior:
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
+- Use `GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` when mobile wants a pre-submit summary before calling complete-fieldwork.
 - After admin confirms survey completion, the item intentionally disappears from `GET /v1/me/building-assignments`; use `GET /v1/me/building-assignments/completed-surveys` for read-only history.
 - Keep `GET /v1/me/building-assignments/completed-surveys/:surveyId` lightweight; fetch heavy read-only assets lazily from the completed-survey building/door asset endpoints.

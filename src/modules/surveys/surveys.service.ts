@@ -17,8 +17,37 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfirmCompleteDto } from './dto/confirm-complete.dto';
+import { CompleteFieldworkDto } from './dto/complete-fieldwork.dto';
 import { ScheduleNextDto } from './dto/schedule-next.dto';
 import { StartNextSurveyDto } from './dto/start-next-survey.dto';
+
+type FieldworkDoorSnapshot = {
+  id: string;
+  code: string;
+  status: DoorStatus;
+  imageCount: number;
+  floorId: string;
+  floorLabel: string | null;
+};
+
+type SerializedFieldworkDoor = {
+  id: string;
+  code: string;
+  floorId: string;
+  floorLabel: string | null;
+  status: DoorStatus;
+  imageCount: number;
+};
+
+type FieldworkReadiness = {
+  totalDoors: number;
+  certifiedDoors: SerializedFieldworkDoor[];
+  submittedDoors: SerializedFieldworkDoor[];
+  draftDoorsReadyToSubmit: SerializedFieldworkDoor[];
+  draftDoorsMissingImages: SerializedFieldworkDoor[];
+  canCompleteNow: boolean;
+  canAutoSubmitAndComplete: boolean;
+};
 
 @Injectable()
 export class SurveysService {
@@ -72,21 +101,171 @@ export class SurveysService {
     return remaining > 0 ? `${preview} (+${remaining} more)` : preview;
   }
 
+  private serializeFieldworkDoor(
+    door: FieldworkDoorSnapshot,
+  ): SerializedFieldworkDoor {
+    return {
+      id: door.id,
+      code: door.code,
+      floorId: door.floorId,
+      floorLabel: door.floorLabel,
+      status: door.status,
+      imageCount: door.imageCount,
+    };
+  }
+
+  private buildFieldworkReadiness(
+    doors: FieldworkDoorSnapshot[],
+  ): FieldworkReadiness {
+    const certifiedDoors = doors
+      .filter((door) => door.status === DoorStatus.CERTIFIED)
+      .map((door) => this.serializeFieldworkDoor(door));
+    const submittedDoors = doors
+      .filter((door) => door.status === DoorStatus.SUBMITTED)
+      .map((door) => this.serializeFieldworkDoor(door));
+    const draftDoorsReadyToSubmit = doors
+      .filter(
+        (door) => door.status === DoorStatus.DRAFT && door.imageCount > 0,
+      )
+      .map((door) => this.serializeFieldworkDoor(door));
+    const draftDoorsMissingImages = doors
+      .filter(
+        (door) => door.status === DoorStatus.DRAFT && door.imageCount === 0,
+      )
+      .map((door) => this.serializeFieldworkDoor(door));
+
+    return {
+      totalDoors: doors.length,
+      certifiedDoors,
+      submittedDoors,
+      draftDoorsReadyToSubmit,
+      draftDoorsMissingImages,
+      canCompleteNow:
+        doors.length > 0 &&
+        draftDoorsReadyToSubmit.length === 0 &&
+        draftDoorsMissingImages.length === 0,
+      canAutoSubmitAndComplete:
+        doors.length > 0 && draftDoorsMissingImages.length === 0,
+    };
+  }
+
   private assertFieldworkReadiness(
-    doors: Array<{ code: string; status: DoorStatus }>,
+    readiness: FieldworkReadiness,
+    options?: { allowAutoSubmitValidDoors?: boolean },
   ) {
-    if (doors.length === 0) {
+    if (readiness.totalDoors === 0) {
       throw new BadRequestException(
         'At least one door must exist in the active survey before fieldwork can be completed',
       );
     }
 
-    const draftDoors = doors.filter((door) => door.status === DoorStatus.DRAFT);
-    if (draftDoors.length > 0) {
+    const allowAutoSubmit = options?.allowAutoSubmitValidDoors === true;
+    if (allowAutoSubmit && readiness.draftDoorsMissingImages.length > 0) {
       throw new BadRequestException(
-        `All doors must be submitted before completing fieldwork. Doors still in DRAFT: ${this.formatDoorCodes(draftDoors)}`,
+        `Cannot auto-submit and complete fieldwork because these doors have no images: ${this.formatDoorCodes(readiness.draftDoorsMissingImages)}`,
       );
     }
+
+    const remainingDraftDoors = allowAutoSubmit
+      ? readiness.draftDoorsMissingImages
+      : [
+          ...readiness.draftDoorsReadyToSubmit,
+          ...readiness.draftDoorsMissingImages,
+        ];
+
+    if (remainingDraftDoors.length > 0) {
+      throw new BadRequestException(
+        `All doors must be submitted before completing fieldwork. Doors still in DRAFT: ${this.formatDoorCodes(remainingDraftDoors)}`,
+      );
+    }
+  }
+
+  private async listSurveyDoorsForFieldwork(
+    db: Prisma.TransactionClient | PrismaService,
+    surveyId: string,
+  ): Promise<FieldworkDoorSnapshot[]> {
+    const doors = await db.door.findMany({
+      where: { floor: { surveyId } },
+      orderBy: { code: 'asc' },
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        floorId: true,
+        floor: {
+          select: {
+            label: true,
+          },
+        },
+        _count: {
+          select: {
+            images: true,
+          },
+        },
+      },
+    });
+
+    return doors.map((door) => ({
+      id: door.id,
+      code: door.code,
+      status: door.status,
+      floorId: door.floorId,
+      floorLabel: door.floor.label,
+      imageCount: door._count.images,
+    }));
+  }
+
+  async getFieldworkReadiness(
+    buildingId: string,
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    const survey = await this.requireSurveyForFieldwork(surveyId, buildingId, orgId);
+    if (survey.status !== SurveyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active survey can have fieldwork readiness checked',
+      );
+    }
+
+    const assignment = await this.findAcceptedRuntimeAssignment(
+      buildingId,
+      survey.id,
+      orgId,
+      inspectorId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have an accepted assignment for this active survey',
+      );
+    }
+
+    const readiness = this.buildFieldworkReadiness(
+      await this.listSurveyDoorsForFieldwork(this.prisma, survey.id),
+    );
+
+    return {
+      surveyId: survey.id,
+      buildingId: survey.buildingId,
+      version: survey.version,
+      status: survey.status,
+      executionStatus: survey.executionStatus,
+      summary: {
+        totalDoors: readiness.totalDoors,
+        certifiedDoors: readiness.certifiedDoors.length,
+        submittedDoors: readiness.submittedDoors.length,
+        draftDoorsReadyToSubmit: readiness.draftDoorsReadyToSubmit.length,
+        draftDoorsMissingImages: readiness.draftDoorsMissingImages.length,
+        canCompleteNow: readiness.canCompleteNow,
+        canAutoSubmitAndComplete: readiness.canAutoSubmitAndComplete,
+      },
+      doors: {
+        certified: readiness.certifiedDoors,
+        submitted: readiness.submittedDoors,
+        draftReadyToSubmit: readiness.draftDoorsReadyToSubmit,
+        draftMissingImages: readiness.draftDoorsMissingImages,
+      },
+    };
   }
 
   // ── List survey history for a building ────────────────────────────────────
@@ -244,6 +423,7 @@ export class SurveysService {
     surveyId: string,
     inspectorId: string,
     orgId: string,
+    dto?: CompleteFieldworkDto,
   ) {
     const survey = await this.requireSurveyForFieldwork(surveyId, buildingId, orgId);
     if (survey.status !== SurveyStatus.ACTIVE) {
@@ -271,11 +451,28 @@ export class SurveysService {
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
-      const surveyDoors = await tx.door.findMany({
-        where: { floor: { surveyId: survey.id } },
-        select: { code: true, status: true },
+      const surveyDoors = await this.listSurveyDoorsForFieldwork(tx, survey.id);
+      const readiness = this.buildFieldworkReadiness(surveyDoors);
+      this.assertFieldworkReadiness(readiness, {
+        allowAutoSubmitValidDoors: dto?.autoSubmitValidDoors,
       });
-      this.assertFieldworkReadiness(surveyDoors);
+
+      if (
+        dto?.autoSubmitValidDoors === true &&
+        readiness.draftDoorsReadyToSubmit.length > 0
+      ) {
+        await tx.door.updateMany({
+          where: {
+            id: { in: readiness.draftDoorsReadyToSubmit.map((door) => door.id) },
+            status: DoorStatus.DRAFT,
+          },
+          data: {
+            status: DoorStatus.SUBMITTED,
+            submittedAt: now,
+            submittedById: inspectorId,
+          },
+        });
+      }
 
       const building = await tx.building.findUnique({
         where: { id: buildingId },
