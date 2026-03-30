@@ -2965,6 +2965,60 @@
               }
             },
             {
+              "name": "My Completed Surveys",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Completed surveys listed', () => pm.response.to.have.status(200));",
+                      "if (Array.isArray(json.data) && json.data.length > 0) {",
+                      "    pm.environment.set('surveyId', json.data[0].surveyId);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys"
+                  ]
+                },
+                "description": "Read-only completed survey history for the current photographer. Use this after admin confirms a survey complete, because completed work intentionally disappears from the active assignment inbox."
+              }
+            },
+            {
+              "name": "Get Completed Survey Detail",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}"
+                  ]
+                },
+                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Use this after admin has confirmed the survey complete. Includes building/site metadata plus frozen floor and door status for that survey version."
+              }
+            },
+            {
               "name": "My Assignment History",
               "request": {
                 "method": "GET",
@@ -5636,6 +5690,60 @@
                   ]
                 },
                 "description": "Reject all pending buildings in the same grouped invitation."
+              }
+            },
+            {
+              "name": "My Completed Surveys",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Completed surveys listed', () => pm.response.to.have.status(200));",
+                      "if (Array.isArray(json.data) && json.data.length > 0) {",
+                      "    pm.environment.set('surveyId', json.data[0].surveyId);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys"
+                  ]
+                },
+                "description": "Read-only completed survey history for the current photographer. Use this after admin confirms a survey complete, because completed work intentionally disappears from the active assignment inbox."
+              }
+            },
+            {
+              "name": "Get Completed Survey Detail",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}"
+                  ]
+                },
+                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Use this after admin has confirmed the survey complete. Includes building/site metadata plus frozen floor and door status for that survey version."
               }
             },
             {

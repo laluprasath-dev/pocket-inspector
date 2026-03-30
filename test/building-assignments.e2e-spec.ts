@@ -1345,6 +1345,70 @@ describe('Building Assignments (e2e)', () => {
       expect(adminHistory.body.data[0].type).toBe('BUILDING_REOPENED');
       expect(adminHistory.body.data[0].building.id).toBe(buildingId);
     });
+
+    it('exposes completed surveys to the photographer as a read-only history surface after admin confirmation', async () => {
+      const otherInspector = await createInspector(
+        `completed-history-${Date.now()}@test.com`,
+        'Inspector1234!',
+      );
+      const setup = await setupCompletableActiveSurvey(
+        'Completed Survey Mobile History',
+      );
+
+      await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${setup.buildingId}/surveys/${setup.surveyId}/complete-fieldwork`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/v1/buildings/${setup.buildingId}/surveys/confirm-complete`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(200);
+
+      const activeAssignments = await request(app.getHttpServer())
+        .get('/v1/me/building-assignments')
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+      expect(activeAssignments.body.data.pending).toEqual([]);
+      expect(activeAssignments.body.data.accepted).toEqual([]);
+
+      const completedList = await request(app.getHttpServer())
+        .get('/v1/me/building-assignments/completed-surveys')
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      const completedSurvey = completedList.body.data.find(
+        (item: any) => item.surveyId === setup.surveyId,
+      );
+      expect(completedSurvey).toBeDefined();
+      expect(completedSurvey.building.id).toBe(setup.buildingId);
+      expect(completedSurvey.surveyStatus).toBe('COMPLETED');
+      expect(completedSurvey.buildingCertificatePresent).toBe(true);
+      expect(completedSurvey.fieldworkCompletedAt).toBeTruthy();
+      expect(completedSurvey.completedAt).toBeTruthy();
+
+      const completedDetail = await request(app.getHttpServer())
+        .get(`/v1/me/building-assignments/completed-surveys/${setup.surveyId}`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      expect(completedDetail.body.data.id).toBe(setup.surveyId);
+      expect(completedDetail.body.data.status).toBe('COMPLETED');
+      expect(completedDetail.body.data.building.id).toBe(setup.buildingId);
+      expect(completedDetail.body.data.floorCount).toBe(1);
+      expect(completedDetail.body.data.doorCount).toBe(1);
+      expect(completedDetail.body.data.floors[0].doors[0].status).toBe(
+        'CERTIFIED',
+      );
+
+      await request(app.getHttpServer())
+        .get(`/v1/me/building-assignments/completed-surveys/${setup.surveyId}`)
+        .set('Authorization', `Bearer ${otherInspector.token}`)
+        .expect(404);
+    });
   });
 
   describe('Phase 5 mobile contract and notifications', () => {

@@ -76,6 +76,11 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - `📋 Surveys -> Confirm Survey Complete (Skip Next Scheduling)`
 - Verify `plannedNextSurvey = null`
 
+11. Photographer verifies read-only completed history
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Completed Surveys`
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Get Completed Survey Detail`
+- Verify the survey disappeared from `My Building Assignments` and now appears in completed history
+
 11. Start-next manual path (when no planned exists)
 - `📋 Surveys -> Start Next Survey (Admin only)`
 - Verify new survey is `PLANNED` and `plannedSurveyId` is set
@@ -126,3 +131,4 @@ Relevant event types reflected by backend behavior:
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
+- After admin confirms survey completion, the item intentionally disappears from `GET /v1/me/building-assignments`; use `GET /v1/me/building-assignments/completed-surveys` for read-only history.

@@ -1264,6 +1264,8 @@ Marks the current `ACTIVE` survey as `COMPLETED`. This is the **"Confirm Survey 
 
 > **UI recommendation**: Show this button only when `Building.status === "CERTIFIED"`. After calling this endpoint successfully, show a toast — *"Survey v{N} confirmed complete!"* — and refresh the survey list.
 
+> **Mobile note**: After confirmation, the photographer should no longer see this building in active assignment lists. For read-only history, use `GET /v1/me/building-assignments/completed-surveys` and `GET /v1/me/building-assignments/completed-surveys/:surveyId`.
+
 ---
 
 ### 15.6 Start the next survey *(admin only)*

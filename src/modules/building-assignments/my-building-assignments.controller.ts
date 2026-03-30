@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { User } from '../../../generated/prisma/client';
 import { Role } from '../../../generated/prisma/enums';
@@ -23,6 +23,36 @@ export class MyBuildingAssignmentsController {
   })
   listMine(@CurrentUser() user: User) {
     return this.buildingAssignmentsService.listInspectorAssignments(
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Get('completed-surveys')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary:
+      'List read-only completed surveys previously worked on by the current photographer',
+  })
+  listCompletedSurveys(@CurrentUser() user: User) {
+    return this.buildingAssignmentsService.listInspectorCompletedSurveys(
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Get('completed-surveys/:surveyId')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary:
+      'Get read-only detail for one completed survey previously worked on by the current photographer',
+  })
+  getCompletedSurveyDetail(
+    @CurrentUser() user: User,
+    @Param('surveyId') surveyId: string,
+  ) {
+    return this.buildingAssignmentsService.getInspectorCompletedSurveyDetail(
+      surveyId,
       user.id,
       user.orgId,
     );

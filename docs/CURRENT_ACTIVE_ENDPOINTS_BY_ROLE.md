@@ -101,6 +101,8 @@ These are the endpoints the photographer app should use for invitation handling 
 | Endpoint | Purpose |
 |---|---|
 | `GET /me/building-assignments` | List pending and accepted assignments |
+| `GET /me/building-assignments/completed-surveys` | List read-only completed surveys previously worked on by the photographer |
+| `GET /me/building-assignments/completed-surveys/:surveyId` | Get read-only detail for one completed survey previously worked on by the photographer |
 | `GET /me/building-assignments/history` | Photographer assignment/workflow history |
 | `POST /building-assignments/:assignmentId/respond` | Accept or decline one assignment |
 | `POST /building-assignments/groups/:groupId/respond` | Accept or decline grouped site invitation |
@@ -120,5 +122,6 @@ These are the endpoints the photographer app should use for invitation handling 
 9. Photographer performs fieldwork: `POST /floors`, `POST /doors`, draft-only image upload/register endpoints, `POST /doors/:id/submit`
 10. Photographer completes the building survey in one final step: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` after at least one door exists and every door in that active survey is `SUBMITTED` or `CERTIFIED`
 11. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed (this also reopens survey fieldwork if it had already been completed), certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
+12. After admin confirms completion, photographer reads archived work from `GET /me/building-assignments/completed-surveys` and `GET /me/building-assignments/completed-surveys/:surveyId`
 
 `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` is the only active building-level completion endpoint. It marks the building ready for certificate upload and marks active survey fieldwork complete, but only after the active survey has at least one door and no doors remain in `DRAFT`.

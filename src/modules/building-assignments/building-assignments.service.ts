@@ -687,6 +687,221 @@ export class BuildingAssignmentsService {
     };
   }
 
+  async listInspectorCompletedSurveys(inspectorId: string, orgId: string) {
+    const events = await this.prisma.buildingAssignmentEvent.findMany({
+      where: {
+        orgId,
+        inspectorId,
+        surveyId: { not: null },
+        type: BuildingAssignmentEventType.ACCESS_REMOVED,
+        metadata: {
+          path: ['reason'],
+          equals: 'SURVEY_COMPLETED',
+        },
+      },
+      include: {
+        building: {
+          select: {
+            id: true,
+            name: true,
+            site: { select: { id: true, name: true } },
+          },
+        },
+        survey: {
+          select: {
+            id: true,
+            version: true,
+            status: true,
+            startedAt: true,
+            completedAt: true,
+            inspectorCompletedAt: true,
+            inspectorCompletedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            confirmedBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            buildingCertificate: { select: { id: true, uploadedAt: true } },
+            _count: { select: { floors: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const latestBySurvey = new Map<string, (typeof events)[number]>();
+    for (const event of events) {
+      if (!event.surveyId || !event.survey || latestBySurvey.has(event.surveyId)) {
+        continue;
+      }
+      latestBySurvey.set(event.surveyId, event);
+    }
+
+    return Array.from(latestBySurvey.values()).map((event) => ({
+      surveyId: event.survey!.id,
+      surveyVersion: event.survey!.version,
+      surveyStatus: event.survey!.status,
+      startedAt: event.survey!.startedAt,
+      completedAt: event.survey!.completedAt,
+      fieldworkCompletedAt: event.survey!.inspectorCompletedAt,
+      fieldworkCompletedBy: event.survey!.inspectorCompletedBy
+        ? {
+            id: event.survey!.inspectorCompletedBy.id,
+            email: event.survey!.inspectorCompletedBy.email,
+            firstName: event.survey!.inspectorCompletedBy.firstName,
+            lastName: event.survey!.inspectorCompletedBy.lastName,
+            fullName: this.fullName(event.survey!.inspectorCompletedBy),
+          }
+        : null,
+      confirmedBy: event.survey!.confirmedBy
+        ? {
+            id: event.survey!.confirmedBy.id,
+            email: event.survey!.confirmedBy.email,
+            firstName: event.survey!.confirmedBy.firstName,
+            lastName: event.survey!.confirmedBy.lastName,
+            fullName: this.fullName(event.survey!.confirmedBy),
+          }
+        : null,
+      buildingCertificatePresent: event.survey!.buildingCertificate !== null,
+      buildingCertificateUploadedAt:
+        event.survey!.buildingCertificate?.uploadedAt ?? null,
+      floorCount: event.survey!._count.floors,
+      building: {
+        id: event.building.id,
+        name: event.building.name,
+      },
+      site: event.building.site,
+      historyRecordedAt: event.createdAt,
+    }));
+  }
+
+  async getInspectorCompletedSurveyDetail(
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    const historyEvent = await this.prisma.buildingAssignmentEvent.findFirst({
+      where: {
+        orgId,
+        inspectorId,
+        surveyId,
+        type: BuildingAssignmentEventType.ACCESS_REMOVED,
+        metadata: {
+          path: ['reason'],
+          equals: 'SURVEY_COMPLETED',
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        buildingId: true,
+      },
+    });
+    if (!historyEvent) {
+      throw new NotFoundException(
+        `Completed survey ${surveyId} not found for this photographer`,
+      );
+    }
+
+    const survey = await this.prisma.survey.findFirst({
+      where: {
+        id: surveyId,
+        buildingId: historyEvent.buildingId,
+        orgId,
+        status: SurveyStatus.COMPLETED,
+      },
+      include: {
+        building: {
+          select: {
+            id: true,
+            name: true,
+            site: { select: { id: true, name: true } },
+          },
+        },
+        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        confirmedBy: { select: { id: true, firstName: true, lastName: true } },
+        inspectorCompletedBy: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        buildingCertificate: { select: { id: true, uploadedAt: true } },
+        floors: {
+          orderBy: { label: 'asc' },
+          include: {
+            doors: {
+              orderBy: { code: 'asc' },
+              include: {
+                _count: { select: { images: true } },
+                certificate: { select: { id: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!survey) {
+      throw new NotFoundException(
+        `Completed survey ${surveyId} not found for this photographer`,
+      );
+    }
+
+    return {
+      id: survey.id,
+      version: survey.version,
+      status: survey.status,
+      startedAt: survey.startedAt,
+      completedAt: survey.completedAt,
+      createdAt: survey.createdAt,
+      createdBy: survey.createdBy,
+      confirmedBy: survey.confirmedBy,
+      fieldworkCompletedAt: survey.inspectorCompletedAt,
+      fieldworkCompletedBy: survey.inspectorCompletedBy
+        ? {
+            id: survey.inspectorCompletedBy.id,
+            email: survey.inspectorCompletedBy.email,
+            firstName: survey.inspectorCompletedBy.firstName,
+            lastName: survey.inspectorCompletedBy.lastName,
+            fullName: this.fullName(survey.inspectorCompletedBy),
+          }
+        : null,
+      buildingCertificatePresent: survey.buildingCertificate !== null,
+      buildingCertificateUploadedAt:
+        survey.buildingCertificate?.uploadedAt ?? null,
+      building: {
+        id: survey.building.id,
+        name: survey.building.name,
+      },
+      site: survey.building.site,
+      floorCount: survey.floors.length,
+      doorCount: survey.floors.reduce((sum, floor) => sum + floor.doors.length, 0),
+      floors: survey.floors.map((floor) => ({
+        id: floor.id,
+        label: floor.label,
+        notes: floor.notes,
+        createdAt: floor.createdAt,
+        doors: floor.doors.map((door) => ({
+          id: door.id,
+          code: door.code,
+          locationNotes: door.locationNotes,
+          status: door.status,
+          submittedAt: door.submittedAt,
+          certifiedAt: door.certifiedAt,
+          imageCount: door._count.images,
+          certificatePresent: door.certificate !== null,
+          createdAt: door.createdAt,
+        })),
+      })),
+    };
+  }
+
   async listInspectorHistory(
     inspectorId: string,
     orgId: string,
