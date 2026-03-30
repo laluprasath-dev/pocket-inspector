@@ -1264,7 +1264,7 @@ Marks the current `ACTIVE` survey as `COMPLETED`. This is the **"Confirm Survey 
 
 > **UI recommendation**: Show this button only when `Building.status === "CERTIFIED"`. After calling this endpoint successfully, show a toast — *"Survey v{N} confirmed complete!"* — and refresh the survey list.
 
-> **Mobile note**: After confirmation, the photographer should no longer see this building in active assignment lists. For read-only history, use `GET /v1/me/building-assignments/completed-surveys` and `GET /v1/me/building-assignments/completed-surveys/:surveyId`.
+> **Mobile note**: After confirmation, the photographer should no longer see this building in active assignment lists. For read-only history, use `GET /v1/me/building-assignments/completed-surveys` and `GET /v1/me/building-assignments/completed-surveys/:surveyId`. Keep that survey detail response lightweight, then lazy-load heavy read-only assets from the survey-scoped building/door certificate and door image endpoints.
 
 ---
 

@@ -1400,24 +1400,57 @@ describe('Building Assignments (e2e)', () => {
       expect(completedDetail.body.data.building.id).toBe(setup.buildingId);
       expect(completedDetail.body.data.floorCount).toBe(1);
       expect(completedDetail.body.data.doorCount).toBe(1);
+      expect(completedDetail.body.data.buildingCertificatePresent).toBe(true);
       expect(completedDetail.body.data.floors[0].doors[0].status).toBe(
         'CERTIFIED',
       );
-      expect(completedDetail.body.data.buildingCertificatePresent).toBe(true);
-      expect(completedDetail.body.data.buildingCertificate).toMatchObject({
+      expect(completedDetail.body.data.floors[0].doors[0].imageCount).toBe(1);
+      expect(completedDetail.body.data.floors[0].doors[0].certificatePresent).toBe(
+        true,
+      );
+      expect(completedDetail.body.data.floors[0].doors[0].images).toBeUndefined();
+      expect(completedDetail.body.data.buildingCertificate).toBeUndefined();
+
+      const buildingCertificate = await request(app.getHttpServer())
+        .get(
+          `/v1/me/building-assignments/completed-surveys/${setup.surveyId}/building-certificate`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+      expect(buildingCertificate.body.data).toMatchObject({
         downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
       });
-      expect(completedDetail.body.data.floors[0].doors[0].images).toHaveLength(1);
-      expect(completedDetail.body.data.floors[0].doors[0].images[0]).toMatchObject({
+
+      const completedDoorImages = await request(app.getHttpServer())
+        .get(
+          `/v1/me/building-assignments/completed-surveys/${setup.surveyId}/doors/${setup.doorId}/images`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+      expect(completedDoorImages.body.data).toHaveLength(1);
+      expect(completedDoorImages.body.data[0]).toMatchObject({
         downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
         downloadUrlThumb: null,
       });
-      expect(completedDetail.body.data.floors[0].doors[0].certificate).toMatchObject({
+
+      const completedDoorCertificate = await request(app.getHttpServer())
+        .get(
+          `/v1/me/building-assignments/completed-surveys/${setup.surveyId}/doors/${setup.doorId}/certificate`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+      expect(completedDoorCertificate.body.data).toMatchObject({
         downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
       });
 
       await request(app.getHttpServer())
         .get(`/v1/me/building-assignments/completed-surveys/${setup.surveyId}`)
+        .set('Authorization', `Bearer ${otherInspector.token}`)
+        .expect(404);
+      await request(app.getHttpServer())
+        .get(
+          `/v1/me/building-assignments/completed-surveys/${setup.surveyId}/doors/${setup.doorId}/images`,
+        )
         .set('Authorization', `Bearer ${otherInspector.token}`)
         .expect(404);
     });

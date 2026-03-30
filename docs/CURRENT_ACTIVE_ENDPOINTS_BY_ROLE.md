@@ -102,7 +102,10 @@ These are the endpoints the photographer app should use for invitation handling 
 |---|---|
 | `GET /me/building-assignments` | List pending and accepted assignments |
 | `GET /me/building-assignments/completed-surveys` | List read-only completed surveys previously worked on by the photographer |
-| `GET /me/building-assignments/completed-surveys/:surveyId` | Get read-only detail for one completed survey previously worked on by the photographer, including frozen door images and certificate read URLs |
+| `GET /me/building-assignments/completed-surveys/:surveyId` | Get lightweight read-only summary for one completed survey previously worked on by the photographer |
+| `GET /me/building-assignments/completed-surveys/:surveyId/building-certificate` | Get the completed survey building certificate download URL |
+| `GET /me/building-assignments/completed-surveys/:surveyId/doors/:doorId/images` | Get read-only door images for one completed survey door |
+| `GET /me/building-assignments/completed-surveys/:surveyId/doors/:doorId/certificate` | Get the completed survey door certificate download URL |
 | `GET /me/building-assignments/history` | Photographer assignment/workflow history |
 | `POST /building-assignments/:assignmentId/respond` | Accept or decline one assignment |
 | `POST /building-assignments/groups/:groupId/respond` | Accept or decline grouped site invitation |

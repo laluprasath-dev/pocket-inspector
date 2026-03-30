@@ -58,6 +58,61 @@ export class MyBuildingAssignmentsController {
     );
   }
 
+  @Get('completed-surveys/:surveyId/building-certificate')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary:
+      'Get read-only building certificate download URL for one completed survey previously worked on by the current photographer',
+  })
+  getCompletedSurveyBuildingCertificate(
+    @CurrentUser() user: User,
+    @Param('surveyId') surveyId: string,
+  ) {
+    return this.buildingAssignmentsService.getInspectorCompletedSurveyBuildingCertificate(
+      surveyId,
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Get('completed-surveys/:surveyId/doors/:doorId/images')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary:
+      'List read-only door images for one completed survey door previously worked on by the current photographer',
+  })
+  getCompletedSurveyDoorImages(
+    @CurrentUser() user: User,
+    @Param('surveyId') surveyId: string,
+    @Param('doorId') doorId: string,
+  ) {
+    return this.buildingAssignmentsService.getInspectorCompletedSurveyDoorImages(
+      surveyId,
+      doorId,
+      user.id,
+      user.orgId,
+    );
+  }
+
+  @Get('completed-surveys/:surveyId/doors/:doorId/certificate')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary:
+      'Get read-only door certificate download URL for one completed survey door previously worked on by the current photographer',
+  })
+  getCompletedSurveyDoorCertificate(
+    @CurrentUser() user: User,
+    @Param('surveyId') surveyId: string,
+    @Param('doorId') doorId: string,
+  ) {
+    return this.buildingAssignmentsService.getInspectorCompletedSurveyDoorCertificate(
+      surveyId,
+      doorId,
+      user.id,
+      user.orgId,
+    );
+  }
+
   @Get('history')
   @Roles(Role.INSPECTOR)
   @ApiOperation({

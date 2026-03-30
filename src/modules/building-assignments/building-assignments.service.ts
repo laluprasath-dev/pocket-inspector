@@ -840,7 +840,7 @@ export class BuildingAssignmentsService {
     }));
   }
 
-  async getInspectorCompletedSurveyDetail(
+  private async requireCompletedSurveyAccess(
     surveyId: string,
     inspectorId: string,
     orgId: string,
@@ -874,6 +874,39 @@ export class BuildingAssignmentsService {
         orgId,
         status: SurveyStatus.COMPLETED,
       },
+      select: {
+        id: true,
+        version: true,
+        buildingId: true,
+      },
+    });
+    if (!survey) {
+      throw new NotFoundException(
+        `Completed survey ${surveyId} not found for this photographer`,
+      );
+    }
+
+    return survey;
+  }
+
+  async getInspectorCompletedSurveyDetail(
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    const completedSurvey = await this.requireCompletedSurveyAccess(
+      surveyId,
+      inspectorId,
+      orgId,
+    );
+
+    const survey = await this.prisma.survey.findFirst({
+      where: {
+        id: surveyId,
+        buildingId: completedSurvey.buildingId,
+        orgId,
+        status: SurveyStatus.COMPLETED,
+      },
       include: {
         building: {
           select: {
@@ -888,7 +921,7 @@ export class BuildingAssignmentsService {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
         buildingCertificate: {
-          select: { id: true, uploadedAt: true, objectPathCertificate: true },
+          select: { id: true, uploadedAt: true },
         },
         floors: {
           orderBy: { label: 'asc' },
@@ -896,22 +929,11 @@ export class BuildingAssignmentsService {
             doors: {
               orderBy: { code: 'asc' },
               include: {
-                images: {
-                  orderBy: { uploadedAt: 'asc' },
-                  select: {
-                    id: true,
-                    role: true,
-                    label: true,
-                    objectPathOriginal: true,
-                    objectPathThumb: true,
-                    uploadedAt: true,
-                  },
-                },
+                _count: { select: { images: true } },
                 certificate: {
                   select: {
                     id: true,
                     uploadedAt: true,
-                    objectPathCertificate: true,
                   },
                 },
               },
@@ -925,40 +947,6 @@ export class BuildingAssignmentsService {
         `Completed survey ${surveyId} not found for this photographer`,
       );
     }
-
-    const buildingCertificate = await this.buildCertificateSnapshot(
-      survey.buildingCertificate,
-      `building-certificate-v${survey.version}.pdf`,
-    );
-
-    const floors = await Promise.all(
-      survey.floors.map(async (floor) => ({
-        id: floor.id,
-        label: floor.label,
-        notes: floor.notes,
-        createdAt: floor.createdAt,
-        doors: await Promise.all(
-          floor.doors.map(async (door) => ({
-            id: door.id,
-            code: door.code,
-            locationNotes: door.locationNotes,
-            status: door.status,
-            submittedAt: door.submittedAt,
-            certifiedAt: door.certifiedAt,
-            imageCount: door.images.length,
-            certificatePresent: door.certificate !== null,
-            createdAt: door.createdAt,
-            images: await Promise.all(
-              door.images.map((image) => this.buildImageSnapshot(image)),
-            ),
-            certificate: await this.buildCertificateSnapshot(
-              door.certificate,
-              `door-${door.code}-certificate.pdf`,
-            ),
-          })),
-        ),
-      })),
-    );
 
     return {
       id: survey.id,
@@ -982,16 +970,135 @@ export class BuildingAssignmentsService {
       buildingCertificatePresent: survey.buildingCertificate !== null,
       buildingCertificateUploadedAt:
         survey.buildingCertificate?.uploadedAt ?? null,
-      buildingCertificate,
       building: {
         id: survey.building.id,
         name: survey.building.name,
       },
       site: survey.building.site,
-      floorCount: floors.length,
-      doorCount: floors.reduce((sum, floor) => sum + floor.doors.length, 0),
-      floors,
+      floorCount: survey.floors.length,
+      doorCount: survey.floors.reduce((sum, floor) => sum + floor.doors.length, 0),
+      floors: survey.floors.map((floor) => ({
+        id: floor.id,
+        label: floor.label,
+        notes: floor.notes,
+        createdAt: floor.createdAt,
+        doors: floor.doors.map((door) => ({
+          id: door.id,
+          code: door.code,
+          locationNotes: door.locationNotes,
+          status: door.status,
+          submittedAt: door.submittedAt,
+          certifiedAt: door.certifiedAt,
+          imageCount: door._count.images,
+          certificatePresent: door.certificate !== null,
+          certificateUploadedAt: door.certificate?.uploadedAt ?? null,
+          createdAt: door.createdAt,
+        })),
+      })),
     };
+  }
+
+  async getInspectorCompletedSurveyBuildingCertificate(
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    await this.requireCompletedSurveyAccess(surveyId, inspectorId, orgId);
+
+    const cert = await this.prisma.buildingCertificate.findUnique({
+      where: { surveyId },
+      select: { id: true, uploadedAt: true, objectPathCertificate: true },
+    });
+
+    const snapshot = await this.buildCertificateSnapshot(
+      cert,
+      'building-certificate.pdf',
+    );
+    if (!snapshot) {
+      throw new NotFoundException('No building certificate found for this survey');
+    }
+
+    return snapshot;
+  }
+
+  async getInspectorCompletedSurveyDoorImages(
+    surveyId: string,
+    doorId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    await this.requireCompletedSurveyAccess(surveyId, inspectorId, orgId);
+
+    const door = await this.prisma.door.findFirst({
+      where: {
+        id: doorId,
+        floor: {
+          surveyId,
+          building: { orgId },
+        },
+      },
+      select: { id: true },
+    });
+    if (!door) {
+      throw new NotFoundException(
+        `Door ${doorId} not found for completed survey ${surveyId}`,
+      );
+    }
+
+    const images = await this.prisma.doorImage.findMany({
+      where: { doorId },
+      orderBy: { uploadedAt: 'asc' },
+      select: {
+        id: true,
+        role: true,
+        label: true,
+        objectPathOriginal: true,
+        objectPathThumb: true,
+        uploadedAt: true,
+      },
+    });
+
+    return Promise.all(images.map((image) => this.buildImageSnapshot(image)));
+  }
+
+  async getInspectorCompletedSurveyDoorCertificate(
+    surveyId: string,
+    doorId: string,
+    inspectorId: string,
+    orgId: string,
+  ) {
+    await this.requireCompletedSurveyAccess(surveyId, inspectorId, orgId);
+
+    const door = await this.prisma.door.findFirst({
+      where: {
+        id: doorId,
+        floor: {
+          surveyId,
+          building: { orgId },
+        },
+      },
+      select: { code: true },
+    });
+    if (!door) {
+      throw new NotFoundException(
+        `Door ${doorId} not found for completed survey ${surveyId}`,
+      );
+    }
+
+    const cert = await this.prisma.doorCertificate.findUnique({
+      where: { doorId },
+      select: { id: true, uploadedAt: true, objectPathCertificate: true },
+    });
+
+    const snapshot = await this.buildCertificateSnapshot(
+      cert,
+      `door-${door.code}-certificate.pdf`,
+    );
+    if (!snapshot) {
+      throw new NotFoundException('No certificate found for this door');
+    }
+
+    return snapshot;
   }
 
   async listInspectorHistory(

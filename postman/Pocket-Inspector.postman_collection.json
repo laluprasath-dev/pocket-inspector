@@ -3015,7 +3015,88 @@
                     "{{surveyId}}"
                   ]
                 },
-                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata, frozen floor and door status for that survey version, door image snapshot data with signed read URLs, door certificate read URLs, and the building certificate read URL."
+                "description": "Lightweight read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata plus frozen floor and door summary for that survey version. Heavy assets should be loaded from the dedicated completed-survey asset endpoints."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Completed survey detail loaded', () => pm.response.to.have.status(200));",
+                      "const firstDoor = json.data?.floors?.[0]?.doors?.[0]?.id || null;",
+                      "if (firstDoor) pm.environment.set('doorId', firstDoor);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Completed Survey Building Certificate",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/building-certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "building-certificate"
+                  ]
+                },
+                "description": "Read-only building certificate download URL for one completed survey previously worked on by the current photographer."
+              }
+            },
+            {
+              "name": "Get Completed Survey Door Images",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/doors/{{doorId}}/images",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "doors",
+                    "{{doorId}}",
+                    "images"
+                  ]
+                },
+                "description": "Read-only door image snapshot for one completed survey door. Returns signed read URLs and should be called only when the user opens that specific completed door."
+              }
+            },
+            {
+              "name": "Get Completed Survey Door Certificate",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/doors/{{doorId}}/certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate"
+                  ]
+                },
+                "description": "Read-only door certificate download URL for one completed survey door previously worked on by the current photographer."
               }
             },
             {
@@ -5743,7 +5824,88 @@
                     "{{surveyId}}"
                   ]
                 },
-                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata, frozen floor and door status for that survey version, door image snapshot data with signed read URLs, door certificate read URLs, and the building certificate read URL."
+                "description": "Lightweight read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata plus frozen floor and door summary for that survey version. Heavy assets should be loaded from the dedicated completed-survey asset endpoints."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Completed survey detail loaded', () => pm.response.to.have.status(200));",
+                      "const firstDoor = json.data?.floors?.[0]?.doors?.[0]?.id || null;",
+                      "if (firstDoor) pm.environment.set('doorId', firstDoor);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Completed Survey Building Certificate",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/building-certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "building-certificate"
+                  ]
+                },
+                "description": "Read-only building certificate download URL for one completed survey previously worked on by the current photographer."
+              }
+            },
+            {
+              "name": "Get Completed Survey Door Images",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/doors/{{doorId}}/images",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "doors",
+                    "{{doorId}}",
+                    "images"
+                  ]
+                },
+                "description": "Read-only door image snapshot for one completed survey door. Returns signed read URLs and should be called only when the user opens that specific completed door."
+              }
+            },
+            {
+              "name": "Get Completed Survey Door Certificate",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/v1/me/building-assignments/completed-surveys/{{surveyId}}/doors/{{doorId}}/certificate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "me",
+                    "building-assignments",
+                    "completed-surveys",
+                    "{{surveyId}}",
+                    "doors",
+                    "{{doorId}}",
+                    "certificate"
+                  ]
+                },
+                "description": "Read-only door certificate download URL for one completed survey door previously worked on by the current photographer."
               }
             },
             {
