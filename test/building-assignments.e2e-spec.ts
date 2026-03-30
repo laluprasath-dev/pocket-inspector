@@ -1403,6 +1403,18 @@ describe('Building Assignments (e2e)', () => {
       expect(completedDetail.body.data.floors[0].doors[0].status).toBe(
         'CERTIFIED',
       );
+      expect(completedDetail.body.data.buildingCertificatePresent).toBe(true);
+      expect(completedDetail.body.data.buildingCertificate).toMatchObject({
+        downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
+      });
+      expect(completedDetail.body.data.floors[0].doors[0].images).toHaveLength(1);
+      expect(completedDetail.body.data.floors[0].doors[0].images[0]).toMatchObject({
+        downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
+        downloadUrlThumb: null,
+      });
+      expect(completedDetail.body.data.floors[0].doors[0].certificate).toMatchObject({
+        downloadUrl: expect.stringContaining('https://mock-gcs.local/download/'),
+      });
 
       await request(app.getHttpServer())
         .get(`/v1/me/building-assignments/completed-surveys/${setup.surveyId}`)

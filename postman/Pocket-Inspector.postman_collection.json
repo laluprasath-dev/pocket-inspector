@@ -3015,7 +3015,7 @@
                     "{{surveyId}}"
                   ]
                 },
-                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Use this after admin has confirmed the survey complete. Includes building/site metadata plus frozen floor and door status for that survey version."
+                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata, frozen floor and door status for that survey version, door image snapshot data with signed read URLs, door certificate read URLs, and the building certificate read URL."
               }
             },
             {
@@ -5743,7 +5743,7 @@
                     "{{surveyId}}"
                   ]
                 },
-                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Use this after admin has confirmed the survey complete. Includes building/site metadata plus frozen floor and door status for that survey version."
+                "description": "Read-only detail for one completed survey previously worked on by the current photographer. Includes building/site metadata, frozen floor and door status for that survey version, door image snapshot data with signed read URLs, door certificate read URLs, and the building certificate read URL."
               }
             },
             {

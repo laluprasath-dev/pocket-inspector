@@ -24,6 +24,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { GcsService } from '../storage/gcs.service';
 import { SurveysService } from '../surveys/surveys.service';
 import { AssignBuildingDto } from './dto/assign-building.dto';
 import { AssignBuildingsDto } from './dto/assign-buildings.dto';
@@ -310,7 +311,61 @@ export class BuildingAssignmentsService {
     private readonly prisma: PrismaService,
     private readonly surveys: SurveysService,
     private readonly notifications: NotificationsService,
+    private readonly gcs: GcsService,
   ) {}
+
+  private async buildImageSnapshot(image: {
+    id: string;
+    role: string;
+    label: string | null;
+    objectPathOriginal: string;
+    objectPathThumb: string | null;
+    uploadedAt: Date;
+  }) {
+    const original = await this.gcs.getSignedDownloadUrlWithExpiry({
+      objectPath: image.objectPathOriginal,
+    });
+    const thumb = image.objectPathThumb
+      ? await this.gcs.getSignedDownloadUrlWithExpiry({
+          objectPath: image.objectPathThumb,
+          expirySeconds: 7 * 24 * 3600,
+        })
+      : null;
+
+    return {
+      id: image.id,
+      role: image.role,
+      label: image.label,
+      uploadedAt: image.uploadedAt,
+      downloadUrl: original.url,
+      downloadUrlExpiresAt: original.expiresAt,
+      downloadUrlThumb: thumb?.url ?? null,
+      downloadUrlThumbExpiresAt: thumb?.expiresAt ?? null,
+    };
+  }
+
+  private async buildCertificateSnapshot(
+    cert: {
+      id: string;
+      objectPathCertificate: string;
+      uploadedAt: Date;
+    } | null,
+    filename: string,
+  ) {
+    if (!cert) return null;
+
+    const signed = await this.gcs.getSignedDownloadUrlWithExpiry({
+      objectPath: cert.objectPathCertificate,
+      responseDisposition: `attachment; filename="${filename}"`,
+    });
+
+    return {
+      id: cert.id,
+      uploadedAt: cert.uploadedAt,
+      downloadUrl: signed.url,
+      downloadUrlExpiresAt: signed.expiresAt,
+    };
+  }
 
   async assignBuilding(
     dto: AssignBuildingDto,
@@ -832,15 +887,33 @@ export class BuildingAssignmentsService {
         inspectorCompletedBy: {
           select: { id: true, firstName: true, lastName: true, email: true },
         },
-        buildingCertificate: { select: { id: true, uploadedAt: true } },
+        buildingCertificate: {
+          select: { id: true, uploadedAt: true, objectPathCertificate: true },
+        },
         floors: {
           orderBy: { label: 'asc' },
           include: {
             doors: {
               orderBy: { code: 'asc' },
               include: {
-                _count: { select: { images: true } },
-                certificate: { select: { id: true } },
+                images: {
+                  orderBy: { uploadedAt: 'asc' },
+                  select: {
+                    id: true,
+                    role: true,
+                    label: true,
+                    objectPathOriginal: true,
+                    objectPathThumb: true,
+                    uploadedAt: true,
+                  },
+                },
+                certificate: {
+                  select: {
+                    id: true,
+                    uploadedAt: true,
+                    objectPathCertificate: true,
+                  },
+                },
               },
             },
           },
@@ -852,6 +925,40 @@ export class BuildingAssignmentsService {
         `Completed survey ${surveyId} not found for this photographer`,
       );
     }
+
+    const buildingCertificate = await this.buildCertificateSnapshot(
+      survey.buildingCertificate,
+      `building-certificate-v${survey.version}.pdf`,
+    );
+
+    const floors = await Promise.all(
+      survey.floors.map(async (floor) => ({
+        id: floor.id,
+        label: floor.label,
+        notes: floor.notes,
+        createdAt: floor.createdAt,
+        doors: await Promise.all(
+          floor.doors.map(async (door) => ({
+            id: door.id,
+            code: door.code,
+            locationNotes: door.locationNotes,
+            status: door.status,
+            submittedAt: door.submittedAt,
+            certifiedAt: door.certifiedAt,
+            imageCount: door.images.length,
+            certificatePresent: door.certificate !== null,
+            createdAt: door.createdAt,
+            images: await Promise.all(
+              door.images.map((image) => this.buildImageSnapshot(image)),
+            ),
+            certificate: await this.buildCertificateSnapshot(
+              door.certificate,
+              `door-${door.code}-certificate.pdf`,
+            ),
+          })),
+        ),
+      })),
+    );
 
     return {
       id: survey.id,
@@ -875,30 +982,15 @@ export class BuildingAssignmentsService {
       buildingCertificatePresent: survey.buildingCertificate !== null,
       buildingCertificateUploadedAt:
         survey.buildingCertificate?.uploadedAt ?? null,
+      buildingCertificate,
       building: {
         id: survey.building.id,
         name: survey.building.name,
       },
       site: survey.building.site,
-      floorCount: survey.floors.length,
-      doorCount: survey.floors.reduce((sum, floor) => sum + floor.doors.length, 0),
-      floors: survey.floors.map((floor) => ({
-        id: floor.id,
-        label: floor.label,
-        notes: floor.notes,
-        createdAt: floor.createdAt,
-        doors: floor.doors.map((door) => ({
-          id: door.id,
-          code: door.code,
-          locationNotes: door.locationNotes,
-          status: door.status,
-          submittedAt: door.submittedAt,
-          certifiedAt: door.certifiedAt,
-          imageCount: door._count.images,
-          certificatePresent: door.certificate !== null,
-          createdAt: door.createdAt,
-        })),
-      })),
+      floorCount: floors.length,
+      doorCount: floors.reduce((sum, floor) => sum + floor.doors.length, 0),
+      floors,
     };
   }
 

@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StorageModule } from '../storage/storage.module';
 import { SurveysModule } from '../surveys/surveys.module';
 import { BuildingAssignmentsController } from './building-assignments.controller';
 import { BuildingAssignmentsService } from './building-assignments.service';
 import { MyBuildingAssignmentsController } from './my-building-assignments.controller';
 
 @Module({
-  imports: [SurveysModule, NotificationsModule],
+  imports: [SurveysModule, NotificationsModule, StorageModule],
   controllers: [BuildingAssignmentsController, MyBuildingAssignmentsController],
   providers: [BuildingAssignmentsService],
   exports: [BuildingAssignmentsService],
