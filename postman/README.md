@@ -43,7 +43,15 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - Remember: door photo upload/register/delete is `DRAFT` only; after submit the admin must reopen the door for changes
 - Ensure building certificate prerequisite requests are available
 
-3. Photographer previews and marks active survey fieldwork complete
+3. Photographer submits ready doors during partial progress
+- Single door:
+  - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Submit Door (Photographer) — requires ≥1 image, locks photos`
+- Multiple selected ready doors:
+  - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Bulk Submit Selected Doors (Photographer)`
+- Bulk submit only changes selected `DRAFT` doors that already have images
+- It does not complete survey fieldwork
+
+4. Photographer previews and marks active survey fieldwork complete
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Preview Survey Fieldwork Readiness`
 - This shows which draft doors can be bulk-submitted and which still need images
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
@@ -52,34 +60,34 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - Door certificates can still be uploaded individually as soon as each door is `SUBMITTED`
 - Building certificate upload must wait until every active-survey door is `CERTIFIED`
 
-4. Confirm-complete with scheduling (creates planned next)
+5. Confirm-complete with scheduling (creates planned next)
 - `📋 Surveys -> Confirm Survey Complete + Schedule Planned Next (Admin only)`
 - Verify `plannedNextSurvey.status = PLANNED` and `plannedSurveyId` saved
 
-5. Survey-linked assignment for planned next
+6. Survey-linked assignment for planned next
 - `🧭 Building Assignment Workflow -> Admin Portal Flow -> Assign Single Building To Planned Survey (with surveyId)`
 - Verify assignment payload includes survey metadata fields
 
-6. Photographer accepts planned assignment
+7. Photographer accepts planned assignment
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Accept Single Assignment`
 
-7. Activate planned survey
+8. Activate planned survey
 - `📋 Surveys -> Activate Planned Survey (Admin only)`
 - Verify response is `ACTIVE` and `currentSurveyId` updated
 
-8. Photographer marks newly active survey fieldwork complete
+9. Photographer marks newly active survey fieldwork complete
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
 
-9. Certificate upload/register after fieldwork completion
+10. Certificate upload/register after fieldwork completion
 - `🏢 Buildings -> Request Building Certificate Upload URL`
 - `🏢 Buildings -> Register Building Certificate`
 - Confirm gated behavior by running before/after fieldwork completion where needed
 
-10. Admin confirm complete without scheduling (skip path)
+11. Admin confirm complete without scheduling (skip path)
 - `📋 Surveys -> Confirm Survey Complete (Skip Next Scheduling)`
 - Verify `plannedNextSurvey = null`
 
-11. Photographer verifies read-only completed history
+12. Photographer verifies read-only completed history
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Completed Surveys`
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Get Completed Survey Detail`
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Get Completed Survey Building Certificate`
@@ -130,6 +138,7 @@ Relevant event types reflected by backend behavior:
 ## Troubleshooting
 
 - `400` on complete-fieldwork usually means there are no doors in the active survey, some doors are still `DRAFT`, or auto-submit was requested while some draft doors still have no images.
+- `200` on submit-doors can still contain blocked doors; check `blockedDoors[].reason` before assuming every selected door was submitted.
 - `400` on certificate upload/register usually means fieldwork completion is missing or some doors in the active survey are not yet `CERTIFIED`.
 - `400` on door image upload/register/delete usually means the door is no longer `DRAFT` and must be reopened first.
 - Reopening a submitted door after fieldwork completion also reopens the active survey back to `IN_PROGRESS`.

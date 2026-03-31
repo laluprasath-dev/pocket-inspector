@@ -22,6 +22,7 @@ import { ConfirmCompleteDto } from './dto/confirm-complete.dto';
 import { CompleteFieldworkDto } from './dto/complete-fieldwork.dto';
 import { ScheduleNextDto } from './dto/schedule-next.dto';
 import { StartNextSurveyDto } from './dto/start-next-survey.dto';
+import { SubmitSurveyDoorsDto } from './dto/submit-survey-doors.dto';
 import { SurveysService } from './surveys.service';
 
 @ApiTags('surveys', 'admin-portal', 'mobile-photographer')
@@ -100,6 +101,30 @@ export class SurveysController {
       surveyId,
       user.id,
       user.orgId,
+    );
+  }
+
+  @Post(':surveyId/submit-doors')
+  @Roles(Role.INSPECTOR)
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'buildingId', description: 'Building ID' })
+  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
+  @ApiOperation({
+    summary:
+      'Bulk-submit selected active-survey doors for partial progress. Only DRAFT doors with images are submitted; blocked doors are returned with reasons.',
+  })
+  submitDoors(
+    @Param('buildingId') buildingId: string,
+    @Param('surveyId') surveyId: string,
+    @Body() dto: SubmitSurveyDoorsDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.surveysService.submitDoors(
+      buildingId,
+      surveyId,
+      user.id,
+      user.orgId,
+      dto,
     );
   }
 

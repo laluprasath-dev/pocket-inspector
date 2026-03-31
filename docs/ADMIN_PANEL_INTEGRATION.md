@@ -492,6 +492,29 @@ GET /v1/buildings/:id/floors
 Use:
 
 ```
+POST /v1/buildings/:buildingId/surveys/:surveyId/submit-doors
+```
+
+Body:
+
+```json
+{
+  "doorIds": ["<doorId1>", "<doorId2>"]
+}
+```
+
+That endpoint is for partial-progress bulk submit. Use it when several doors are ready, but the whole building is not ready for final fieldwork completion yet.
+
+Rules:
+- only selected doors in that active survey are considered
+- only `DRAFT` doors with at least one image are submitted
+- already `SUBMITTED` or `CERTIFIED` doors are returned as blocked with reasons
+- draft doors with no images are returned as blocked with reason `MISSING_IMAGES`
+- this endpoint does **not** complete survey fieldwork or mark the building ready for certificate upload
+
+Use:
+
+```
 GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness
 ```
 

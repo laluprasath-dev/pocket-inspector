@@ -674,6 +674,119 @@ describe('Building Assignments (e2e)', () => {
       });
     });
 
+    it('bulk-submits selected ready doors without completing the survey', async () => {
+      const { buildingId } = await createAcceptedBuilding('Partial Bulk Submit');
+      const survey = await bootstrapActiveSurvey(buildingId);
+
+      const readyDoor = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'PART-READY',
+      );
+      const missingDoor = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'DRAFT',
+        'PART-MISS',
+      );
+      const submittedDoor = await createSurveyDoor(
+        buildingId,
+        survey.id,
+        'SUBMITTED',
+        'PART-SUB',
+      );
+      await addDoorImage(readyDoor.id, 'partial-ready');
+
+      const res = await request(app.getHttpServer())
+        .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/submit-doors`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ doorIds: [readyDoor.id, missingDoor.id, submittedDoor.id] })
+        .expect(200);
+
+      expect(res.body.data.summary).toMatchObject({
+        requestedDoors: 3,
+        submittedDoors: 1,
+        blockedDoors: 2,
+        canCompleteNow: false,
+        canAutoSubmitAndComplete: false,
+      });
+      expect(res.body.data.submittedDoors).toHaveLength(1);
+      expect(res.body.data.submittedDoors[0]).toMatchObject({
+        id: readyDoor.id,
+        code: 'PART-READY',
+        status: 'SUBMITTED',
+      });
+      expect(res.body.data.blockedDoors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: missingDoor.id,
+            code: 'PART-MISS',
+            reason: 'MISSING_IMAGES',
+          }),
+          expect.objectContaining({
+            id: submittedDoor.id,
+            code: 'PART-SUB',
+            reason: 'ALREADY_SUBMITTED',
+          }),
+        ]),
+      );
+
+      const doorsAfter = await prisma.door.findMany({
+        where: { floor: { surveyId: survey.id } },
+        orderBy: { code: 'asc' },
+      });
+      expect(doorsAfter.map((door) => `${door.code}:${door.status}`)).toEqual([
+        'PART-MISS:DRAFT',
+        'PART-READY:SUBMITTED',
+        'PART-SUB:SUBMITTED',
+      ]);
+
+      const surveyAfter = await prisma.survey.findUniqueOrThrow({
+        where: { id: survey.id },
+      });
+      expect(surveyAfter.executionStatus).toBe('IN_PROGRESS');
+
+      const buildingAfter = await prisma.building.findUniqueOrThrow({
+        where: { id: buildingId },
+      });
+      expect(buildingAfter.status).toBe('DRAFT');
+    });
+
+    it('bulk submit rejects door ids outside the selected active survey', async () => {
+      const primary = await createAcceptedBuilding('Submit Doors Primary');
+      const primarySurvey = await bootstrapActiveSurvey(primary.buildingId);
+      const primaryDoor = await createSurveyDoor(
+        primary.buildingId,
+        primarySurvey.id,
+        'DRAFT',
+        'SEL-PRIMARY',
+      );
+      await addDoorImage(primaryDoor.id, 'sel-primary');
+
+      const secondary = await createAcceptedBuilding('Submit Doors Secondary');
+      const secondarySurvey = await bootstrapActiveSurvey(secondary.buildingId);
+      const secondaryDoor = await createSurveyDoor(
+        secondary.buildingId,
+        secondarySurvey.id,
+        'DRAFT',
+        'SEL-SECONDARY',
+      );
+
+      const res = await request(app.getHttpServer())
+        .post(
+          `/v1/buildings/${primary.buildingId}/surveys/${primarySurvey.id}/submit-doors`,
+        )
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ doorIds: [primaryDoor.id, secondaryDoor.id] })
+        .expect(400);
+
+      expect(res.body.message).toContain(
+        'Some selected doors do not belong to this active survey',
+      );
+      expect(res.body.message).toContain(secondaryDoor.id);
+    });
+
     it('blocks fieldwork completion when any door is still in DRAFT', async () => {
       const { buildingId } = await createAcceptedBuilding('Draft Door Building');
       const survey = await bootstrapActiveSurvey(buildingId);
@@ -884,6 +997,12 @@ describe('Building Assignments (e2e)', () => {
     it('blocks the wrong role on the new survey fieldwork endpoints', async () => {
       const { buildingId } = await createAcceptedBuilding('Role Guard Building');
       const survey = await bootstrapActiveSurvey(buildingId);
+
+      await request(app.getHttpServer())
+        .post(`/v1/buildings/${buildingId}/surveys/${survey.id}/submit-doors`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ doorIds: ['door-1'] })
+        .expect(403);
 
       await request(app.getHttpServer())
         .get(

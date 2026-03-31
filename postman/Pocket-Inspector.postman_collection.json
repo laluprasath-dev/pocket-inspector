@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pocket Inspector API",
-    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- photographer final fieldwork completion is done via `buildings/:buildingId/surveys/:surveyId/complete-fieldwork`\n- photographers can preview readiness with `buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` and optionally bulk-submit valid draft doors via `{ \"autoSubmitValidDoors\": true }`\n\n## Consumer Sections\n- `\ud83d\udda5\ufe0f Admin Portal Endpoints` groups the intended admin portal requests\n- `\ud83d\udcf1 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN \u2014 manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If survey fieldwork was already completed, `POST /doors/:id/reopen` also reopens the active survey back to `IN_PROGRESS`\n- If a building certificate already exists for the active survey, ADMIN must delete that before reopening fieldwork or downgrading any certified door\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
+    "description": "# Pocket Inspector API\n\nThis collection supports the new building assignment workflow.\n\n## Core Rule\n- ADMIN creates sites and buildings\n- ADMIN assigns buildings to photographers\n- Photographer accounts use API role `INSPECTOR` and must accept before workflow access unlocks\n- photographer final fieldwork completion is done via `buildings/:buildingId/surveys/:surveyId/complete-fieldwork`\n- photographers can preview readiness with `buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` and optionally bulk-submit valid draft doors via `{ \"autoSubmitValidDoors\": true }`\n- photographers can also partially progress with `buildings/:buildingId/surveys/:surveyId/submit-doors` for selected ready doors without completing the survey\n\n## Consumer Sections\n- `\ud83d\udda5\ufe0f Admin Portal Endpoints` groups the intended admin portal requests\n- `\ud83d\udcf1 Photographer Mobile Endpoints` groups the intended mobile photographer requests\n- Resource folders below remain the canonical module-by-module reference and QA surface\n\n## Recommended Run Order\n1. Login as Admin\n2. Create site/building(s)\n3. Use Building Assignment Workflow -> Admin Portal Flow\n4. Login as Photographer\n5. Use Building Assignment Workflow -> Photographer Mobile Flow to accept\n6. Use Floors and Doors after acceptance\n7. Photographer can edit door photos only while the door is in DRAFT\n8. After submit, ADMIN can certify or reopen the door for changes\n9. If a certified door needs photo changes, ADMIN deletes the certificate, then reopens the door\n10. Use survey endpoints separately\n\n## Roles\n- ADMIN \u2014 manages sites, buildings, assignments, certificates, exports\n- Photographer accounts use API role `INSPECTOR` and only work on accepted assigned buildings\n\n## Preferred Flow\n- Prefer `building-assignments` + `surveys` for the current admin/photographer workflow\n- `building-assignments/*` + `buildings/:buildingId/surveys/*` are the only supported workflow endpoints\n\n## Response Format\nAll responses: `{ \"data\": { ... } }`\nHistory responses: `{ \"data\": [...], \"meta\": { ... } }`\nAll errors: `{ \"statusCode\", \"message\", \"error\", \"path\", \"timestamp\" }`\n## Door Review Rule\n- Door photo upload/register/delete is allowed only while the door is `DRAFT`\n- `POST /doors/:id/submit` locks photo edits by moving the door to `SUBMITTED`\n- ADMIN can return `SUBMITTED -> DRAFT` using `POST /doors/:id/reopen`\n- If survey fieldwork was already completed, `POST /doors/:id/reopen` also reopens the active survey back to `IN_PROGRESS`\n- If a building certificate already exists for the active survey, ADMIN must delete that before reopening fieldwork or downgrading any certified door\n- If a certified door needs photo changes, ADMIN must first delete the certificate (`CERTIFIED -> SUBMITTED`) and then reopen the door (`SUBMITTED -> DRAFT`)\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "pocket-inspector-v1"
   },
@@ -3377,7 +3377,7 @@
         },
         {
           "name": "\ud83d\udcf8 Fieldwork & Uploads",
-          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.\n\nUse `Complete Survey Fieldwork (Photographer)` as the single final building-ready signal for the active survey.",
+          "description": "Floor creation, door work, image uploads, approvals, and active survey completion.\n\nPhoto upload/register/delete is DRAFT-only. After `Submit Door`, the door is locked until an admin reopens it.\n\nUse `Bulk Submit Selected Doors (Photographer)` for partial progress and `Complete Survey Fieldwork (Photographer)` as the single final building-ready signal for the active survey.",
           "item": [
             {
               "name": "Create Floor as Accepted Photographer",
@@ -3978,6 +3978,66 @@
                   ]
                 },
                 "description": "Get a signed URL to download the door certificate PDF."
+              }
+            },
+            {
+              "name": "Bulk Submit Selected Doors (Photographer)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "const t = pm.environment.get('inspectorToken');",
+                      "if (t) pm.environment.set('accessToken', t);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const json = pm.response.json();",
+                      "pm.test('Bulk submit response returned', () => pm.expect(json.data.summary.requestedDoors).to.be.a('number'));",
+                      "console.log('Submitted doors:', json.data.submittedDoors);",
+                      "console.log('Blocked doors:', json.data.blockedDoors);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"doorIds\": [\n    \"{{doorId}}\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{currentSurveyId}}/submit-doors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "buildings",
+                    "{{buildingId}}",
+                    "surveys",
+                    "{{currentSurveyId}}",
+                    "submit-doors"
+                  ]
+                },
+                "description": "Bulk-submit selected ready doors without completing the survey. Only selected DRAFT doors with at least one image are submitted. Already submitted/certified doors and draft doors with no images are returned in blockedDoors with reasons. This endpoint does not mark fieldwork complete."
               }
             },
             {
@@ -7439,6 +7499,66 @@
               ]
             },
             "description": "Activate a planned survey version. Requires accepted assignment linked to plannedSurveyId. On success, survey becomes ACTIVE and building status is reset for the new cycle. Emits SURVEY_ACTIVATED payload with buildingId/surveyId/surveyVersion."
+          }
+        },
+        {
+          "name": "Bulk Submit Selected Doors (Photographer)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const t = pm.environment.get('inspectorToken');",
+                  "if (t) pm.environment.set('accessToken', t);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Bulk submit response returned', () => pm.expect(json.data.summary.requestedDoors).to.be.a('number'));",
+                  "console.log('Submitted doors:', json.data.submittedDoors);",
+                  "console.log('Blocked doors:', json.data.blockedDoors);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doorIds\": [\n    \"{{doorId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{currentSurveyId}}/submit-doors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "buildings",
+                "{{buildingId}}",
+                "surveys",
+                "{{currentSurveyId}}",
+                "submit-doors"
+              ]
+            },
+            "description": "Bulk-submit selected ready doors without completing the survey. Only selected DRAFT doors with at least one image are submitted. Already submitted/certified doors and draft doors with no images are returned in blockedDoors with reasons. This endpoint does not mark fieldwork complete."
           }
         },
         {

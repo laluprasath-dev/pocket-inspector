@@ -110,6 +110,7 @@ These are the endpoints the photographer app should use for invitation handling 
 | `POST /building-assignments/:assignmentId/respond` | Accept or decline one assignment |
 | `POST /building-assignments/groups/:groupId/respond` | Accept or decline grouped site invitation |
 | `POST /doors/:id/submit` | Submit door after images are uploaded; photo edits lock until admin reopen |
+| `POST /buildings/:buildingId/surveys/:surveyId/submit-doors` | Bulk-submit selected ready doors without completing the survey; blocked doors return with reasons |
 | `GET /buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` | Preview active survey completion readiness, including draft doors that can be bulk-submitted and draft doors still missing images |
 | `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` | Mark active survey fieldwork complete; optional body `{ "autoSubmitValidDoors": true }` bulk-submits valid draft doors first |
 
@@ -124,10 +125,11 @@ These are the endpoints the photographer app should use for invitation handling 
 7. Photographer checks invitation: `GET /me/building-assignments`
 8. Photographer accepts invitation: `POST /building-assignments/:assignmentId/respond`
 9. Photographer performs fieldwork: `POST /floors`, `POST /doors`, draft-only image upload/register endpoints, `POST /doors/:id/submit`
-10. Photographer can preview readiness with `GET /buildings/:buildingId/surveys/:surveyId/fieldwork-readiness`
-11. Photographer completes the building survey in one final step: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
-12. If some doors are still `DRAFT` but already have images, mobile can call the same endpoint with `{ "autoSubmitValidDoors": true }`. This bulk-submits only those valid draft doors and still fails if any draft door has no images.
-13. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed (this also reopens survey fieldwork if it had already been completed), certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
-14. After admin confirms completion, photographer reads archived work from `GET /me/building-assignments/completed-surveys` and `GET /me/building-assignments/completed-surveys/:surveyId`
+10. If several doors are ready but the whole building is not finished, photographer can bulk-submit selected ready doors with `POST /buildings/:buildingId/surveys/:surveyId/submit-doors`
+11. Photographer can preview readiness with `GET /buildings/:buildingId/surveys/:surveyId/fieldwork-readiness`
+12. Photographer completes the building survey in one final step: `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork`
+13. If some doors are still `DRAFT` but already have images, mobile can call the same endpoint with `{ "autoSubmitValidDoors": true }`. This bulk-submits only those valid draft doors and still fails if any draft door has no images.
+14. Admin reviews and finishes lifecycle: `POST /doors/:id/reopen` if photo fixes are needed (this also reopens survey fieldwork if it had already been completed), certificate endpoints, `POST /buildings/:buildingId/surveys/confirm-complete`, then `POST /buildings/:buildingId/surveys/start-next` when needed
+15. After admin confirms completion, photographer reads archived work from `GET /me/building-assignments/completed-surveys` and `GET /me/building-assignments/completed-surveys/:surveyId`
 
 `POST /buildings/:buildingId/surveys/:surveyId/complete-fieldwork` is the only active building-level completion endpoint. It marks the building ready for certificate upload and marks active survey fieldwork complete. Without a request body, it requires the active survey to have at least one door and no doors left in `DRAFT`. With `{ "autoSubmitValidDoors": true }`, it bulk-submits only draft doors that already have images, but still fails if any draft door has no images.

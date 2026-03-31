@@ -20,6 +20,7 @@ import { ConfirmCompleteDto } from './dto/confirm-complete.dto';
 import { CompleteFieldworkDto } from './dto/complete-fieldwork.dto';
 import { ScheduleNextDto } from './dto/schedule-next.dto';
 import { StartNextSurveyDto } from './dto/start-next-survey.dto';
+import { SubmitSurveyDoorsDto } from './dto/submit-survey-doors.dto';
 
 type FieldworkDoorSnapshot = {
   id: string;
@@ -47,6 +48,13 @@ type FieldworkReadiness = {
   draftDoorsMissingImages: SerializedFieldworkDoor[];
   canCompleteNow: boolean;
   canAutoSubmitAndComplete: boolean;
+};
+
+type BulkSubmitBlockedDoor = SerializedFieldworkDoor & {
+  reason:
+    | 'MISSING_IMAGES'
+    | 'ALREADY_SUBMITTED'
+    | 'ALREADY_CERTIFIED';
 };
 
 @Injectable()
@@ -183,9 +191,13 @@ export class SurveysService {
   private async listSurveyDoorsForFieldwork(
     db: Prisma.TransactionClient | PrismaService,
     surveyId: string,
+    doorIds?: string[],
   ): Promise<FieldworkDoorSnapshot[]> {
     const doors = await db.door.findMany({
-      where: { floor: { surveyId } },
+      where: {
+        floor: { surveyId },
+        ...(doorIds ? { id: { in: doorIds } } : {}),
+      },
       orderBy: { code: 'asc' },
       select: {
         id: true,
@@ -266,6 +278,129 @@ export class SurveysService {
         draftMissingImages: readiness.draftDoorsMissingImages,
       },
     };
+  }
+
+  async submitDoors(
+    buildingId: string,
+    surveyId: string,
+    inspectorId: string,
+    orgId: string,
+    dto: SubmitSurveyDoorsDto,
+  ) {
+    const survey = await this.requireSurveyForFieldwork(surveyId, buildingId, orgId);
+    if (survey.status !== SurveyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Only an active survey can have doors submitted',
+      );
+    }
+    if (survey.executionStatus === SurveyExecutionStatus.INSPECTOR_COMPLETED) {
+      throw new BadRequestException(
+        'This survey fieldwork has already been marked completed',
+      );
+    }
+
+    const assignment = await this.findAcceptedRuntimeAssignment(
+      buildingId,
+      survey.id,
+      orgId,
+      inspectorId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have an accepted assignment for this active survey',
+      );
+    }
+
+    const now = new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const selectedDoors = await this.listSurveyDoorsForFieldwork(
+        tx,
+        survey.id,
+        dto.doorIds,
+      );
+      const foundDoorIds = new Set(selectedDoors.map((door) => door.id));
+      const unknownDoorIds = dto.doorIds.filter((id) => !foundDoorIds.has(id));
+      if (unknownDoorIds.length > 0) {
+        throw new BadRequestException(
+          `Some selected doors do not belong to this active survey: ${unknownDoorIds.join(', ')}`,
+        );
+      }
+
+      const submittedDoors: SerializedFieldworkDoor[] = [];
+      const blockedDoors: BulkSubmitBlockedDoor[] = [];
+
+      for (const door of selectedDoors) {
+        if (door.status === DoorStatus.SUBMITTED) {
+          blockedDoors.push({
+            ...this.serializeFieldworkDoor(door),
+            reason: 'ALREADY_SUBMITTED',
+          });
+          continue;
+        }
+        if (door.status === DoorStatus.CERTIFIED) {
+          blockedDoors.push({
+            ...this.serializeFieldworkDoor(door),
+            reason: 'ALREADY_CERTIFIED',
+          });
+          continue;
+        }
+        if (door.imageCount === 0) {
+          blockedDoors.push({
+            ...this.serializeFieldworkDoor(door),
+            reason: 'MISSING_IMAGES',
+          });
+          continue;
+        }
+
+        submittedDoors.push({
+          ...this.serializeFieldworkDoor(door),
+          status: DoorStatus.SUBMITTED,
+        });
+      }
+
+      if (submittedDoors.length > 0) {
+        await tx.door.updateMany({
+          where: {
+            id: { in: submittedDoors.map((door) => door.id) },
+            status: DoorStatus.DRAFT,
+          },
+          data: {
+            status: DoorStatus.SUBMITTED,
+            submittedAt: now,
+            submittedById: inspectorId,
+          },
+        });
+      }
+
+      const readiness = this.buildFieldworkReadiness(
+        await this.listSurveyDoorsForFieldwork(tx, survey.id),
+      );
+
+      return {
+        surveyId: survey.id,
+        buildingId: survey.buildingId,
+        version: survey.version,
+        executionStatus: survey.executionStatus,
+        summary: {
+          requestedDoors: dto.doorIds.length,
+          submittedDoors: submittedDoors.length,
+          blockedDoors: blockedDoors.length,
+          canCompleteNow: readiness.canCompleteNow,
+          canAutoSubmitAndComplete: readiness.canAutoSubmitAndComplete,
+        },
+        submittedDoors,
+        blockedDoors,
+        fieldworkReadiness: {
+          totalDoors: readiness.totalDoors,
+          certifiedDoors: readiness.certifiedDoors.length,
+          submittedDoors: readiness.submittedDoors.length,
+          draftDoorsReadyToSubmit: readiness.draftDoorsReadyToSubmit.length,
+          draftDoorsMissingImages: readiness.draftDoorsMissingImages.length,
+          canCompleteNow: readiness.canCompleteNow,
+          canAutoSubmitAndComplete: readiness.canAutoSubmitAndComplete,
+        },
+      };
+    });
   }
 
   // ── List survey history for a building ────────────────────────────────────
