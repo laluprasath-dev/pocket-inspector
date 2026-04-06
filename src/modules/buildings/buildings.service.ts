@@ -537,20 +537,19 @@ export class BuildingsService {
   ): Promise<{ signedUrl: string; expiresAt: string }> {
     await this.findById(buildingId, orgId, userId, role);
 
-    // Find the active survey's certificate by default
     const activeSurvey = await this.prisma.survey.findFirst({
       where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+      select: { id: true },
     });
+    if (!activeSurvey) {
+      throw new NotFoundException(
+        'No active survey certificate found for this building. Use the survey history certificate endpoint for completed surveys.',
+      );
+    }
 
-    const cert = activeSurvey
-      ? await this.prisma.buildingCertificate.findUnique({
-          where: { surveyId: activeSurvey.id },
-        })
-      : // Fallback: find any certificate linked to this building (legacy or completed surveys)
-        await this.prisma.buildingCertificate.findFirst({
-          where: { buildingId, building: { orgId } },
-          orderBy: { uploadedAt: 'desc' },
-        });
+    const cert = await this.prisma.buildingCertificate.findUnique({
+      where: { surveyId: activeSurvey.id },
+    });
 
     if (!cert)
       throw new NotFoundException('No certificate found for this building');

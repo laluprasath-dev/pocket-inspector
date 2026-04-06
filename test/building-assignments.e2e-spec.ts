@@ -1131,6 +1131,32 @@ describe('Building Assignments (e2e)', () => {
       expect(afterBuilding.certifiedAt).toBeNull();
       expect(afterBuilding.certifiedById).toBeNull();
 
+      const buildingDetail = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(buildingDetail.body.data.status).toBe('DRAFT');
+      expect(buildingDetail.body.data.approvedAt).toBeNull();
+      expect(buildingDetail.body.data.certifiedAt).toBeNull();
+      expect(buildingDetail.body.data.certificatePresent).toBe(false);
+      expect(buildingDetail.body.data.currentSurveyId).toBeNull();
+      expect(buildingDetail.body.data.currentSurveyVersion).toBeNull();
+
+      await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}/certificate/signed-download`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      const historicalCertificate = await request(app.getHttpServer())
+        .get(
+          `/v1/buildings/${seeded.buildingId}/surveys/${seeded.completedSurveyId}/certificate/signed-download`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(historicalCertificate.body.data.signedUrl).toEqual(
+        expect.any(String),
+      );
+
       await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -1239,6 +1265,38 @@ describe('Building Assignments (e2e)', () => {
       expect(buildingAfter.approvedById).toBeNull();
       expect(buildingAfter.certifiedAt).toBeNull();
       expect(buildingAfter.certifiedById).toBeNull();
+
+      const buildingDetail = await request(app.getHttpServer())
+        .get(`/v1/buildings/${setup.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(buildingDetail.body.data.status).toBe('DRAFT');
+      expect(buildingDetail.body.data.approvedAt).toBeNull();
+      expect(buildingDetail.body.data.certifiedAt).toBeNull();
+      expect(buildingDetail.body.data.certificatePresent).toBe(false);
+      expect(buildingDetail.body.data.currentSurveyId).toBeNull();
+      expect(buildingDetail.body.data.currentSurveyVersion).toBeNull();
+
+      const currentSurveyRes = await request(app.getHttpServer())
+        .get(`/v1/buildings/${setup.buildingId}/surveys/current`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(currentSurveyRes.body.data).toBeNull();
+
+      await request(app.getHttpServer())
+        .get(`/v1/buildings/${setup.buildingId}/certificate/signed-download`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(404);
+
+      const historicalCertificate = await request(app.getHttpServer())
+        .get(
+          `/v1/buildings/${setup.buildingId}/surveys/${setup.surveyId}/certificate/signed-download`,
+        )
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(historicalCertificate.body.data.signedUrl).toEqual(
+        expect.any(String),
+      );
 
       const plannedAssignmentCount = await prisma.buildingAssignment.count({
         where: { buildingId: setup.buildingId, surveyId: plannedSurvey.id, accessEndedAt: null },
