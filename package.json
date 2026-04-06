@@ -32,7 +32,8 @@
     "db:normalize-user-emails": "tsx scripts/normalize-user-emails.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate && node scripts/patch-prisma-client.js",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "qa:survey-versioning-flow": "tsx scripts/test-survey-versioning-flow.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

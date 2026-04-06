@@ -65,14 +65,17 @@ async function api<T>(
     expectedStatus?: number;
   },
 ): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options?.token) {
+    headers['Authorization'] = `Bearer ${options.token}`;
+  }
+  if (options?.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.token
-        ? { Authorization: `Bearer ${options.token}` }
-        : {}),
-    },
+    headers,
     body: options?.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
