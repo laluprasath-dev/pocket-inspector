@@ -13,6 +13,9 @@
 
 - `Pocket-Inspector.postman_collection.json` is the single active collection.
 - It uses `building-assignments` + `surveys` for the current admin/photographer workflow.
+- For code-level regression, the required automated lifecycle runner is:
+  - `npm run qa:survey-versioning-flow`
+  - reference: [Survey Versioning Live Flow Test](/Users/admin/Documents/Applikation-New/Pocket-Inspector/pocket-inspector-backend/docs/SURVEY_VERSIONING_LIVE_FLOW_TEST.md)
 - Start with the top-level consumer folders:
   - `🖥️ Admin Portal Endpoints`
   - `📱 Photographer Mobile Endpoints`

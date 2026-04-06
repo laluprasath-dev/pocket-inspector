@@ -57,6 +57,53 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Critical Flow Verification
+
+Before shipping survey/versioning, assignment, door submit, certificate, or completed-history changes, run the full live API regression flow.
+
+Primary runner:
+
+```bash
+FLOW_BASE_URL=http://localhost:3001 \
+FLOW_ADMIN_EMAIL=admin@example.com \
+FLOW_ADMIN_PASSWORD='your-password' \
+FLOW_ALLOW_DATA_MUTATION=true \
+npm run qa:survey-versioning-flow
+```
+
+Remote/staging/production-style run:
+
+```bash
+FLOW_BASE_URL='https://pocket-inspector-api-34292529156.europe-west2.run.app' \
+FLOW_ADMIN_EMAIL='admin@example.com' \
+FLOW_ADMIN_PASSWORD='your-password' \
+FLOW_ALLOW_DATA_MUTATION=true \
+FLOW_ALLOW_REMOTE=true \
+npm run qa:survey-versioning-flow
+```
+
+What this verifies:
+
+- fresh `v1` assignment and acceptance
+- floor and door creation
+- door image upload/register
+- single-door submit and bulk `submit-doors`
+- `complete-fieldwork`
+- door and building certificate upload/register
+- survey `confirm-complete` creating planned `v2`
+- planned `v2` assignment, acceptance, activation
+- structure cloning into `v2` without copying images/certificates
+- `v2` completion and completed-history endpoints
+
+The script is intentionally guarded:
+
+- it refuses all mutation unless `FLOW_ALLOW_DATA_MUTATION=true`
+- it refuses non-local targets unless `FLOW_ALLOW_REMOTE=true`
+
+Reference:
+
+- [Survey Versioning Live Flow Test](/Users/admin/Documents/Applikation-New/Pocket-Inspector/pocket-inspector-backend/docs/SURVEY_VERSIONING_LIVE_FLOW_TEST.md)
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
