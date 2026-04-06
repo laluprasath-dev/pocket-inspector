@@ -1124,9 +1124,12 @@ describe('Building Assignments (e2e)', () => {
       const afterBuilding = await prisma.building.findUniqueOrThrow({
         where: { id: seeded.buildingId },
       });
-      expect(afterBuilding.status).toBe(beforeBuilding.status);
-      expect(afterBuilding.approvedAt).not.toBeNull();
-      expect(afterBuilding.certifiedAt).not.toBeNull();
+      expect(beforeBuilding.status).toBe('CERTIFIED');
+      expect(afterBuilding.status).toBe('DRAFT');
+      expect(afterBuilding.approvedAt).toBeNull();
+      expect(afterBuilding.approvedById).toBeNull();
+      expect(afterBuilding.certifiedAt).toBeNull();
+      expect(afterBuilding.certifiedById).toBeNull();
 
       await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
@@ -1227,6 +1230,15 @@ describe('Building Assignments (e2e)', () => {
       expect(plannedSurvey.floors[0].doors[0].images).toHaveLength(0);
       expect(plannedSurvey.floors[0].doors[0].certificate).toBeNull();
       expect(plannedSurvey.buildingCertificate).toBeNull();
+
+      const buildingAfter = await prisma.building.findUniqueOrThrow({
+        where: { id: setup.buildingId },
+      });
+      expect(buildingAfter.status).toBe('DRAFT');
+      expect(buildingAfter.approvedAt).toBeNull();
+      expect(buildingAfter.approvedById).toBeNull();
+      expect(buildingAfter.certifiedAt).toBeNull();
+      expect(buildingAfter.certifiedById).toBeNull();
 
       const plannedAssignmentCount = await prisma.buildingAssignment.count({
         where: { buildingId: setup.buildingId, surveyId: plannedSurvey.id, accessEndedAt: null },

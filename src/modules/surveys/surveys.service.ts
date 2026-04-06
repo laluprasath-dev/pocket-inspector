@@ -1113,6 +1113,17 @@ export class SurveysService {
             })),
           })),
         );
+
+        await tx.building.update({
+          where: { id: buildingId },
+          data: {
+            status: BuildingStatus.DRAFT,
+            approvedAt: null,
+            approvedById: null,
+            certifiedAt: null,
+            certifiedById: null,
+          },
+        });
       }
 
       return {
@@ -1270,6 +1281,17 @@ export class SurveysService {
           })),
         })),
       );
+
+      await tx.building.update({
+        where: { id: buildingId },
+        data: {
+          status: BuildingStatus.DRAFT,
+          approvedAt: null,
+          approvedById: null,
+          certifiedAt: null,
+          certifiedById: null,
+        },
+      });
 
       return survey;
     });
