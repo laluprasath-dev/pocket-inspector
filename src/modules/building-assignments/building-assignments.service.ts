@@ -1435,7 +1435,19 @@ export class BuildingAssignmentsService {
       }
     }
 
+    if (!surveyId) {
+      await this.assertUnscopedAssignmentAllowed(
+        uniqueBuildingIds,
+        orgId,
+        buildings.map((building) => ({
+          id: building.id,
+          name: building.name,
+        })),
+      );
+    }
+
     let resolvedSurveyId: string | null = null;
+    let resolvedSurveyStatus: SurveyStatus | null = null;
     if (surveyId) {
       const resolvedSurvey = await this.resolveSurveyForAssignment(
         surveyId,
@@ -1443,6 +1455,7 @@ export class BuildingAssignmentsService {
         orgId,
       );
       resolvedSurveyId = resolvedSurvey?.id ?? null;
+      resolvedSurveyStatus = resolvedSurvey?.status ?? null;
     }
 
     const conflictWhere: Prisma.BuildingAssignmentWhereInput = {
@@ -1466,8 +1479,38 @@ export class BuildingAssignmentsService {
       },
     });
 
-    if (openAssignments.length > 0) {
-      const details = openAssignments
+    let staleLegacyAssignmentsToClose: typeof openAssignments = [];
+    let effectiveOpenAssignments = openAssignments;
+
+    if (resolvedSurveyStatus === SurveyStatus.PLANNED && openAssignments.length > 0) {
+      const activeSurveyBuildings = new Set(
+        (
+          await this.prisma.survey.findMany({
+            where: {
+              orgId,
+              buildingId: { in: uniqueBuildingIds },
+              status: SurveyStatus.ACTIVE,
+            },
+            select: { buildingId: true },
+          })
+        ).map((survey) => survey.buildingId),
+      );
+
+      staleLegacyAssignmentsToClose = openAssignments.filter(
+        (assignment) =>
+          assignment.surveyId === null && !activeSurveyBuildings.has(assignment.buildingId),
+      );
+
+      if (staleLegacyAssignmentsToClose.length > 0) {
+        const staleIds = new Set(staleLegacyAssignmentsToClose.map((assignment) => assignment.id));
+        effectiveOpenAssignments = openAssignments.filter(
+          (assignment) => !staleIds.has(assignment.id),
+        );
+      }
+    }
+
+    if (effectiveOpenAssignments.length > 0) {
+      const details = effectiveOpenAssignments
         .map(
           (assignment) =>
             `${assignment.building.name} -> ${this.fullName(assignment.inspector)}`,
@@ -1487,6 +1530,36 @@ export class BuildingAssignmentsService {
       (forceSiteGroup || uniqueSiteIds.length === 1);
 
     const created = await this.prisma.$transaction(async (tx) => {
+      if (staleLegacyAssignmentsToClose.length > 0) {
+        const now = new Date();
+        await tx.buildingAssignment.updateMany({
+          where: {
+            id: { in: staleLegacyAssignmentsToClose.map((assignment) => assignment.id) },
+          },
+          data: {
+            status: BuildingAssignmentStatus.REMOVED,
+            accessEndedAt: now,
+            endedById: adminId,
+          },
+        });
+
+        for (const assignment of staleLegacyAssignmentsToClose) {
+          await this.createEventTx(tx, {
+            orgId,
+            buildingId: assignment.buildingId,
+            surveyId: resolvedSurveyId ?? undefined,
+            assignmentId: assignment.id,
+            inspectorId: assignment.inspectorId,
+            actorId: adminId,
+            type: BuildingAssignmentEventType.ACCESS_REMOVED,
+            metadata: {
+              reason: 'STALE_LEGACY_REPLACED_BY_SURVEY_ASSIGNMENT',
+              replacementSurveyId: resolvedSurveyId ?? undefined,
+            },
+          });
+        }
+      }
+
       const group = shouldCreateGroup
         ? await tx.buildingAssignmentGroup.create({
             data: {
@@ -1545,6 +1618,56 @@ export class BuildingAssignmentsService {
         this.serializeAssignment(assignment, false),
       ),
     };
+  }
+
+  private async assertUnscopedAssignmentAllowed(
+    buildingIds: string[],
+    orgId: string,
+    buildings: Array<{ id: string; name: string }>,
+  ) {
+    const surveys = await this.prisma.survey.findMany({
+      where: { orgId, buildingId: { in: buildingIds } },
+      select: { buildingId: true, status: true },
+    });
+
+    const stateByBuilding = new Map<
+      string,
+      { hasAny: boolean; hasActive: boolean; hasPlanned: boolean }
+    >();
+    for (const buildingId of buildingIds) {
+      stateByBuilding.set(buildingId, {
+        hasAny: false,
+        hasActive: false,
+        hasPlanned: false,
+      });
+    }
+    for (const survey of surveys) {
+      const state = stateByBuilding.get(survey.buildingId);
+      if (!state) continue;
+      state.hasAny = true;
+      if (survey.status === SurveyStatus.ACTIVE) state.hasActive = true;
+      if (survey.status === SurveyStatus.PLANNED) state.hasPlanned = true;
+    }
+
+    const plannedBlocked = buildings.filter((building) => {
+      const state = stateByBuilding.get(building.id);
+      return state?.hasPlanned === true && state.hasActive === false;
+    });
+    if (plannedBlocked.length > 0) {
+      throw new BadRequestException(
+        `These buildings already have a planned survey and must use survey-linked assignment: ${plannedBlocked.map((building) => building.name).join(', ')}`,
+      );
+    }
+
+    const historyBlocked = buildings.filter((building) => {
+      const state = stateByBuilding.get(building.id);
+      return state?.hasAny === true && state.hasActive === false && state.hasPlanned === false;
+    });
+    if (historyBlocked.length > 0) {
+      throw new BadRequestException(
+        `These buildings have completed survey history but no active survey. Start the next survey before assigning: ${historyBlocked.map((building) => building.name).join(', ')}`,
+      );
+    }
   }
 
   private async listHistory(

@@ -2116,14 +2116,18 @@ describe('Building Assignments (e2e)', () => {
         .expect(201);
       const plannedSurveyB = startB.body.data.id as string;
 
-      await request(app.getHttpServer())
+      const blockedLegacy = await request(app.getHttpServer())
         .post('/v1/building-assignments')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           buildingId: scopedB.buildingId,
           inspectorId: seeds.inspector.id,
         })
-        .expect(201);
+        .expect(400);
+
+      expect(JSON.stringify(blockedLegacy.body)).toContain(
+        'already have a planned survey and must use survey-linked assignment',
+      );
 
       await request(app.getHttpServer())
         .post('/v1/building-assignments')
@@ -2133,7 +2137,7 @@ describe('Building Assignments (e2e)', () => {
           inspectorId: otherInspector.id,
           surveyId: plannedSurveyB,
         })
-        .expect(400);
+        .expect(201);
     });
 
     it('sends building and door certificate notifications to assignment recipients, not legacy inspection recipients', async () => {
@@ -2205,7 +2209,7 @@ describe('Building Assignments (e2e)', () => {
       expect(buildingCall?.[0]).not.toContain(legacyInspector.id);
     });
 
-    it('blocks legacy pending acceptance when there is survey history but no active survey, while allowing reject cleanup', async () => {
+    it('blocks creation of unscoped assignments when there is survey history but no active survey', async () => {
       const staleInspector = await createInspector(
         'no-active-history@test.com',
         'NoActiveHistory1234!',
@@ -2214,30 +2218,29 @@ describe('Building Assignments (e2e)', () => {
         'No Active But Survey History',
       );
 
-      const pending = await request(app.getHttpServer())
+      const createRes = await request(app.getHttpServer())
         .post('/v1/building-assignments')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           buildingId: seeded.buildingId,
           inspectorId: staleInspector.id,
         })
-        .expect(201);
-
-      const staleAccept = await request(app.getHttpServer())
-        .post(`/v1/building-assignments/${pending.body.data.id}/respond`)
-        .set('Authorization', `Bearer ${staleInspector.token}`)
-        .send({ status: 'ACCEPTED' })
         .expect(400);
 
-      expect(JSON.stringify(staleAccept.body)).toContain('stale or expired');
+      expect(JSON.stringify(createRes.body)).toContain(
+        'completed survey history but no active survey',
+      );
+    });
 
-      const rejected = await request(app.getHttpServer())
-        .post(`/v1/building-assignments/${pending.body.data.id}/respond`)
-        .set('Authorization', `Bearer ${staleInspector.token}`)
-        .send({ status: 'REJECTED' })
-        .expect(201);
+    it('returns null instead of 404 when a building has no current active survey', async () => {
+      const seeded = await seedCompletedSurveyTemplate('No Current Survey Returns Null');
 
-      expect(rejected.body.data.status).toBe('REJECTED');
+      const currentRes = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}/surveys/current`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(currentRes.body.data).toBeNull();
     });
 
     it('allows legacy pending acceptance for first-cycle bootstrap when building has no survey history', async () => {
@@ -2269,6 +2272,58 @@ describe('Building Assignments (e2e)', () => {
         .expect(201);
 
       expect(accepted.body.data.status).toBe('ACCEPTED');
+    });
+
+    it('replaces stale legacy unscoped assignments when creating a proper planned-survey assignment', async () => {
+      const replacementInspector = await createInspector(
+        'replacement-planned@test.com',
+        'ReplacementPlanned1234!',
+      );
+      const seeded = await seedCompletedSurveyTemplate(
+        'Replace Stale Legacy With Planned',
+      );
+
+      const staleAssignment = await prisma.buildingAssignment.create({
+        data: {
+          orgId: seeds.org.id,
+          buildingId: seeded.buildingId,
+          surveyId: null,
+          inspectorId: replacementInspector.id,
+          assignedById: seeds.admin.id,
+          status: 'PENDING',
+        },
+      });
+
+      const plannedSurvey = await request(app.getHttpServer())
+        .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(201);
+
+      const assignRes = await request(app.getHttpServer())
+        .post('/v1/building-assignments')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          buildingId: seeded.buildingId,
+          inspectorId: seeds.inspector.id,
+          surveyId: plannedSurvey.body.data.id,
+        })
+        .expect(201);
+
+      const staleAfter = await prisma.buildingAssignment.findUniqueOrThrow({
+        where: { id: staleAssignment.id },
+      });
+      expect(staleAfter.status).toBe('REMOVED');
+      expect(staleAfter.accessEndedAt).toBeTruthy();
+
+      const accepted = await request(app.getHttpServer())
+        .post(`/v1/building-assignments/${assignRes.body.data.id}/respond`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .send({ status: 'ACCEPTED' })
+        .expect(201);
+
+      expect(accepted.body.data.status).toBe('ACCEPTED');
+      expect(accepted.body.data.surveyId).toBe(plannedSurvey.body.data.id);
     });
   });
 });

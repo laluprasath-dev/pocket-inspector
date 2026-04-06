@@ -536,8 +536,9 @@ export class SurveysService {
         _count: { select: { floors: true } },
       },
     });
-    if (!survey)
-      throw new NotFoundException('No active survey found for this building');
+    if (!survey) {
+      return null;
+    }
 
     return {
       id: survey.id,
