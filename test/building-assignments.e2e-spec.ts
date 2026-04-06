@@ -2075,6 +2075,68 @@ describe('Building Assignments (e2e)', () => {
       expect(rejected.body.data.status).toBe('REJECTED');
     });
 
+    it('accepts a legacy unscoped pending assignment by binding it to the single planned survey', async () => {
+      const legacyInspector = await createInspector(
+        'legacy.planned.accept@test.com',
+        'LegacyPlannedAccept1234!',
+      );
+      const seeded = await seedCompletedSurveyTemplate(
+        'Legacy Planned Acceptance Building',
+      );
+
+      const plannedSurvey = await request(app.getHttpServer())
+        .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(201);
+      const plannedSurveyRecord = await prisma.survey.findUniqueOrThrow({
+        where: { id: plannedSurvey.body.data.id },
+        select: { createdAt: true },
+      });
+
+      const stalePending = await prisma.buildingAssignment.create({
+        data: {
+          orgId: seeds.org.id,
+          buildingId: seeded.buildingId,
+          surveyId: null,
+          inspectorId: legacyInspector.id,
+          assignedById: seeds.admin.id,
+          status: 'PENDING',
+          assignedAt: new Date(
+            plannedSurveyRecord.createdAt.getTime() + 60_000,
+          ),
+        },
+      });
+
+      const listing = await request(app.getHttpServer())
+        .get('/v1/me/building-assignments')
+        .set('Authorization', `Bearer ${legacyInspector.token}`)
+        .expect(200);
+
+      expect(listing.body.data.pending).toHaveLength(1);
+      expect(listing.body.data.pending[0].id).toBe(stalePending.id);
+      expect(listing.body.data.pending[0].surveyId).toBe(plannedSurvey.body.data.id);
+      expect(listing.body.data.pending[0].surveyVersion).toBe(
+        plannedSurvey.body.data.version,
+      );
+      expect(listing.body.data.pending[0].surveyStatus).toBe('PLANNED');
+
+      const accepted = await request(app.getHttpServer())
+        .post(`/v1/building-assignments/${stalePending.id}/respond`)
+        .set('Authorization', `Bearer ${legacyInspector.token}`)
+        .send({ status: 'ACCEPTED' })
+        .expect(201);
+
+      expect(accepted.body.data.status).toBe('ACCEPTED');
+      expect(accepted.body.data.surveyId).toBe(plannedSurvey.body.data.id);
+      expect(accepted.body.data.surveyVersion).toBe(plannedSurvey.body.data.version);
+
+      const stored = await prisma.buildingAssignment.findUniqueOrThrow({
+        where: { id: stalePending.id },
+      });
+      expect(stored.surveyId).toBe(plannedSurvey.body.data.id);
+    });
+
     it('enforces conflict scoping between legacy and survey-linked assignment creation', async () => {
       const otherInspector = await createInspector(
         'conflict.scope@test.com',

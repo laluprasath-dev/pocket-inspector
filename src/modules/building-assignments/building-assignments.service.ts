@@ -590,8 +590,12 @@ export class BuildingAssignmentsService {
       );
     }
 
+    let resolvedSurveyId: string | null = null;
     if (dto.status === BuildingAssignmentStatus.ACCEPTED) {
-      await this.assertAssignmentCanBeAccepted(assignment, orgId);
+      resolvedSurveyId = await this.assertAssignmentCanBeAccepted(
+        assignment,
+        orgId,
+      );
     }
 
     const now = new Date();
@@ -599,6 +603,9 @@ export class BuildingAssignmentsService {
       const nextAssignment = await tx.buildingAssignment.update({
         where: { id: assignment.id },
         data: {
+          ...(resolvedSurveyId && assignment.surveyId == null
+            ? { surveyId: resolvedSurveyId }
+            : {}),
           status: dto.status,
           inspectorNote: dto.inspectorNote,
           respondedAt: now,
@@ -615,7 +622,7 @@ export class BuildingAssignmentsService {
       await this.createEventTx(tx, {
         orgId,
         buildingId: assignment.buildingId,
-        surveyId: assignment.surveyId ?? undefined,
+        surveyId: resolvedSurveyId ?? assignment.surveyId ?? undefined,
         assignmentId: assignment.id,
         groupId: assignment.groupId ?? undefined,
         inspectorId,
@@ -732,13 +739,37 @@ export class BuildingAssignmentsService {
       orderBy: [{ status: 'asc' }, { assignedAt: 'desc' }],
     });
 
+    const compatibleSurveyByAssignmentId = new Map<
+      string,
+      Awaited<ReturnType<typeof this.findCompatibleLegacyAssignmentSurvey>>
+    >();
+    for (const assignment of assignments) {
+      if (assignment.surveyId != null) continue;
+      compatibleSurveyByAssignmentId.set(
+        assignment.id,
+        await this.findCompatibleLegacyAssignmentSurvey(assignment, orgId),
+      );
+    }
+
     return {
       pending: assignments
         .filter((assignment) => assignment.status === BuildingAssignmentStatus.PENDING)
-        .map((assignment) => this.serializeAssignment(assignment, false)),
+        .map((assignment) =>
+          this.serializeAssignment(
+            assignment,
+            false,
+            compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
+          ),
+        ),
       accepted: assignments
         .filter((assignment) => assignment.status === BuildingAssignmentStatus.ACCEPTED)
-        .map((assignment) => this.serializeAssignment(assignment, true)),
+        .map((assignment) =>
+          this.serializeAssignment(
+            assignment,
+            true,
+            compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
+          ),
+        ),
     };
   }
 
@@ -1813,7 +1844,15 @@ export class BuildingAssignmentsService {
         throw new BadRequestException(staleMessage);
       }
 
-      return;
+      return survey.id;
+    }
+
+    const compatibleLegacySurvey = await this.findCompatibleLegacyAssignmentSurvey(
+      assignment,
+      orgId,
+    );
+    if (compatibleLegacySurvey) {
+      return compatibleLegacySurvey.id;
     }
 
     const activeSurvey = await this.prisma.survey.findFirst({
@@ -1839,7 +1878,7 @@ export class BuildingAssignmentsService {
 
       // Legacy flow allows acceptance before the first survey row exists.
       if (surveyHistoryCount === 0) {
-        return;
+        return null;
       }
 
       throw new BadRequestException(staleMessage);
@@ -1851,6 +1890,8 @@ export class BuildingAssignmentsService {
     if (assignment.assignedAt < cycleBoundary) {
       throw new BadRequestException(staleMessage);
     }
+
+    return null;
   }
 
   private async ensureWorkflowStateTx(
@@ -1925,8 +1966,24 @@ export class BuildingAssignmentsService {
     );
   }
 
-  private serializeAssignment(assignment: AssignmentRecord, includeWorkflow: boolean) {
-    const surveyContext = this.resolveAssignmentSurveyContext(assignment);
+  private serializeAssignment(
+    assignment: AssignmentRecord,
+    includeWorkflow: boolean,
+    compatibleSurvey:
+      | {
+          id: string;
+          version: number;
+          status: SurveyStatus;
+          executionStatus: SurveyExecutionStatus;
+          scheduledStartAt: Date | null;
+          activatedAt: Date | null;
+        }
+      | null = null,
+  ) {
+    const surveyContext = this.resolveAssignmentSurveyContext(
+      assignment,
+      compatibleSurvey,
+    );
 
     return {
       id: assignment.id,
@@ -2031,10 +2088,22 @@ export class BuildingAssignmentsService {
     };
   }
 
-  private resolveAssignmentSurveyContext(assignment: AssignmentRecord) {
+  private resolveAssignmentSurveyContext(
+    assignment: AssignmentRecord,
+    compatibleSurvey:
+      | {
+          id: string;
+          version: number;
+          status: SurveyStatus;
+          executionStatus: SurveyExecutionStatus;
+          scheduledStartAt: Date | null;
+          activatedAt: Date | null;
+        }
+      | null = null,
+  ) {
     const fallbackActiveSurvey =
       assignment.surveyId === null ? (assignment.building.surveys[0] ?? null) : null;
-    const survey = assignment.survey ?? fallbackActiveSurvey;
+    const survey = assignment.survey ?? compatibleSurvey ?? fallbackActiveSurvey;
 
     return {
       id: assignment.surveyId ?? survey?.id ?? null,
@@ -2043,6 +2112,59 @@ export class BuildingAssignmentsService {
       executionStatus: survey?.executionStatus ?? null,
       scheduledStartAt: survey?.scheduledStartAt ?? null,
       activatedAt: survey?.activatedAt ?? null,
+    };
+  }
+
+  private async findCompatibleLegacyAssignmentSurvey(
+    assignment: Pick<BuildingAssignment, 'buildingId' | 'surveyId' | 'assignedAt'>,
+    orgId: string,
+  ) {
+    if (assignment.surveyId) {
+      return null;
+    }
+
+    const openSurveys = await this.prisma.survey.findMany({
+      where: {
+        orgId,
+        buildingId: assignment.buildingId,
+        status: {
+          in: [SurveyStatus.ACTIVE, SurveyStatus.PLANNED],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: {
+        id: true,
+        version: true,
+        status: true,
+        executionStatus: true,
+        scheduledStartAt: true,
+        activatedAt: true,
+        createdAt: true,
+      },
+    });
+
+    if (openSurveys.length !== 1) {
+      return null;
+    }
+
+    const [survey] = openSurveys;
+    const cycleBoundary =
+      survey.status === SurveyStatus.ACTIVE
+        ? (survey.activatedAt ?? survey.createdAt)
+        : survey.createdAt;
+
+    if (assignment.assignedAt < cycleBoundary) {
+      return null;
+    }
+
+    return {
+      id: survey.id,
+      version: survey.version,
+      status: survey.status,
+      executionStatus: survey.executionStatus,
+      scheduledStartAt: survey.scheduledStartAt,
+      activatedAt: survey.activatedAt,
     };
   }
 
