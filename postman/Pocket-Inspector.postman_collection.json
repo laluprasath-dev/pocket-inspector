@@ -2830,7 +2830,7 @@
                     "building-assignments"
                   ]
                 },
-                "description": "Mobile inbox view. Pending and accepted buckets remain, and each item now includes survey metadata fields so mobile can distinguish pending invitation vs accepted planned upcoming vs accepted active work."
+                "description": "Mobile inbox view. Response now separates pending, acceptedActive, and acceptedPlanned buckets so mobile can keep planned accepted surveys in a waiting-for-activation state instead of treating them as active work."
               }
             },
             {
@@ -5757,7 +5757,7 @@
                     "building-assignments"
                   ]
                 },
-                "description": "Mobile inbox view. Pending and accepted buckets remain, and each item now includes survey metadata fields so mobile can distinguish pending invitation vs accepted planned upcoming vs accepted active work."
+                "description": "Mobile inbox view. Response now separates pending, acceptedActive, and acceptedPlanned buckets so mobile can keep planned accepted surveys in a waiting-for-activation state instead of treating them as active work."
               }
             },
             {

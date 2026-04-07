@@ -751,25 +751,38 @@ export class BuildingAssignmentsService {
       );
     }
 
+    const pending = assignments
+      .filter((assignment) => assignment.status === BuildingAssignmentStatus.PENDING)
+      .map((assignment) =>
+        this.serializeAssignment(
+          assignment,
+          false,
+          compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
+        ),
+      );
+
+    const accepted = assignments
+      .filter((assignment) => assignment.status === BuildingAssignmentStatus.ACCEPTED)
+      .map((assignment) =>
+        this.serializeAssignment(
+          assignment,
+          true,
+          compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
+        ),
+      );
+
+    const acceptedPlanned = accepted.filter(
+      (assignment) => assignment.surveyStatus === SurveyStatus.PLANNED,
+    );
+    const acceptedActive = accepted.filter(
+      (assignment) => assignment.surveyStatus !== SurveyStatus.PLANNED,
+    );
+
     return {
-      pending: assignments
-        .filter((assignment) => assignment.status === BuildingAssignmentStatus.PENDING)
-        .map((assignment) =>
-          this.serializeAssignment(
-            assignment,
-            false,
-            compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
-          ),
-        ),
-      accepted: assignments
-        .filter((assignment) => assignment.status === BuildingAssignmentStatus.ACCEPTED)
-        .map((assignment) =>
-          this.serializeAssignment(
-            assignment,
-            true,
-            compatibleSurveyByAssignmentId.get(assignment.id) ?? null,
-          ),
-        ),
+      pending,
+      acceptedActive,
+      acceptedPlanned,
+      accepted: acceptedActive,
     };
   }
 

@@ -336,7 +336,8 @@ describe('Building Assignments (e2e)', () => {
 
       expect(myAssignments.body.data.pending).toHaveLength(1);
       expect(myAssignments.body.data.pending[0].workflow).toBeNull();
-      expect(myAssignments.body.data.accepted).toEqual([]);
+      expect(myAssignments.body.data.acceptedActive).toEqual([]);
+      expect(myAssignments.body.data.acceptedPlanned).toEqual([]);
 
       await request(app.getHttpServer())
         .get(`/v1/buildings/${buildingId}`)
@@ -422,8 +423,9 @@ describe('Building Assignments (e2e)', () => {
         .expect(200);
 
       expect(acceptedRes.body.data.pending).toEqual([]);
-      expect(acceptedRes.body.data.accepted).toHaveLength(2);
-      expect(acceptedRes.body.data.accepted[0].group.grouped).toBe(true);
+      expect(acceptedRes.body.data.acceptedActive).toHaveLength(2);
+      expect(acceptedRes.body.data.acceptedPlanned).toEqual([]);
+      expect(acceptedRes.body.data.acceptedActive[0].group.grouped).toBe(true);
     });
   });
 
@@ -1200,7 +1202,8 @@ describe('Building Assignments (e2e)', () => {
         .expect(200);
 
       expect(myAssignments.body.data.pending).toEqual([]);
-      expect(myAssignments.body.data.accepted).toEqual([]);
+      expect(myAssignments.body.data.acceptedActive).toEqual([]);
+      expect(myAssignments.body.data.acceptedPlanned).toEqual([]);
     });
 
     it('confirm-complete with scheduling creates a planned next survey with structure-only door cloning', async () => {
@@ -1472,7 +1475,7 @@ describe('Building Assignments (e2e)', () => {
       );
     });
 
-    it('activation endpoint is admin-only, requires accepted survey-linked assignment, and resets building status on activation', async () => {
+    it('activation endpoint is admin-only, requires accepted survey-linked assignment, and exposes authoritative planned-survey runtime state', async () => {
       const seeded = await seedCompletedSurveyTemplate('Activation Building');
       const startRes = await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
@@ -1480,6 +1483,20 @@ describe('Building Assignments (e2e)', () => {
         .send({ nextScheduledAt: '2027-03-01T09:00:00.000Z' })
         .expect(201);
       const plannedSurveyId = startRes.body.data.id as string;
+
+      const buildingWithPlannedSurvey = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(buildingWithPlannedSurvey.body.data.currentAssignment).toBeNull();
+      expect(buildingWithPlannedSurvey.body.data.plannedSurvey.id).toBe(
+        plannedSurveyId,
+      );
+      expect(buildingWithPlannedSurvey.body.data.plannedSurveyAssignment).toBeNull();
+      expect(buildingWithPlannedSurvey.body.data.nextSurveyFlowState).toBe(
+        'PLANNED_UNASSIGNED',
+      );
 
       await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
@@ -1502,6 +1519,21 @@ describe('Building Assignments (e2e)', () => {
         .expect(201);
       expect(pendingAssignment.body.data.surveyId).toBe(plannedSurveyId);
 
+      const buildingWithPendingInvite = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(
+        buildingWithPendingInvite.body.data.plannedSurveyAssignment.id,
+      ).toBe(pendingAssignment.body.data.id);
+      expect(
+        buildingWithPendingInvite.body.data.plannedSurveyAssignment.status,
+      ).toBe('PENDING');
+      expect(buildingWithPendingInvite.body.data.nextSurveyFlowState).toBe(
+        'PLANNED_PENDING_ACCEPTANCE',
+      );
+
       await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -1512,6 +1544,18 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({ status: 'ACCEPTED' })
         .expect(201);
+
+      const buildingAfterAccept = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(buildingAfterAccept.body.data.plannedSurveyAssignment.status).toBe(
+        'ACCEPTED',
+      );
+      expect(buildingAfterAccept.body.data.nextSurveyFlowState).toBe(
+        'PLANNED_ACCEPTED_WAITING_ACTIVATION',
+      );
 
       const activated = await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
@@ -1536,6 +1580,20 @@ describe('Building Assignments (e2e)', () => {
       expect(buildingAfterActivate.approvedById).toBeNull();
       expect(buildingAfterActivate.certifiedAt).toBeNull();
       expect(buildingAfterActivate.certifiedById).toBeNull();
+
+      const buildingDetailAfterActivate = await request(app.getHttpServer())
+        .get(`/v1/buildings/${seeded.buildingId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(buildingDetailAfterActivate.body.data.currentSurveyId).toBe(
+        plannedSurveyId,
+      );
+      expect(buildingDetailAfterActivate.body.data.plannedSurvey).toBeNull();
+      expect(buildingDetailAfterActivate.body.data.plannedSurveyAssignment).toBeNull();
+      expect(buildingDetailAfterActivate.body.data.nextSurveyFlowState).toBe(
+        'ACTIVE',
+      );
     });
 
     it('planned survey stays non-editable before activation', async () => {
@@ -1593,7 +1651,8 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .expect(200);
       expect(myAssignmentsAfterCompletion.body.data.pending).toEqual([]);
-      expect(myAssignmentsAfterCompletion.body.data.accepted).toEqual([]);
+      expect(myAssignmentsAfterCompletion.body.data.acceptedActive).toEqual([]);
+      expect(myAssignmentsAfterCompletion.body.data.acceptedPlanned).toEqual([]);
 
       const plannedAssignment = await request(app.getHttpServer())
         .post('/v1/building-assignments')
@@ -1628,8 +1687,11 @@ describe('Building Assignments (e2e)', () => {
         .expect(200);
 
       expect(myAssignmentsAfterAccept.body.data.pending).toEqual([]);
-      expect(myAssignmentsAfterAccept.body.data.accepted).toHaveLength(1);
-      expect(myAssignmentsAfterAccept.body.data.accepted[0].surveyId).toBe(
+      expect(myAssignmentsAfterAccept.body.data.acceptedActive).toEqual([]);
+      expect(myAssignmentsAfterAccept.body.data.acceptedPlanned).toHaveLength(1);
+      expect(
+        myAssignmentsAfterAccept.body.data.acceptedPlanned[0].surveyId,
+      ).toBe(
         plannedSurvey.id,
       );
     });
@@ -1710,7 +1772,8 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .expect(200);
       expect(activeAssignments.body.data.pending).toEqual([]);
-      expect(activeAssignments.body.data.accepted).toEqual([]);
+      expect(activeAssignments.body.data.acceptedActive).toEqual([]);
+      expect(activeAssignments.body.data.acceptedPlanned).toEqual([]);
 
       const completedList = await request(app.getHttpServer())
         .get('/v1/me/building-assignments/completed-surveys')
@@ -1845,14 +1908,14 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .expect(200);
 
-      const acceptedPlanned = mineAccepted.body.data.accepted.find(
+      const acceptedPlanned = mineAccepted.body.data.acceptedPlanned.find(
         (item: any) => item.surveyId === plannedSurveyId,
       );
       expect(acceptedPlanned).toBeDefined();
       expect(acceptedPlanned.surveyStatus).toBe('PLANNED');
       expect(acceptedPlanned.surveyExecutionStatus).toBe('IN_PROGRESS');
 
-      const acceptedActive = mineAccepted.body.data.accepted.find(
+      const acceptedActive = mineAccepted.body.data.acceptedActive.find(
         (item: any) => item.building.id === active.buildingId,
       );
       expect(acceptedActive).toBeDefined();
@@ -1860,6 +1923,31 @@ describe('Building Assignments (e2e)', () => {
       expect(acceptedActive.surveyVersion).toBe(activeSurvey.version);
       expect(acceptedActive.surveyStatus).toBe('ACTIVE');
       expect(acceptedActive.surveyExecutionStatus).toBe('IN_PROGRESS');
+
+      const inspectorBuildings = await request(app.getHttpServer())
+        .get('/v1/buildings')
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(200);
+
+      const activeBuildingVisible = inspectorBuildings.body.data.find(
+        (item: any) => item.id === active.buildingId,
+      );
+      const plannedBuildingVisible = inspectorBuildings.body.data.find(
+        (item: any) => item.id === plannedTemplate.buildingId,
+      );
+
+      expect(activeBuildingVisible).toBeDefined();
+      expect(plannedBuildingVisible).toBeUndefined();
+
+      await request(app.getHttpServer())
+        .get(`/v1/buildings/${plannedTemplate.buildingId}`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .get(`/v1/buildings/${plannedTemplate.buildingId}/floors`)
+        .set('Authorization', `Bearer ${inspectorToken}`)
+        .expect(404);
     });
 
     it('includes survey metadata in assignment history responses where survey context exists', async () => {

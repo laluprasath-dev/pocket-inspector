@@ -73,6 +73,8 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 
 7. Photographer accepts planned assignment
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Accept Single Assignment`
+- `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Building Assignments`
+- Verify the item moves from `pending` to `acceptedPlanned` and does not appear as active building work until activation
 
 8. Activate planned survey
 - `📋 Surveys -> Activate Planned Survey (Admin only)`
@@ -106,7 +108,7 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Building Assignments`
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Assignment History`
 - `🖥️ Admin Portal Endpoints -> 🧭 Assignment Workflow -> Admin Assignment History`
-- Confirm survey metadata is present in assignment/history rows where available
+- Confirm survey metadata is present in assignment/history rows where available, and that `My Building Assignments` separates `acceptedActive` from `acceptedPlanned`
 
 ## Survey Lifecycle Requests In Collection
 
@@ -149,6 +151,7 @@ Relevant event types reflected by backend behavior:
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
+- `GET /v1/me/building-assignments` now returns `pending`, `acceptedActive`, and `acceptedPlanned`. Planned accepted work should stay read-only until activation.
 - Use `GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` when mobile wants a pre-submit summary before calling complete-fieldwork.
 - After admin confirms survey completion, the item intentionally disappears from `GET /v1/me/building-assignments`; use `GET /v1/me/building-assignments/completed-surveys` for read-only history.
 - Keep `GET /v1/me/building-assignments/completed-surveys/:surveyId` lightweight; fetch heavy read-only assets lazily from the completed-survey building/door asset endpoints.

@@ -19,7 +19,7 @@ export class MyBuildingAssignmentsController {
   @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary:
-      'List current photographer assignments separated into pending and accepted buckets',
+      'List current photographer assignments separated into pending, acceptedActive, and acceptedPlanned buckets',
   })
   listMine(@CurrentUser() user: User) {
     return this.buildingAssignmentsService.listInspectorAssignments(

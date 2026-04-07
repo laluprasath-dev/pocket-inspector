@@ -23,6 +23,35 @@ import { CreateBuildingDto } from './dto/create-building.dto';
 import { RegisterBuildingCertificateDto } from './dto/register-building-certificate.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
 
+type RuntimeSurveySummary = {
+  id: string;
+  version: number;
+  status: SurveyStatus;
+  executionStatus: SurveyExecutionStatus;
+  scheduledStartAt: Date | null;
+  activatedAt: Date | null;
+};
+
+type RuntimeAssignmentSummary = {
+  id: string;
+  status: BuildingAssignmentStatus;
+  assignedAt: Date;
+  respondedAt: Date | null;
+  inspector: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+};
+
+type NextSurveyFlowState =
+  | 'NONE'
+  | 'PLANNED_UNASSIGNED'
+  | 'PLANNED_PENDING_ACCEPTANCE'
+  | 'PLANNED_ACCEPTED_WAITING_ACTIVATION'
+  | 'ACTIVE';
+
 @Injectable()
 export class BuildingsService {
   constructor(
@@ -77,7 +106,7 @@ export class BuildingsService {
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
-          select: { floors: true },
+          select: { floors: true, surveys: true },
         },
         floors: {
           include: {
@@ -88,7 +117,6 @@ export class BuildingsService {
         assignments: {
           where: { accessEndedAt: null },
           orderBy: { assignedAt: 'desc' },
-          take: 1,
           include: {
             inspector: {
               select: {
@@ -101,9 +129,9 @@ export class BuildingsService {
           },
         },
         surveys: {
-          where: { status: SurveyStatus.ACTIVE },
-          take: 1,
+          orderBy: { version: 'desc' },
           include: {
+            buildingCertificate: { select: { id: true, uploadedAt: true } },
             inspectorCompletedBy: {
               select: {
                 id: true,
@@ -145,30 +173,43 @@ export class BuildingsService {
       },
     });
     return buildings.map((b) => {
-      const noOfFloors = b._count.floors;
-      const noOfDoors = b.floors.reduce((sum, f) => sum + f._count.doors, 0);
-      const currentAssignment = b.assignments[0] ?? null;
-      const activeSurvey = b.surveys[0] ?? null;
+      const activeSurvey =
+        b.surveys.find((survey) => survey.status === SurveyStatus.ACTIVE) ?? null;
+      const plannedSurvey =
+        b.surveys.find((survey) => survey.status === SurveyStatus.PLANNED) ?? null;
+      const latestCompletedSurvey =
+        b.surveys.find((survey) => survey.status === SurveyStatus.COMPLETED) ?? null;
+      const targetSurveyId =
+        activeSurvey?.id ??
+        plannedSurvey?.id ??
+        latestCompletedSurvey?.id ??
+        null;
+      const noOfFloors = b.floors.filter((floor) => floor.surveyId === targetSurveyId)
+        .length;
+      const noOfDoors = b.floors
+        .filter((floor) => floor.surveyId === targetSurveyId)
+        .reduce((sum, f) => sum + f._count.doors, 0);
+      const runtimeState = this.deriveRuntimeState(
+        b.assignments,
+        b.surveys,
+        b._count.surveys > 0,
+      );
       const { _count, floors, assignments, surveys, workflowState, ...rest } = b;
-      void surveys;
       return {
         ...rest,
         noOfFloors,
         noOfDoors,
-        currentAssignment: currentAssignment
-          ? {
-              id: currentAssignment.id,
-              status: currentAssignment.status,
-              assignedAt: currentAssignment.assignedAt,
-              respondedAt: currentAssignment.respondedAt,
-              inspector: {
-                id: currentAssignment.inspector.id,
-                email: currentAssignment.inspector.email,
-                firstName: currentAssignment.inspector.firstName,
-                lastName: currentAssignment.inspector.lastName,
-              },
-            }
-          : null,
+        currentSurveyId: activeSurvey?.id ?? null,
+        currentSurveyVersion: activeSurvey?.version ?? null,
+        activeSurvey: this.serializeSurveySummary(activeSurvey),
+        plannedSurvey: this.serializeSurveySummary(plannedSurvey),
+        currentAssignment: this.serializeAssignmentSummary(
+          runtimeState.currentAssignment,
+        ),
+        plannedSurveyAssignment: this.serializeAssignmentSummary(
+          runtimeState.plannedSurveyAssignment,
+        ),
+        nextSurveyFlowState: runtimeState.nextSurveyFlowState,
         workflowExecution: this.serializeWorkflow(activeSurvey, workflowState),
       };
     });
@@ -179,12 +220,8 @@ export class BuildingsService {
       where: { id, ...this.accessFilter(orgId, userId, role) },
       include: {
         _count: { select: { floors: true } },
-        floors: {
-          include: { _count: { select: { doors: true } } },
-        },
-        client: { select: { id: true, name: true } },
         surveys: {
-          where: { status: SurveyStatus.ACTIVE },
+          orderBy: { version: 'desc' },
           include: {
             buildingCertificate: { select: { id: true, uploadedAt: true } },
             inspectorCompletedBy: {
@@ -204,12 +241,14 @@ export class BuildingsService {
               },
             },
           },
-          take: 1,
         },
+        floors: {
+          include: { _count: { select: { doors: true } } },
+        },
+        client: { select: { id: true, name: true } },
         assignments: {
           where: { accessEndedAt: null },
           orderBy: { assignedAt: 'desc' },
-          take: 1,
           include: {
             inspector: {
               select: {
@@ -245,12 +284,30 @@ export class BuildingsService {
     });
     if (!building) throw new NotFoundException(`Building ${id} not found`);
 
-    const activeSurvey = building.surveys[0] ?? null;
-    const currentAssignment = building.assignments[0] ?? null;
-    const noOfFloors = building._count.floors;
-    const noOfDoors = building.floors.reduce(
-      (sum, f) => sum + f._count.doors,
-      0,
+    const activeSurvey =
+      building.surveys.find((survey) => survey.status === SurveyStatus.ACTIVE) ??
+      null;
+    const plannedSurvey =
+      building.surveys.find((survey) => survey.status === SurveyStatus.PLANNED) ??
+      null;
+    const latestCompletedSurvey =
+      building.surveys.find((survey) => survey.status === SurveyStatus.COMPLETED) ??
+      null;
+    const targetSurveyId =
+      activeSurvey?.id ??
+      plannedSurvey?.id ??
+      latestCompletedSurvey?.id ??
+      null;
+    const noOfFloors = building.floors.filter(
+      (floor) => floor.surveyId === targetSurveyId,
+    ).length;
+    const noOfDoors = building.floors
+      .filter((floor) => floor.surveyId === targetSurveyId)
+      .reduce((sum, f) => sum + f._count.doors, 0);
+    const runtimeState = this.deriveRuntimeState(
+      building.assignments,
+      building.surveys,
+      true,
     );
 
     return {
@@ -273,24 +330,19 @@ export class BuildingsService {
       noOfDoors,
       currentSurveyId: activeSurvey?.id ?? null,
       currentSurveyVersion: activeSurvey?.version ?? null,
+      activeSurvey: this.serializeSurveySummary(activeSurvey),
+      plannedSurvey: this.serializeSurveySummary(plannedSurvey),
+      plannedSurveyAssignment: this.serializeAssignmentSummary(
+        runtimeState.plannedSurveyAssignment,
+      ),
+      nextSurveyFlowState: runtimeState.nextSurveyFlowState,
       certificatePresent:
         activeSurvey?.buildingCertificate !== null && activeSurvey !== null,
       certificateUploadedAt:
         activeSurvey?.buildingCertificate?.uploadedAt ?? null,
-      currentAssignment: currentAssignment
-        ? {
-            id: currentAssignment.id,
-            status: currentAssignment.status,
-            assignedAt: currentAssignment.assignedAt,
-            respondedAt: currentAssignment.respondedAt,
-            inspector: {
-              id: currentAssignment.inspector.id,
-              email: currentAssignment.inspector.email,
-              firstName: currentAssignment.inspector.firstName,
-              lastName: currentAssignment.inspector.lastName,
-            },
-          }
-        : null,
+      currentAssignment: this.serializeAssignmentSummary(
+        runtimeState.currentAssignment,
+      ),
       workflowExecution: this.serializeWorkflow(
         activeSurvey,
         building.workflowState,
@@ -365,20 +417,45 @@ export class BuildingsService {
   ): Promise<Floor[]> {
     await this.findById(buildingId, orgId, userId, role);
 
-    // Find the active survey to filter floors
-    const activeSurvey = await this.prisma.survey.findFirst({
-      where: { buildingId, orgId, status: SurveyStatus.ACTIVE },
+    const surveys = await this.prisma.survey.findMany({
+      where: {
+        buildingId,
+        orgId,
+        status: { in: [SurveyStatus.ACTIVE, SurveyStatus.PLANNED] },
+      },
+      orderBy: { version: 'desc' },
+      select: { id: true, status: true },
     });
 
-    // If no active survey exists yet (building has no survey), return all floors
-    // that have no surveyId (legacy data without survey assignment).
-    // Once a survey exists, only return floors tied to that survey.
-    const where = activeSurvey
-      ? { buildingId, surveyId: activeSurvey.id }
-      : { buildingId, surveyId: null as string | null };
+    const activeSurvey =
+      surveys.find((survey) => survey.status === SurveyStatus.ACTIVE) ?? null;
+    const plannedSurvey =
+      surveys.find((survey) => survey.status === SurveyStatus.PLANNED) ?? null;
+
+    if (activeSurvey) {
+      return this.prisma.floor.findMany({
+        where: { buildingId, surveyId: activeSurvey.id },
+        orderBy: { label: 'asc' },
+      });
+    }
+
+    if (plannedSurvey) {
+      return this.prisma.floor.findMany({
+        where: { buildingId, surveyId: plannedSurvey.id },
+        orderBy: { label: 'asc' },
+      });
+    }
+
+    const surveyCount = await this.prisma.survey.count({
+      where: { buildingId, orgId },
+    });
+
+    if (surveyCount > 0) {
+      return [];
+    }
 
     return this.prisma.floor.findMany({
-      where,
+      where: { buildingId, surveyId: null as string | null },
       orderBy: { label: 'asc' },
     });
   }
@@ -636,13 +713,166 @@ export class BuildingsService {
 
     return {
       orgId,
-      assignments: {
-        some: {
-          inspectorId: userId,
-          status: BuildingAssignmentStatus.ACCEPTED,
-          accessEndedAt: null,
+      OR: [
+        {
+          assignments: {
+            some: {
+              inspectorId: userId,
+              status: BuildingAssignmentStatus.ACCEPTED,
+              accessEndedAt: null,
+              survey: { status: SurveyStatus.ACTIVE },
+            },
+          },
         },
+        {
+          surveys: { some: { status: SurveyStatus.ACTIVE } },
+          assignments: {
+            some: {
+              inspectorId: userId,
+              status: BuildingAssignmentStatus.ACCEPTED,
+              accessEndedAt: null,
+              surveyId: null,
+            },
+          },
+        },
+        {
+          surveys: { none: {} },
+          assignments: {
+            some: {
+              inspectorId: userId,
+              status: BuildingAssignmentStatus.ACCEPTED,
+              accessEndedAt: null,
+              surveyId: null,
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private serializeAssignmentSummary(
+    assignment:
+      | {
+          id: string;
+          status: BuildingAssignmentStatus;
+          assignedAt: Date;
+          respondedAt: Date | null;
+          inspector: {
+            id: string;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+          };
+        }
+      | null
+      | undefined,
+  ) {
+    if (!assignment) return null;
+
+    return {
+      id: assignment.id,
+      status: assignment.status,
+      assignedAt: assignment.assignedAt,
+      respondedAt: assignment.respondedAt,
+      inspector: {
+        id: assignment.inspector.id,
+        email: assignment.inspector.email,
+        firstName: assignment.inspector.firstName,
+        lastName: assignment.inspector.lastName,
       },
+    };
+  }
+
+  private serializeSurveySummary(
+    survey:
+      | {
+          id: string;
+          version: number;
+          status: SurveyStatus;
+          executionStatus: SurveyExecutionStatus;
+          scheduledStartAt: Date | null;
+          activatedAt: Date | null;
+        }
+      | null
+      | undefined,
+  ) {
+    if (!survey) return null;
+
+    return {
+      id: survey.id,
+      version: survey.version,
+      status: survey.status,
+      executionStatus: survey.executionStatus,
+      scheduledStartAt: survey.scheduledStartAt,
+      activatedAt: survey.activatedAt,
+    };
+  }
+
+  private deriveRuntimeState(
+    assignments: Array<{
+      id: string;
+      surveyId: string | null;
+      status: BuildingAssignmentStatus;
+      assignedAt: Date;
+      respondedAt: Date | null;
+      inspector: {
+        id: string;
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+      };
+    }>,
+    surveys: Array<{
+      id: string;
+      version: number;
+      status: SurveyStatus;
+      executionStatus: SurveyExecutionStatus;
+      scheduledStartAt: Date | null;
+      activatedAt: Date | null;
+    }>,
+    hasAnySurvey: boolean,
+  ): {
+    currentAssignment: RuntimeAssignmentSummary | null;
+    plannedSurveyAssignment: RuntimeAssignmentSummary | null;
+    nextSurveyFlowState: NextSurveyFlowState;
+  } {
+    const activeSurvey =
+      surveys.find((survey) => survey.status === SurveyStatus.ACTIVE) ?? null;
+    const plannedSurvey =
+      surveys.find((survey) => survey.status === SurveyStatus.PLANNED) ?? null;
+
+    const plannedSurveyAssignment = plannedSurvey
+      ? (assignments.find((assignment) => assignment.surveyId === plannedSurvey.id) ??
+        null)
+      : null;
+
+    let currentAssignment: RuntimeAssignmentSummary | null = null;
+    if (activeSurvey) {
+      currentAssignment =
+        assignments.find((assignment) => assignment.surveyId === activeSurvey.id) ??
+        assignments.find((assignment) => assignment.surveyId === null) ??
+        null;
+    } else if (!hasAnySurvey) {
+      currentAssignment =
+        assignments.find((assignment) => assignment.surveyId === null) ?? null;
+    }
+
+    const nextSurveyFlowState: NextSurveyFlowState = activeSurvey
+      ? 'ACTIVE'
+      : plannedSurvey == null
+        ? 'NONE'
+        : plannedSurveyAssignment == null
+          ? 'PLANNED_UNASSIGNED'
+          : plannedSurveyAssignment.status === BuildingAssignmentStatus.ACCEPTED
+            ? 'PLANNED_ACCEPTED_WAITING_ACTIVATION'
+            : plannedSurveyAssignment.status === BuildingAssignmentStatus.PENDING
+              ? 'PLANNED_PENDING_ACCEPTANCE'
+              : 'PLANNED_UNASSIGNED';
+
+    return {
+      currentAssignment,
+      plannedSurveyAssignment,
+      nextSurveyFlowState,
     };
   }
 

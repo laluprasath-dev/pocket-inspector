@@ -902,18 +902,57 @@ export class DoorsService {
     if (role === Role.ADMIN) return { floor: { building: { orgId } } };
 
     return {
-      floor: {
-        building: {
-          orgId,
-          assignments: {
-            some: {
-              inspectorId: userId,
-              status: BuildingAssignmentStatus.ACCEPTED,
-              accessEndedAt: null,
+      OR: [
+        {
+          floor: {
+            survey: { status: SurveyStatus.ACTIVE },
+            building: {
+              orgId,
+              assignments: {
+                some: {
+                  inspectorId: userId,
+                  status: BuildingAssignmentStatus.ACCEPTED,
+                  accessEndedAt: null,
+                  survey: { status: SurveyStatus.ACTIVE },
+                },
+              },
             },
           },
         },
-      },
+        {
+          floor: {
+            survey: { status: SurveyStatus.ACTIVE },
+            building: {
+              orgId,
+              assignments: {
+                some: {
+                  inspectorId: userId,
+                  status: BuildingAssignmentStatus.ACCEPTED,
+                  accessEndedAt: null,
+                  surveyId: null,
+                },
+              },
+            },
+          },
+        },
+        {
+          floor: {
+            surveyId: null,
+            building: {
+              orgId,
+              surveys: { none: {} },
+              assignments: {
+                some: {
+                  inspectorId: userId,
+                  status: BuildingAssignmentStatus.ACCEPTED,
+                  accessEndedAt: null,
+                  surveyId: null,
+                },
+              },
+            },
+          },
+        },
+      ],
     };
   }
 }

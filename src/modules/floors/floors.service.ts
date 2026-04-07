@@ -161,16 +161,51 @@ export class FloorsService {
     if (role === Role.ADMIN) return { building: { orgId } };
 
     return {
-      building: {
-        orgId,
-        assignments: {
-          some: {
-            inspectorId: userId,
-            status: BuildingAssignmentStatus.ACCEPTED,
-            accessEndedAt: null,
+      OR: [
+        {
+          survey: { status: SurveyStatus.ACTIVE },
+          building: {
+            orgId,
+            assignments: {
+              some: {
+                inspectorId: userId,
+                status: BuildingAssignmentStatus.ACCEPTED,
+                accessEndedAt: null,
+                survey: { status: SurveyStatus.ACTIVE },
+              },
+            },
           },
         },
-      },
+        {
+          survey: { status: SurveyStatus.ACTIVE },
+          building: {
+            orgId,
+            assignments: {
+              some: {
+                inspectorId: userId,
+                status: BuildingAssignmentStatus.ACCEPTED,
+                accessEndedAt: null,
+                surveyId: null,
+              },
+            },
+          },
+        },
+        {
+          surveyId: null,
+          building: {
+            orgId,
+            surveys: { none: {} },
+            assignments: {
+              some: {
+                inspectorId: userId,
+                status: BuildingAssignmentStatus.ACCEPTED,
+                accessEndedAt: null,
+                surveyId: null,
+              },
+            },
+          },
+        },
+      ],
     };
   }
 }
