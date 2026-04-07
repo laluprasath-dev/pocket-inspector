@@ -88,6 +88,7 @@ What this verifies:
 - floor and door creation
 - door image upload/register
 - single-door submit and bulk `submit-doors`
+- planned `v2` assignment acceptance auto-activates the survey
 - `complete-fieldwork`
 - door and building certificate upload/register
 - survey `confirm-complete` creating planned `v2`

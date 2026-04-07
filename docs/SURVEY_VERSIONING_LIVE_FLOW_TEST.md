@@ -72,7 +72,7 @@ npm run qa:survey-versioning-flow
 
 1. Admin assigns a photographer to the planned survey
 2. Photographer accepts assignment
-3. Admin activates the planned survey
+3. Survey auto-activates immediately on acceptance
 4. Structure cloning is verified:
    - floors copied
    - doors copied
@@ -85,6 +85,10 @@ npm run qa:survey-versioning-flow
 8. Admin uploads fresh `v2` building certificate
 9. Admin confirms `v2` complete
 10. Completed history is verified and active assignment buckets are checked
+
+Important:
+- The normal flow no longer calls `POST /v1/buildings/:buildingId/surveys/:surveyId/activate`
+- If that endpoint returns `400 "Only planned surveys can be activated"` during this test, that is expected once acceptance has already auto-activated the survey
 
 ## Expected Output
 

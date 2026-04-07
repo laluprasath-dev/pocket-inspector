@@ -60,6 +60,13 @@ type AssignmentResponse = {
   };
 };
 
+type AssignmentBuckets = {
+  pending: AssignmentResponse[];
+  acceptedActive: AssignmentResponse[];
+  acceptedPlanned: AssignmentResponse[];
+  accepted: AssignmentResponse[];
+};
+
 type SurveySummary = {
   id: string;
   version: number;
@@ -607,13 +614,14 @@ async function main() {
   );
   assert.equal(assignmentV2.status, 'PENDING');
 
-  const inspector2Pending = await api<{
-    pending: AssignmentResponse[];
-    accepted: AssignmentResponse[];
-  }>('GET', '/v1/me/building-assignments', {
-    token: inspector2Session.accessToken,
-    expectedStatus: 200,
-  });
+  const inspector2Pending = await api<AssignmentBuckets>(
+    'GET',
+    '/v1/me/building-assignments',
+    {
+      token: inspector2Session.accessToken,
+      expectedStatus: 200,
+    },
+  );
   const pendingV2 = inspector2Pending.pending.find(
     (item) => item.id === assignmentV2.id,
   );
@@ -633,17 +641,7 @@ async function main() {
     },
   );
 
-  step('12. activate v2 and verify cloned clean structure');
-  const activatedV2 = await api<SurveySummary>(
-    'POST',
-    `/v1/buildings/${building.id}/surveys/${surveyV2.id}/activate`,
-    {
-      token: adminSession.accessToken,
-      expectedStatus: 200,
-    },
-  );
-  assert.equal(activatedV2.status, 'ACTIVE');
-  assert.equal(activatedV2.version, 2);
+  step('12. verify v2 auto-activated and cloned clean structure');
 
   const currentV2 = await api<SurveySummary | null>(
     'GET',
@@ -653,8 +651,25 @@ async function main() {
       expectedStatus: 200,
     },
   );
-  assert.ok(currentV2, 'current v2 survey should exist after activation');
+  assert.ok(currentV2, 'current v2 survey should exist immediately after acceptance');
   assert.equal(currentV2.id, surveyV2.id);
+  assert.equal(currentV2.status, 'ACTIVE');
+
+  const buildingAfterAccept = await api<{
+    currentSurveyId: string | null;
+    currentSurveyVersion: number | null;
+    activeSurvey: SurveySummary | null;
+    plannedSurvey: SurveySummary | null;
+    nextSurveyFlowState: 'NONE' | 'PLANNED_UNASSIGNED' | 'PLANNED_PENDING_ACCEPTANCE' | 'ACTIVE';
+  }>('GET', `/v1/buildings/${building.id}`, {
+    token: adminSession.accessToken,
+    expectedStatus: 200,
+  });
+  assert.equal(buildingAfterAccept.currentSurveyId, surveyV2.id);
+  assert.equal(buildingAfterAccept.currentSurveyVersion, 2);
+  assert.equal(buildingAfterAccept.activeSurvey?.id, surveyV2.id);
+  assert.equal(buildingAfterAccept.plannedSurvey, null);
+  assert.equal(buildingAfterAccept.nextSurveyFlowState, 'ACTIVE');
 
   const surveyV2Detail = await api<{
     id: string;
@@ -678,16 +693,21 @@ async function main() {
   assert.ok(v2Doors.every((door) => door.certificatePresent === false));
 
   step('13. verify v2 photographer access and upload fresh v2 images');
-  const inspector2Accepted = await api<{
-    pending: AssignmentResponse[];
-    accepted: AssignmentResponse[];
-  }>('GET', '/v1/me/building-assignments', {
-    token: inspector2Session.accessToken,
-    expectedStatus: 200,
-  });
+  const inspector2Accepted = await api<AssignmentBuckets>(
+    'GET',
+    '/v1/me/building-assignments',
+    {
+      token: inspector2Session.accessToken,
+      expectedStatus: 200,
+    },
+  );
   assert.ok(
-    inspector2Accepted.accepted.some((item) => item.id === assignmentV2.id),
-    'v2 assignment missing from accepted bucket',
+    inspector2Accepted.acceptedActive.some((item) => item.id === assignmentV2.id),
+    'v2 assignment missing from acceptedActive bucket',
+  );
+  assert.ok(
+    !inspector2Accepted.acceptedPlanned.some((item) => item.id === assignmentV2.id),
+    'v2 assignment should not remain in acceptedPlanned after acceptance auto-activates the survey',
   );
 
   const activeFloorsV2 = await api<FloorResponse[]>(
@@ -786,17 +806,20 @@ async function main() {
     'v2 survey missing from inspector2 completed list',
   );
 
-  const inspector2ActiveAfter = await api<{
-    pending: AssignmentResponse[];
-    accepted: AssignmentResponse[];
-  }>('GET', '/v1/me/building-assignments', {
-    token: inspector2Session.accessToken,
-    expectedStatus: 200,
-  });
+  const inspector2ActiveAfter = await api<AssignmentBuckets>(
+    'GET',
+    '/v1/me/building-assignments',
+    {
+      token: inspector2Session.accessToken,
+      expectedStatus: 200,
+    },
+  );
   assert.ok(
-    ![...inspector2ActiveAfter.pending, ...inspector2ActiveAfter.accepted].some(
-      (item) => item.building.id === building.id,
-    ),
+    ![
+      ...inspector2ActiveAfter.pending,
+      ...inspector2ActiveAfter.acceptedActive,
+      ...inspector2ActiveAfter.acceptedPlanned,
+    ].some((item) => item.building.id === building.id),
     'test building should not remain in active assignment buckets after v2 completion',
   );
 
