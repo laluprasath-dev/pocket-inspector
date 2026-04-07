@@ -86,7 +86,7 @@ These are the endpoints the admin portal should use for management and lifecycle
 | `POST /building-assignments/buildings/:buildingId/reassign` | Reassign building |
 | `GET /building-assignments/history` | Admin assignment/workflow history |
 | `POST /buildings/:buildingId/surveys/:surveyId/reopen-fieldwork` | Reopen photographer-completed fieldwork |
-| `POST /buildings/:buildingId/surveys/:surveyId/activate` | Activate planned survey |
+| `POST /buildings/:buildingId/surveys/:surveyId/activate` | Legacy fallback only. Planned surveys now auto-activate when the photographer accepts the invitation |
 | `POST /buildings/:buildingId/surveys/confirm-complete` | Confirm survey complete |
 | `POST /buildings/:buildingId/surveys/start-next` | Create next planned survey |
 | `PATCH /buildings/:buildingId/surveys/current/schedule` | Set next survey schedule |
@@ -100,7 +100,7 @@ These are the endpoints the photographer app should use for invitation handling 
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /me/building-assignments` | List pending invitations, accepted active work, and accepted planned surveys waiting for activation |
+| `GET /me/building-assignments` | List pending invitations, accepted active work, and accepted planned invitations not yet accepted |
 | `GET /me/building-assignments/completed-surveys` | List read-only completed surveys previously worked on by the photographer |
 | `GET /me/building-assignments/completed-surveys/:surveyId` | Get lightweight read-only summary for one completed survey previously worked on by the photographer |
 | `GET /me/building-assignments/completed-surveys/:surveyId/building-certificate` | Get the completed survey building certificate download URL |
@@ -124,7 +124,7 @@ These are the endpoints the photographer app should use for invitation handling 
 6. Photographer login: `POST /auth/login`
 7. Photographer checks invitation: `GET /me/building-assignments`
 8. Photographer accepts invitation: `POST /building-assignments/:assignmentId/respond`
-9. If the accepted item is still under `acceptedPlanned`, photographer waits for admin activation; active floor/door work begins only after the survey moves into `acceptedActive`
+9. When the photographer accepts a planned invitation, that survey auto-activates and the item moves into `acceptedActive`
 10. Photographer performs fieldwork: `POST /floors`, `POST /doors`, draft-only image upload/register endpoints, `POST /doors/:id/submit`
 11. If several doors are ready but the whole building is not finished, photographer can bulk-submit selected ready doors with `POST /buildings/:buildingId/surveys/:surveyId/submit-doors`
 12. Photographer can preview readiness with `GET /buildings/:buildingId/surveys/:surveyId/fieldwork-readiness`

@@ -599,8 +599,11 @@ export class BuildingAssignmentsService {
     }
 
     const now = new Date();
+    let activatedSurveyId: string | null = null;
+    let activatedSurveyVersion: number | null = null;
+    let activatedSurveyBuildingName: string | null = null;
     const updated = await this.prisma.$transaction(async (tx) => {
-      const nextAssignment = await tx.buildingAssignment.update({
+      await tx.buildingAssignment.update({
         where: { id: assignment.id },
         data: {
           ...(resolvedSurveyId && assignment.surveyId == null
@@ -612,11 +615,21 @@ export class BuildingAssignmentsService {
           accessEndedAt:
             dto.status === BuildingAssignmentStatus.REJECTED ? now : null,
         },
-        include: ASSIGNMENT_INCLUDE,
       });
 
       if (dto.status === BuildingAssignmentStatus.ACCEPTED) {
         await this.ensureWorkflowStateTx(tx, assignment.buildingId, orgId);
+        const activatedSurvey = await this.activateAcceptedPlannedSurveyTx(tx, {
+          buildingId: assignment.buildingId,
+          surveyId: resolvedSurveyId ?? assignment.surveyId,
+          orgId,
+          inspectorId,
+        });
+        if (activatedSurvey) {
+          activatedSurveyId = activatedSurvey.id;
+          activatedSurveyVersion = activatedSurvey.version;
+          activatedSurveyBuildingName = assignment.building.name;
+        }
       }
 
       await this.createEventTx(tx, {
@@ -636,8 +649,28 @@ export class BuildingAssignmentsService {
           : undefined,
       });
 
-      return nextAssignment;
+      return tx.buildingAssignment.findFirstOrThrow({
+        where: { id: assignment.id },
+        include: ASSIGNMENT_INCLUDE,
+      });
     });
+
+    if (
+      activatedSurveyId &&
+      activatedSurveyVersion != null &&
+      activatedSurveyBuildingName
+    ) {
+      await this.notifications.notifyUsers([inspectorId], {
+        title: 'Survey activated',
+        body: `Survey v${activatedSurveyVersion} is now active and ready for fieldwork at "${activatedSurveyBuildingName}".`,
+        data: {
+          buildingId: assignment.buildingId,
+          surveyId: activatedSurveyId,
+          surveyVersion: String(activatedSurveyVersion),
+          type: 'SURVEY_ACTIVATED',
+        },
+      });
+    }
 
     return this.serializeAssignment(updated, false);
   }
@@ -664,18 +697,34 @@ export class BuildingAssignmentsService {
       throw new NotFoundException('No pending grouped assignments found');
     }
 
+    const resolvedSurveyIds = new Map<string, string | null>();
     if (dto.status === BuildingAssignmentStatus.ACCEPTED) {
       for (const assignment of assignments) {
-        await this.assertAssignmentCanBeAccepted(assignment, orgId);
+        resolvedSurveyIds.set(
+          assignment.id,
+          await this.assertAssignmentCanBeAccepted(assignment, orgId),
+        );
       }
     }
 
     const now = new Date();
+    const activatedSurveyNotifications: Array<{
+      buildingId: string;
+      surveyId: string;
+      surveyVersion: number;
+      buildingName: string;
+    }> = [];
     const updated = await this.prisma.$transaction(async (tx) => {
       for (const assignment of assignments) {
         await tx.buildingAssignment.update({
           where: { id: assignment.id },
           data: {
+            ...(assignment.surveyId == null &&
+            resolvedSurveyIds.get(assignment.id) != null
+              ? {
+                  surveyId: resolvedSurveyIds.get(assignment.id),
+                }
+              : {}),
             status: dto.status,
             inspectorNote: dto.inspectorNote,
             respondedAt: now,
@@ -686,6 +735,20 @@ export class BuildingAssignmentsService {
 
         if (dto.status === BuildingAssignmentStatus.ACCEPTED) {
           await this.ensureWorkflowStateTx(tx, assignment.buildingId, orgId);
+          const activatedSurvey = await this.activateAcceptedPlannedSurveyTx(tx, {
+            buildingId: assignment.buildingId,
+            surveyId: resolvedSurveyIds.get(assignment.id) ?? assignment.surveyId,
+            orgId,
+            inspectorId,
+          });
+          if (activatedSurvey) {
+            activatedSurveyNotifications.push({
+              buildingId: assignment.buildingId,
+              surveyId: activatedSurvey.id,
+              surveyVersion: activatedSurvey.version,
+              buildingName: assignment.building.name,
+            });
+          }
         }
 
         await this.createEventTx(tx, {
@@ -712,6 +775,21 @@ export class BuildingAssignmentsService {
         orderBy: { assignedAt: 'asc' },
       });
     });
+
+    if (dto.status === BuildingAssignmentStatus.ACCEPTED) {
+      for (const notification of activatedSurveyNotifications) {
+        await this.notifications.notifyUsers([inspectorId], {
+          title: 'Survey activated',
+          body: `Survey v${notification.surveyVersion} is now active and ready for fieldwork at "${notification.buildingName}".`,
+          data: {
+            buildingId: notification.buildingId,
+            surveyId: notification.surveyId,
+            surveyVersion: String(notification.surveyVersion),
+            type: 'SURVEY_ACTIVATED',
+          },
+        });
+      }
+    }
 
     return {
       groupId,
@@ -1920,6 +1998,49 @@ export class BuildingAssignmentsService {
         orgId,
       },
     });
+  }
+
+  private async activateAcceptedPlannedSurveyTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      buildingId: string;
+      surveyId: string | null;
+      orgId: string;
+      inspectorId: string;
+    },
+  ) {
+    if (!params.surveyId) {
+      return null;
+    }
+
+    const survey = await tx.survey.findFirst({
+      where: {
+        id: params.surveyId,
+        buildingId: params.buildingId,
+        orgId: params.orgId,
+      },
+      select: {
+        id: true,
+        version: true,
+        status: true,
+      },
+    });
+
+    if (!survey || survey.status !== SurveyStatus.PLANNED) {
+      return null;
+    }
+
+    const activatedSurvey = await this.surveys.activateSurveyOnAcceptance(tx, {
+      buildingId: params.buildingId,
+      surveyId: params.surveyId,
+      orgId: params.orgId,
+      activatedById: params.inspectorId,
+    });
+
+    return {
+      id: activatedSurvey.id,
+      version: activatedSurvey.version,
+    };
   }
 
   private async createEventTx(

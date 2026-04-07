@@ -74,11 +74,11 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 7. Photographer accepts planned assignment
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> Accept Single Assignment`
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Building Assignments`
-- Verify the item moves from `pending` to `acceptedPlanned` and does not appear as active building work until activation
+- Verify the item moves from `pending` to `acceptedActive` immediately because accepting a planned survey now auto-activates it
 
-8. Activate planned survey
+8. Legacy manual activation fallback
 - `📋 Surveys -> Activate Planned Survey (Admin only)`
-- Verify response is `ACTIVE` and `currentSurveyId` updated
+- Only use this for backward compatibility troubleshooting. The normal flow should already be active immediately after photographer acceptance.
 
 9. Photographer marks newly active survey fieldwork complete
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
@@ -151,7 +151,7 @@ Relevant event types reflected by backend behavior:
 - `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
-- `GET /v1/me/building-assignments` now returns `pending`, `acceptedActive`, and `acceptedPlanned`. Planned accepted work should stay read-only until activation.
+- `GET /v1/me/building-assignments` now returns `pending`, `acceptedActive`, and `acceptedPlanned`. Accepting a planned survey should move it directly into `acceptedActive`; `acceptedPlanned` should only contain planned invitations not yet accepted.
 - Use `GET /v1/buildings/:buildingId/surveys/:surveyId/fieldwork-readiness` when mobile wants a pre-submit summary before calling complete-fieldwork.
 - After admin confirms survey completion, the item intentionally disappears from `GET /v1/me/building-assignments`; use `GET /v1/me/building-assignments/completed-surveys` for read-only history.
 - Keep `GET /v1/me/building-assignments/completed-surveys/:surveyId` lightweight; fetch heavy read-only assets lazily from the completed-survey building/door asset endpoints.

@@ -2172,7 +2172,7 @@
               }
             },
             {
-              "name": "Activate Planned Survey (Admin only)",
+              "name": "Activate Planned Survey (Legacy fallback)",
               "event": [
                 {
                   "listen": "test",
@@ -2207,7 +2207,7 @@
                     "activate"
                   ]
                 },
-                "description": "Activate a planned survey version. Requires accepted assignment linked to plannedSurveyId. On success, survey becomes ACTIVE and building status is reset for the new cycle. Emits SURVEY_ACTIVATED payload with buildingId/surveyId/surveyVersion."
+                "description": "Legacy manual activation fallback. Planned surveys now activate automatically when the photographer accepts the invitation. Use this endpoint only for backward-compatibility troubleshooting."
               }
             },
             {
@@ -2830,7 +2830,7 @@
                     "building-assignments"
                   ]
                 },
-                "description": "Mobile inbox view. Response now separates pending, acceptedActive, and acceptedPlanned buckets so mobile can keep planned accepted surveys in a waiting-for-activation state instead of treating them as active work."
+                "description": "Mobile inbox view. Response separates pending, acceptedActive, and acceptedPlanned buckets. Accepting a planned survey auto-activates it, so the accepted item should move directly into acceptedActive. acceptedPlanned should only contain planned invitations that are still awaiting response."
               }
             },
             {
@@ -5757,7 +5757,7 @@
                     "building-assignments"
                   ]
                 },
-                "description": "Mobile inbox view. Response now separates pending, acceptedActive, and acceptedPlanned buckets so mobile can keep planned accepted surveys in a waiting-for-activation state instead of treating them as active work."
+                "description": "Mobile inbox view. Response separates pending, acceptedActive, and acceptedPlanned buckets. Accepting a planned survey auto-activates it, so the accepted item should move directly into acceptedActive. acceptedPlanned should only contain planned invitations that are still awaiting response."
               }
             },
             {
@@ -7463,7 +7463,7 @@
           }
         },
         {
-          "name": "Activate Planned Survey (Admin only)",
+          "name": "Activate Planned Survey (Legacy fallback)",
           "event": [
             {
               "listen": "test",
@@ -7498,7 +7498,7 @@
                 "activate"
               ]
             },
-            "description": "Activate a planned survey version. Requires accepted assignment linked to plannedSurveyId. On success, survey becomes ACTIVE and building status is reset for the new cycle. Emits SURVEY_ACTIVATED payload with buildingId/surveyId/surveyVersion."
+            "description": "Legacy manual activation fallback. Planned surveys now activate automatically when the photographer accepts the invitation. Use this endpoint only for backward-compatibility troubleshooting."
           }
         },
         {

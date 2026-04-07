@@ -789,45 +789,11 @@ export class SurveysService {
     adminId: string,
     orgId: string,
   ) {
-    const survey = await this.prisma.survey.findFirst({
-      where: { id: surveyId, buildingId, orgId },
-      select: {
-        id: true,
-        version: true,
-        status: true,
-        scheduledStartAt: true,
-      },
-    });
-    if (!survey) {
-      throw new NotFoundException(
-        `Survey ${surveyId} not found for this building`,
-      );
-    }
-
-    if (survey.status !== SurveyStatus.PLANNED) {
-      throw new BadRequestException('Only planned surveys can be activated');
-    }
-
-    const activeSurvey = await this.prisma.survey.findFirst({
-      where: {
-        buildingId,
-        orgId,
-        status: SurveyStatus.ACTIVE,
-        NOT: { id: survey.id },
-      },
-      select: { id: true, version: true },
-    });
-    if (activeSurvey) {
-      throw new BadRequestException(
-        `A survey (v${activeSurvey.version}) is already active for this building`,
-      );
-    }
-
     const acceptedAssignment = await this.prisma.buildingAssignment.findFirst({
       where: {
         orgId,
         buildingId,
-        surveyId: survey.id,
+        surveyId,
         status: BuildingAssignmentStatus.ACCEPTED,
         accessEndedAt: null,
       },
@@ -839,44 +805,22 @@ export class SurveysService {
       );
     }
 
-    const now = new Date();
-    const activatedSurvey = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.survey.update({
-        where: { id: survey.id },
-        data: {
-          status: SurveyStatus.ACTIVE,
-          activatedAt: now,
-          activatedById: adminId,
-          startedAt: now,
-          executionStatus: SurveyExecutionStatus.IN_PROGRESS,
-          inspectorCompletedAt: null,
-          inspectorCompletedById: null,
-          reopenedAt: null,
-          reopenedById: null,
-        },
-      });
-
-      await tx.building.update({
-        where: { id: buildingId },
-        data: {
-          status: BuildingStatus.DRAFT,
-          approvedAt: null,
-          approvedById: null,
-          certifiedAt: null,
-          certifiedById: null,
-        },
-      });
-
-      return updated;
-    });
+    const activatedSurvey = await this.prisma.$transaction((tx) =>
+      this.activatePlannedSurveyTx(tx, {
+        buildingId,
+        surveyId,
+        orgId,
+        activatedById: adminId,
+      }),
+    );
 
     await this.notifications.notifyUsers([acceptedAssignment.inspectorId], {
       title: 'Survey activated',
-      body: `Survey v${survey.version} is now active and ready for fieldwork.`,
+      body: `Survey v${activatedSurvey.version} is now active and ready for fieldwork.`,
       data: {
         buildingId,
-        surveyId: survey.id,
-        surveyVersion: String(survey.version),
+        surveyId: activatedSurvey.id,
+        surveyVersion: String(activatedSurvey.version),
         type: 'SURVEY_ACTIVATED',
       },
     });
@@ -891,6 +835,95 @@ export class SurveysService {
       executionStatus: activatedSurvey.executionStatus,
       startedAt: activatedSurvey.startedAt,
     };
+  }
+
+  async activateSurveyOnAcceptance(
+    tx: Prisma.TransactionClient,
+    params: {
+      buildingId: string;
+      surveyId: string;
+      orgId: string;
+      activatedById: string;
+    },
+  ) {
+    return this.activatePlannedSurveyTx(tx, params);
+  }
+
+  private async activatePlannedSurveyTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      buildingId: string;
+      surveyId: string;
+      orgId: string;
+      activatedById: string;
+    },
+  ) {
+    const survey = await tx.survey.findFirst({
+      where: {
+        id: params.surveyId,
+        buildingId: params.buildingId,
+        orgId: params.orgId,
+      },
+      select: {
+        id: true,
+        version: true,
+        status: true,
+        scheduledStartAt: true,
+      },
+    });
+    if (!survey) {
+      throw new NotFoundException(
+        `Survey ${params.surveyId} not found for this building`,
+      );
+    }
+
+    if (survey.status !== SurveyStatus.PLANNED) {
+      throw new BadRequestException('Only planned surveys can be activated');
+    }
+
+    const activeSurvey = await tx.survey.findFirst({
+      where: {
+        buildingId: params.buildingId,
+        orgId: params.orgId,
+        status: SurveyStatus.ACTIVE,
+        NOT: { id: survey.id },
+      },
+      select: { id: true, version: true },
+    });
+    if (activeSurvey) {
+      throw new BadRequestException(
+        `A survey (v${activeSurvey.version}) is already active for this building`,
+      );
+    }
+
+    const now = new Date();
+    const updated = await tx.survey.update({
+      where: { id: survey.id },
+      data: {
+        status: SurveyStatus.ACTIVE,
+        activatedAt: now,
+        activatedById: params.activatedById,
+        startedAt: now,
+        executionStatus: SurveyExecutionStatus.IN_PROGRESS,
+        inspectorCompletedAt: null,
+        inspectorCompletedById: null,
+        reopenedAt: null,
+        reopenedById: null,
+      },
+    });
+
+    await tx.building.update({
+      where: { id: params.buildingId },
+      data: {
+        status: BuildingStatus.DRAFT,
+        approvedAt: null,
+        approvedById: null,
+        certifiedAt: null,
+        certifiedById: null,
+      },
+    });
+
+    return updated;
   }
 
   // ── Confirm survey complete ────────────────────────────────────────────────

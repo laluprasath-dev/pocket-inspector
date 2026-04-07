@@ -49,7 +49,6 @@ type NextSurveyFlowState =
   | 'NONE'
   | 'PLANNED_UNASSIGNED'
   | 'PLANNED_PENDING_ACCEPTANCE'
-  | 'PLANNED_ACCEPTED_WAITING_ACTIVATION'
   | 'ACTIVE';
 
 @Injectable()
@@ -863,9 +862,7 @@ export class BuildingsService {
         ? 'NONE'
         : plannedSurveyAssignment == null
           ? 'PLANNED_UNASSIGNED'
-          : plannedSurveyAssignment.status === BuildingAssignmentStatus.ACCEPTED
-            ? 'PLANNED_ACCEPTED_WAITING_ACTIVATION'
-            : plannedSurveyAssignment.status === BuildingAssignmentStatus.PENDING
+          : plannedSurveyAssignment.status === BuildingAssignmentStatus.PENDING
               ? 'PLANNED_PENDING_ACCEPTANCE'
               : 'PLANNED_UNASSIGNED';
 

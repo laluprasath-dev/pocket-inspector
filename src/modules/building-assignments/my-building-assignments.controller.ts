@@ -19,7 +19,7 @@ export class MyBuildingAssignmentsController {
   @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary:
-      'List current photographer assignments separated into pending, acceptedActive, and acceptedPlanned buckets',
+      'List current photographer assignments separated into pending, acceptedActive, and acceptedPlanned buckets. Accepting a planned survey auto-activates it, so acceptedPlanned should normally contain only unaccepted planned invites still awaiting response.',
   })
   listMine(@CurrentUser() user: User) {
     return this.buildingAssignmentsService.listInspectorAssignments(

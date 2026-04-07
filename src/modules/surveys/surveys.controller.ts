@@ -180,7 +180,8 @@ export class SurveysController {
   @ApiParam({ name: 'surveyId', description: 'Survey ID' })
   @ApiOperation({
     summary:
-      'Activate a planned survey (admin only). Requires an accepted assignment linked to that survey version.',
+      'Activate a planned survey manually (legacy admin-only fallback). Planned surveys now activate automatically when the photographer accepts the invitation.',
+    deprecated: true,
   })
   activateSurvey(
     @Param('buildingId') buildingId: string,

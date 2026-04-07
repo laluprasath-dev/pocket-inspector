@@ -1475,7 +1475,7 @@ describe('Building Assignments (e2e)', () => {
       );
     });
 
-    it('activation endpoint is admin-only, requires accepted survey-linked assignment, and exposes authoritative planned-survey runtime state', async () => {
+    it('accepting a planned survey assignment auto-activates it and exposes authoritative runtime state', async () => {
       const seeded = await seedCompletedSurveyTemplate('Activation Building');
       const startRes = await request(app.getHttpServer())
         .post(`/v1/buildings/${seeded.buildingId}/surveys/start-next`)
@@ -1497,16 +1497,6 @@ describe('Building Assignments (e2e)', () => {
       expect(buildingWithPlannedSurvey.body.data.nextSurveyFlowState).toBe(
         'PLANNED_UNASSIGNED',
       );
-
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(403);
-
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(400);
 
       const pendingAssignment = await request(app.getHttpServer())
         .post('/v1/building-assignments')
@@ -1534,43 +1524,32 @@ describe('Building Assignments (e2e)', () => {
         'PLANNED_PENDING_ACCEPTANCE',
       );
 
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(400);
-
-      await request(app.getHttpServer())
+      const accepted = await request(app.getHttpServer())
         .post(`/v1/building-assignments/${pendingAssignment.body.data.id}/respond`)
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({ status: 'ACCEPTED' })
         .expect(201);
+
+      expect(accepted.body.data.status).toBe('ACCEPTED');
+      expect(accepted.body.data.surveyId).toBe(plannedSurveyId);
+      expect(accepted.body.data.surveyStatus).toBe('ACTIVE');
+      expect(accepted.body.data.activatedAt).toBeTruthy();
 
       const buildingAfterAccept = await request(app.getHttpServer())
         .get(`/v1/buildings/${seeded.buildingId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(buildingAfterAccept.body.data.plannedSurveyAssignment.status).toBe(
-        'ACCEPTED',
-      );
-      expect(buildingAfterAccept.body.data.nextSurveyFlowState).toBe(
-        'PLANNED_ACCEPTED_WAITING_ACTIVATION',
-      );
-
-      const activated = await request(app.getHttpServer())
-        .post(`/v1/buildings/${seeded.buildingId}/surveys/${plannedSurveyId}/activate`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(activated.body.data.status).toBe('ACTIVE');
-      expect(activated.body.data.executionStatus).toBe('IN_PROGRESS');
-      expect(activated.body.data.activatedById).toBe(seeds.admin.id);
-      expect(activated.body.data.activatedAt).toBeTruthy();
+      expect(buildingAfterAccept.body.data.plannedSurvey).toBeNull();
+      expect(buildingAfterAccept.body.data.plannedSurveyAssignment).toBeNull();
+      expect(buildingAfterAccept.body.data.nextSurveyFlowState).toBe('ACTIVE');
 
       const activatedSurvey = await prisma.survey.findUniqueOrThrow({
         where: { id: plannedSurveyId },
       });
       expect(activatedSurvey.status).toBe('ACTIVE');
+      expect(activatedSurvey.activatedById).toBe(seeds.inspector.id);
+      expect(activatedSurvey.activatedAt).toBeTruthy();
 
       const buildingAfterActivate = await prisma.building.findUniqueOrThrow({
         where: { id: seeded.buildingId },
@@ -1625,7 +1604,7 @@ describe('Building Assignments (e2e)', () => {
         .expect(403);
     });
 
-    it('supports same-building survey-linked assignment for planned next version without false conflict', async () => {
+    it('supports same-building survey-linked assignment for planned next version and moves accepted work directly into active bucket', async () => {
       const setup = await setupCompletableActiveSurvey('Same Building Next Version');
       const scheduledAt = '2027-04-20T10:00:00.000Z';
 
@@ -1687,12 +1666,15 @@ describe('Building Assignments (e2e)', () => {
         .expect(200);
 
       expect(myAssignmentsAfterAccept.body.data.pending).toEqual([]);
-      expect(myAssignmentsAfterAccept.body.data.acceptedActive).toEqual([]);
-      expect(myAssignmentsAfterAccept.body.data.acceptedPlanned).toHaveLength(1);
+      expect(myAssignmentsAfterAccept.body.data.acceptedPlanned).toEqual([]);
+      expect(myAssignmentsAfterAccept.body.data.acceptedActive).toHaveLength(1);
       expect(
-        myAssignmentsAfterAccept.body.data.acceptedPlanned[0].surveyId,
+        myAssignmentsAfterAccept.body.data.acceptedActive[0].surveyId,
       ).toBe(
         plannedSurvey.id,
+      );
+      expect(myAssignmentsAfterAccept.body.data.acceptedActive[0].surveyStatus).toBe(
+        'ACTIVE',
       );
     });
   });
@@ -1908,12 +1890,13 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .expect(200);
 
-      const acceptedPlanned = mineAccepted.body.data.acceptedPlanned.find(
+      const acceptedPlanned = mineAccepted.body.data.acceptedActive.find(
         (item: any) => item.surveyId === plannedSurveyId,
       );
       expect(acceptedPlanned).toBeDefined();
-      expect(acceptedPlanned.surveyStatus).toBe('PLANNED');
+      expect(acceptedPlanned.surveyStatus).toBe('ACTIVE');
       expect(acceptedPlanned.surveyExecutionStatus).toBe('IN_PROGRESS');
+      expect(mineAccepted.body.data.acceptedPlanned).toEqual([]);
 
       const acceptedActive = mineAccepted.body.data.acceptedActive.find(
         (item: any) => item.building.id === active.buildingId,
@@ -1937,17 +1920,12 @@ describe('Building Assignments (e2e)', () => {
       );
 
       expect(activeBuildingVisible).toBeDefined();
-      expect(plannedBuildingVisible).toBeUndefined();
-
-      await request(app.getHttpServer())
-        .get(`/v1/buildings/${plannedTemplate.buildingId}`)
-        .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(404);
+      expect(plannedBuildingVisible).toBeDefined();
 
       await request(app.getHttpServer())
         .get(`/v1/buildings/${plannedTemplate.buildingId}/floors`)
         .set('Authorization', `Bearer ${inspectorToken}`)
-        .expect(404);
+        .expect(200);
     });
 
     it('includes survey metadata in assignment history responses where survey context exists', async () => {
@@ -1990,7 +1968,7 @@ describe('Building Assignments (e2e)', () => {
 
       expect(eventWithSurvey).toBeDefined();
       expect(eventWithSurvey.surveyVersion).toBe(plannedSurveyVersion);
-      expect(eventWithSurvey.surveyStatus).toBe('PLANNED');
+      expect(eventWithSurvey.surveyStatus).toBe('ACTIVE');
       expect(eventWithSurvey.surveyExecutionStatus).toBe('IN_PROGRESS');
       expect(eventWithSurvey.scheduledStartAt).toBe(plannedAt);
     });
@@ -2020,11 +1998,6 @@ describe('Building Assignments (e2e)', () => {
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({ status: 'ACCEPTED' })
         .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/v1/buildings/${template.buildingId}/surveys/${plannedSurveyId}/activate`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
 
       const plannedDoor = await prisma.door.findFirstOrThrow({
         where: { floor: { surveyId: plannedSurveyId } },
