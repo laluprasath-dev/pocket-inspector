@@ -106,7 +106,6 @@
 - `POST /v1/buildings/:id/certificate/register`
 - `DELETE /v1/buildings/:id/certificate`
 - `POST /v1/buildings/:buildingId/surveys/:surveyId/reopen-fieldwork`
-- `POST /v1/buildings/:buildingId/surveys/:surveyId/activate`
 - `POST /v1/buildings/:buildingId/surveys/confirm-complete`
 - `POST /v1/buildings/:buildingId/surveys/start-next`
 - `PATCH /v1/buildings/:buildingId/surveys/current/schedule`

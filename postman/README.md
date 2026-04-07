@@ -76,14 +76,10 @@ This checklist validates the corrected repeat-cycle lifecycle end to end.
 - `📱 Photographer Mobile Endpoints -> 🧭 Assignment Inbox -> My Building Assignments`
 - Verify the item moves from `pending` to `acceptedActive` immediately because accepting a planned survey now auto-activates it
 
-8. Legacy manual activation fallback
-- `📋 Surveys -> Activate Planned Survey (Admin only)`
-- Only use this for backward compatibility troubleshooting. The normal flow should already be active immediately after photographer acceptance.
-
-9. Photographer marks newly active survey fieldwork complete
+8. Photographer marks newly active survey fieldwork complete
 - `📱 Photographer Mobile Endpoints -> 📸 Fieldwork & Uploads -> Complete Survey Fieldwork (Photographer)`
 
-10. Certificate upload/register after fieldwork completion
+9. Certificate upload/register after fieldwork completion
 - `🏢 Buildings -> Request Building Certificate Upload URL`
 - `🏢 Buildings -> Register Building Certificate`
 - Confirm gated behavior by running before/after fieldwork completion where needed
@@ -120,7 +116,6 @@ Under `📋 Surveys` or the consumer folders:
 - `Confirm Survey Complete + Schedule Planned Next (Admin only)`
 - `Confirm Survey Complete (Skip Next Scheduling)`
 - `Start Next Survey (Admin only)` (creates `PLANNED`)
-- `Activate Planned Survey (Admin only)`
 - `Complete Survey Fieldwork (Photographer)`
 - `Reopen Survey Fieldwork (Admin)`
 
@@ -148,7 +143,6 @@ Relevant event types reflected by backend behavior:
 - `400` on door image upload/register/delete usually means the door is no longer `DRAFT` and must be reopened first.
 - Reopening a submitted door after fieldwork completion also reopens the active survey back to `IN_PROGRESS`.
 - `400` on door certificate delete or fieldwork reopen can also mean the active survey still has a building certificate; delete that first.
-- `400` on activate usually means no accepted assignment linked to `plannedSurveyId`.
 - `400` on confirm-complete usually means one of: fieldwork incomplete, missing building certificate, uncertified doors.
 - `403/404` on photographer write endpoints usually means assignment is pending/rejected/removed or survey is non-active.
 - `GET /v1/me/building-assignments` now returns `pending`, `acceptedActive`, and `acceptedPlanned`. Accepting a planned survey should move it directly into `acceptedActive`; `acceptedPlanned` should only contain planned invitations not yet accepted.

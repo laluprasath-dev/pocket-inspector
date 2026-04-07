@@ -86,7 +86,6 @@ These are the endpoints the admin portal should use for management and lifecycle
 | `POST /building-assignments/buildings/:buildingId/reassign` | Reassign building |
 | `GET /building-assignments/history` | Admin assignment/workflow history |
 | `POST /buildings/:buildingId/surveys/:surveyId/reopen-fieldwork` | Reopen photographer-completed fieldwork |
-| `POST /buildings/:buildingId/surveys/:surveyId/activate` | Legacy fallback only. Planned surveys now auto-activate when the photographer accepts the invitation |
 | `POST /buildings/:buildingId/surveys/confirm-complete` | Confirm survey complete |
 | `POST /buildings/:buildingId/surveys/start-next` | Create next planned survey |
 | `PATCH /buildings/:buildingId/surveys/current/schedule` | Set next survey schedule |

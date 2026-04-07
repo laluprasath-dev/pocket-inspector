@@ -2172,45 +2172,6 @@
               }
             },
             {
-              "name": "Activate Planned Survey (Legacy fallback)",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const json = pm.response.json();",
-                      "if (pm.response.code === 200) {",
-                      "    pm.test('Planned survey activated', () => pm.expect(json.data.status).to.eql('ACTIVE'));",
-                      "    pm.environment.set('currentSurveyId', json.data.id);",
-                      "    pm.test('Execution reset to IN_PROGRESS', () => pm.expect(json.data.executionStatus).to.eql('IN_PROGRESS'));",
-                      "} else {",
-                      "    console.log('Activation blocked (expected if assignment not yet accepted):', json.message);",
-                      "}"
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "url": {
-                  "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{plannedSurveyId}}/activate",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "v1",
-                    "buildings",
-                    "{{buildingId}}",
-                    "surveys",
-                    "{{plannedSurveyId}}",
-                    "activate"
-                  ]
-                },
-                "description": "Legacy manual activation fallback. Planned surveys now activate automatically when the photographer accepts the invitation. Use this endpoint only for backward-compatibility troubleshooting."
-              }
-            },
-            {
               "name": "Reopen Survey Fieldwork (Admin)",
               "event": [
                 {
@@ -7460,45 +7421,6 @@
               ]
             },
             "description": "Create the next survey cycle as PLANNED (admin only). Clones floors/doors only from last completed survey, does not activate, does not create assignment, and does not reset building status yet. Saves plannedSurveyId."
-          }
-        },
-        {
-          "name": "Activate Planned Survey (Legacy fallback)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const json = pm.response.json();",
-                  "if (pm.response.code === 200) {",
-                  "    pm.test('Planned survey activated', () => pm.expect(json.data.status).to.eql('ACTIVE'));",
-                  "    pm.environment.set('currentSurveyId', json.data.id);",
-                  "    pm.test('Execution reset to IN_PROGRESS', () => pm.expect(json.data.executionStatus).to.eql('IN_PROGRESS'));",
-                  "} else {",
-                  "    console.log('Activation blocked (expected if assignment not yet accepted):', json.message);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "url": {
-              "raw": "{{baseUrl}}/v1/buildings/{{buildingId}}/surveys/{{plannedSurveyId}}/activate",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "v1",
-                "buildings",
-                "{{buildingId}}",
-                "surveys",
-                "{{plannedSurveyId}}",
-                "activate"
-              ]
-            },
-            "description": "Legacy manual activation fallback. Planned surveys now activate automatically when the photographer accepts the invitation. Use this endpoint only for backward-compatibility troubleshooting."
           }
         },
         {

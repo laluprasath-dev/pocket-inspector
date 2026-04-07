@@ -783,60 +783,6 @@ export class SurveysService {
     return this.reopenFieldwork(buildingId, survey.id, adminId, orgId);
   }
 
-  async activateSurvey(
-    buildingId: string,
-    surveyId: string,
-    adminId: string,
-    orgId: string,
-  ) {
-    const acceptedAssignment = await this.prisma.buildingAssignment.findFirst({
-      where: {
-        orgId,
-        buildingId,
-        surveyId,
-        status: BuildingAssignmentStatus.ACCEPTED,
-        accessEndedAt: null,
-      },
-      select: { id: true, inspectorId: true },
-    });
-    if (!acceptedAssignment) {
-      throw new BadRequestException(
-        'An accepted assignment linked to this planned survey is required before activation',
-      );
-    }
-
-    const activatedSurvey = await this.prisma.$transaction((tx) =>
-      this.activatePlannedSurveyTx(tx, {
-        buildingId,
-        surveyId,
-        orgId,
-        activatedById: adminId,
-      }),
-    );
-
-    await this.notifications.notifyUsers([acceptedAssignment.inspectorId], {
-      title: 'Survey activated',
-      body: `Survey v${activatedSurvey.version} is now active and ready for fieldwork.`,
-      data: {
-        buildingId,
-        surveyId: activatedSurvey.id,
-        surveyVersion: String(activatedSurvey.version),
-        type: 'SURVEY_ACTIVATED',
-      },
-    });
-
-    return {
-      id: activatedSurvey.id,
-      version: activatedSurvey.version,
-      status: activatedSurvey.status,
-      scheduledStartAt: activatedSurvey.scheduledStartAt,
-      activatedAt: activatedSurvey.activatedAt,
-      activatedById: activatedSurvey.activatedById,
-      executionStatus: activatedSurvey.executionStatus,
-      startedAt: activatedSurvey.startedAt,
-    };
-  }
-
   async activateSurveyOnAcceptance(
     tx: Prisma.TransactionClient,
     params: {

@@ -249,6 +249,25 @@ describe('Building Assignment Verification (e2e)', () => {
     expect(acceptedHistory.body.data[0].actor.id).toBe(seeds.inspector.id);
   });
 
+  it('removes the legacy manual planned-survey activation endpoint', async () => {
+    const buildingId = await createBuilding('Legacy Activate Removal');
+    const plannedSurvey = await prisma.survey.create({
+      data: {
+        orgId: seeds.org.id,
+        buildingId,
+        version: 2,
+        status: 'PLANNED',
+        createdById: seeds.admin.id,
+      },
+      select: { id: true },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/v1/buildings/${buildingId}/surveys/${plannedSurvey.id}/activate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+  });
+
   it('returns assignment advisory data when a new building is added to an already-used site', async () => {
     const siteId = await createSite('Advisory Site');
     const existingBuildingId = await createBuilding('Existing Building', siteId);

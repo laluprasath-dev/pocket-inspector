@@ -173,29 +173,6 @@ export class SurveysController {
     );
   }
 
-  @Post(':surveyId/activate')
-  @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiParam({ name: 'buildingId', description: 'Building ID' })
-  @ApiParam({ name: 'surveyId', description: 'Survey ID' })
-  @ApiOperation({
-    summary:
-      'Activate a planned survey manually (legacy admin-only fallback). Planned surveys now activate automatically when the photographer accepts the invitation.',
-    deprecated: true,
-  })
-  activateSurvey(
-    @Param('buildingId') buildingId: string,
-    @Param('surveyId') surveyId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.surveysService.activateSurvey(
-      buildingId,
-      surveyId,
-      user.id,
-      user.orgId,
-    );
-  }
-
   // ── Survey lifecycle ───────────────────────────────────────────────────────
 
   @Post('confirm-complete')
